@@ -28,6 +28,7 @@ $filter = @(
     'FullyQualifiedName~MinecraftServiceExceptionTest'
     'FullyQualifiedName~HostConnectionHandlerTest'
     'FullyQualifiedName~ProfileManagementTest'
+    'FullyQualifiedName~UpdatePageStateTest'
     'FullyQualifiedName~EncryptHelperKeyTest'
     'FullyQualifiedName~LocalizationTest.LanguageDictionariesShouldNotContainDuplicateKeys'
     'FullyQualifiedName~LocalizationTest.LanguageKeysShouldUseDotNaming'
@@ -69,8 +70,8 @@ try {
         }
         [xml]$report = Get-Content -LiteralPath $trxPath -Raw
         $counters = $report.TestRun.ResultSummary.Counters
-        if ([int]$counters.passed -lt 63 -or [int]$counters.failed -gt 0 -or [int]$counters.notExecuted -gt 0) {
-            throw "Expected at least 63 passing regressions with no failed or skipped cases; passed=$($counters.passed), failed=$($counters.failed), skipped=$($counters.notExecuted)."
+        if ([int]$counters.passed -lt 64 -or [int]$counters.failed -gt 0 -or [int]$counters.notExecuted -gt 0) {
+            throw "Expected at least 64 passing regressions with no failed or skipped cases; passed=$($counters.passed), failed=$($counters.failed), skipped=$($counters.notExecuted)."
         }
     }
 } catch {

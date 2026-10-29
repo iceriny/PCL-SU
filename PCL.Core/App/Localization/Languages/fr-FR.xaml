@@ -439,4 +439,15 @@
     <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicyInfo">Découvrez comment le service de salon configuré traite vos informations personnelles.</sys:String>
     <sys:String x:Key="Setup.Ui.Theme.Color.MistRose">Rose brume</sys:String>
     <sys:String x:Key="Launch.Account.Microsoft.Error.AppRegistrationRejected">Les services Minecraft n'ont pas accepté l'enregistrement de l'application de ce lanceur. Vérifiez le résultat de l'examen de l'AppID.</sys:String>
+    <sys:String x:Key="Setup.Update.Changelog.Empty">Aucun résumé des modifications n’est disponible pour cette version.</sys:String>
+    <sys:String x:Key="Setup.Update.CurrentVersion">Version actuelle : PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.TargetVersion">Version cible : PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.TargetVersionPending">Recherche de la version cible</sys:String>
+    <sys:String x:Key="Setup.Update.Available">Une mise à jour est disponible</sys:String>
+    <sys:String x:Key="Setup.Update.Preparing">Préparation…</sys:String>
+    <sys:String x:Key="Setup.Update.Downloading">Téléchargement de la mise à jour</sys:String>
+    <sys:String x:Key="Setup.Update.Ready">Mise à jour téléchargée. Redémarrez pour l’installer.</sys:String>
+    <sys:String x:Key="Setup.Update.DownloadFailed">La mise à jour a échoué. Réessayez.</sys:String>
+    <sys:String x:Key="Setup.Update.Cancelled">Mise à jour annulée. Vous pouvez la télécharger à nouveau.</sys:String>
+    <sys:String x:Key="Setup.Update.Retry">Réessayer</sys:String>
 </ResourceDictionary>

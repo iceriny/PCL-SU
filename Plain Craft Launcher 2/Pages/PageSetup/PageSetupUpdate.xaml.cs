@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using PCL.Core.App;
 using PCL.Core.Utils;
 using PCL.Core.App.Localization;
@@ -10,158 +11,268 @@ namespace PCL;
 
 public partial class PageSetupUpdate
 {
-    public VersionDataModel updateInfo;
+    public VersionDataModel? updateInfo;
+    private readonly DispatcherTimer _progressTimer;
+    private volatile bool _pageActive;
+    private bool _syncingSettings;
+    private bool _isChecking;
+    private bool _checkInFlight;
+    private bool _checkQueued;
+    private bool _hasCheckResult;
+    private int _checkGeneration;
+    private int _inFlightGeneration;
+    private UpdateStatus _checkStatus = UpdateStatus.Checking;
+    private VersionDataModel? _displayedTarget;
+    private bool _ignoreInactiveState;
+    private VersionDataModel? _ignoredTarget;
+    private Exception? _ignoredError;
+    private ModLoader.LoaderBase? _ignoredLoader;
 
     public PageSetupUpdate()
     {
         InitializeComponent();
-        Loaded += (_, _) => Init();
+        _progressTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _progressTimer.Tick += (_, _) => RefreshUpdateState();
+        Loaded += (_, _) => ActivatePage();
+        PageEnter += ActivatePage;
+        PageExit += SuspendPage;
+        Unloaded += (_, _) => SuspendPage();
     }
 
-    private void Init()
+    private void ActivatePage()
     {
+        if (_pageActive)
+        {
+            RefreshUpdateState();
+            return;
+        }
+        _pageActive = true;
+        _syncingSettings = true;
         ModAnimation.AniBeginControl();
-        ComboSystemUpdateChannel.SelectedIndex = (int)Config.Update.UpdateChannel;
-        ComboSystemUpdateMode.SelectedIndex = (int)Config.Update.UpdateMode;
-
-        TextCurrentVersion.Text = "PCL SU " + VersionNameFormat(ModBase.versionBaseName);
-        ModAnimation.AniEndControl();
-        CheckUpdate();
-    }
-
-    private async Task<UpdateStatus> IsLatestAsync()
-    {
         try
         {
-            if (await UpdateManager.remoteServer.IsLatestAsync(
-                    UpdateManager.IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable,
-                    SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64,
-                    SemVer.Parse(ModBase.versionBaseName),
-                    ModBase.versionCode))
-            {
-                ModBase.Log("[Update] 已是最新版本");
-                return UpdateStatus.Latest;
-            }
+            ComboSystemUpdateChannel.SelectedIndex = (int)Config.Update.UpdateChannel;
+            ComboSystemUpdateMode.SelectedIndex = (int)Config.Update.UpdateMode;
+        }
+        finally
+        {
+            ModAnimation.AniEndControl();
+            _syncingSettings = false;
+        }
+        TextCurrentVersion.Text = Lang.Text("Setup.Update.CurrentVersion", VersionNameFormat(ModBase.versionBaseName));
+        CardCheck.Visibility = Visibility.Visible;
+        _progressTimer.Start();
+        if (!RenderSharedUpdate())
+            _ = CheckUpdateAsync(false);
+    }
 
-            ModBase.Log("[Update] 有可用的新版本");
-            return UpdateStatus.Available;
+    private void SuspendPage()
+    {
+        _pageActive = false;
+        _progressTimer.Stop();
+        InvalidateCheck();
+    }
+
+    private void InvalidateCheck()
+    {
+        _checkGeneration++;
+        _isChecking = false;
+        _checkQueued = false;
+    }
+
+    private static bool SharedUpdateIsBusy => UpdateManager.IsPreparingUpdate || UpdateManager.isUpdateWaitingRestart ||
+        UpdateManager.updateLoader?.State == ModBase.LoadState.Loading;
+
+    public void CheckUpdate() => _ = CheckUpdateAsync(true);
+
+    private async Task CheckUpdateAsync(bool explicitRequest)
+    {
+        if (!_pageActive) return;
+        if (SharedUpdateIsBusy)
+        {
+            RefreshUpdateState();
+            return;
+        }
+        if (explicitRequest)
+        {
+            _ignoreInactiveState = true;
+            _ignoredTarget = UpdateManager.ActiveUpdateVersion;
+            _ignoredError = UpdateManager.LastUpdateError;
+            _ignoredLoader = UpdateManager.updateLoader;
+        }
+        if (RenderSharedUpdate()) return;
+        if (_checkInFlight)
+        {
+            if (_inFlightGeneration != _checkGeneration)
+            {
+                _checkQueued = true;
+                _isChecking = true;
+                RefreshUpdateState();
+            }
+            return;
+        }
+
+        var generation = ++_checkGeneration;
+        _inFlightGeneration = generation;
+        _checkInFlight = true;
+        _checkQueued = false;
+        _isChecking = true;
+        var channel = UpdateManager.IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable;
+        var architecture = SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64;
+        RefreshUpdateState();
+        ModBase.Log("[Update] 开始检查更新");
+        try
+        {
+            var latest = await UpdateManager.remoteServer.IsLatestAsync(channel, architecture,
+                SemVer.Parse(ModBase.versionBaseName), ModBase.versionCode);
+            if (!CanApplyCheck(generation)) return;
+            var version = latest ? null : await Task.Run(() => UpdateManager.remoteServer.GetLatestVersion(channel, architecture));
+            if (!CanApplyCheck(generation)) return;
+            if (!latest && version is null)
+                throw new InvalidOperationException(Lang.Text("Update.Error.UnableToGetUpdate"));
+            SetTargetVersion(version);
+            _checkStatus = latest ? UpdateStatus.Latest : UpdateStatus.Available;
+            _hasCheckResult = true;
         }
         catch (Exception ex)
         {
-            ModBase.Log(
-                ex,
-                Lang.Text("Setup.Update.Error.NetworkFailed"),
-                ModBase.LogLevel.Hint,
+            if (!CanApplyCheck(generation)) return;
+            _checkStatus = UpdateStatus.Error;
+            _hasCheckResult = true;
+            ModBase.Log(ex, "[Update] 检查更新失败", ModBase.LogLevel.Hint,
                 userSummary: Lang.Text("Setup.Update.Error.NetworkFailed"));
-            return UpdateStatus.Error;
+        }
+        finally
+        {
+            _checkInFlight = false;
+            if (generation == _checkGeneration) _isChecking = false;
+            if (_pageActive)
+            {
+                if (_checkQueued)
+                {
+                    _checkQueued = false;
+                    _isChecking = false;
+                    _ = CheckUpdateAsync(false);
+                }
+                else RefreshUpdateState();
+            }
         }
     }
 
-    public async void CheckUpdate()
+    private bool CanApplyCheck(int generation)
+        => _pageActive && generation == _checkGeneration && !RenderSharedUpdate();
+
+    internal void RefreshUpdateState()
     {
-        ModBase.Log("[Update] 开始检查更新");
-        updateInfo = null;
-        CardUpdate.Visibility = Visibility.Collapsed;
+        if (!_pageActive) return;
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(new Action(RefreshUpdateState));
+            return;
+        }
+        if (!_pageActive || RenderSharedUpdate()) return;
+        if (!_hasCheckResult && !_isChecking && !_checkInFlight)
+        {
+            _ = CheckUpdateAsync(false);
+            return;
+        }
         CardCheck.Visibility = Visibility.Visible;
-        TextCurrentDesc.Text = Lang.Text("Setup.Update.Checking");
-        BtnCheckAgain.IsEnabled = false;
-        switch (await IsLatestAsync())
-        {
-            case UpdateStatus.Available:
+        ComboSystemUpdateChannel.IsEnabled = true;
+        BtnCheckAgain.IsEnabled = !_isChecking;
+        TextCurrentDesc.Text = _isChecking || !_hasCheckResult ? Lang.Text("Setup.Update.Checking") :
+            Lang.Text(_checkStatus switch
             {
-                Exception checkUpdateEx = null;
-                try
-                {
-                    updateInfo = await Task.Run(() => UpdateManager.remoteServer.GetLatestVersion(
-                        UpdateManager.IsCurrentVersionBeta
-                            ? UpdateChannel.beta
-                            : UpdateChannel.stable, SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64));
-                    if (updateInfo is null)
-                        throw new InvalidOperationException(Lang.Text("Update.Error.UnableToGetUpdate"));
-                    TextUpdateName.Text = "PCL SU " + VersionNameFormat(updateInfo.VersionName);
-                    var summary = updateInfo.Changelog.Between("<summary>", "</summary>");
-                    if (!updateInfo.Changelog.Contains("<summary>") || string.IsNullOrWhiteSpace(summary.Trim()))
-                        TextChangelog.Text = Lang.Text("Setup.Update.Changelog.Empty");
-                    else
-                        TextChangelog.Text = summary;
-                }
-                catch (Exception ex)
-                {
-                    updateInfo = null;
-                    checkUpdateEx = ex;
-                }
-
-                BtnCheckAgain.IsEnabled = true;
-                if (updateInfo is null)
-                {
-                    TextCurrentDesc.Text = Lang.Text("Setup.Update.CheckFailed");
-                    if (checkUpdateEx is not null)
-                        ModBase.Log(
-                            checkUpdateEx,
-                            "[Update] 检查更新失败",
-                            ModBase.LogLevel.Msgbox,
-                            userSummary: Lang.Text("Update.Check.Failed"));
-                    else
-                        ModBase.Log(
-                            "[Update] 检查更新失败",
-                            ModBase.LogLevel.Msgbox,
-                            userSummary: Lang.Text("Update.Check.Failed"));
-                    return;
-                }
-
-                if (UpdateManager.updateLoader is not null && UpdateManager.updateLoader.State == ModBase.LoadState.Loading)
-                {
-                    ModBase.RunInNewThread(BtnUpdate_Timer, "Update Progress");
-                    BtnUpdate.IsEnabled = false;
-                }
-                else if (UpdateManager.isUpdateWaitingRestart)
-                {
-                    BtnUpdate.Text = Lang.Text("Setup.Update.RestartInstall");
-                    BtnUpdate.IsEnabled = true;
-                }
-                else
-                {
-                    BtnUpdate.Text = Lang.Text("Setup.Update.Install");
-                    BtnUpdate.IsEnabled = true;
-                }
-
-                CardUpdate.Visibility = Visibility.Visible;
-                CardCheck.Visibility = Visibility.Collapsed;
-                break;
-            }
-            case UpdateStatus.Latest:
-            {
-                CardUpdate.Visibility = Visibility.Collapsed;
-                CardCheck.Visibility = Visibility.Visible;
-                BtnCheckAgain.IsEnabled = true;
-                TextCurrentDesc.Text = Lang.Text("Setup.Update.Latest");
-                break;
-            }
-            case UpdateStatus.Error:
-            {
-                CardUpdate.Visibility = Visibility.Collapsed;
-                CardCheck.Visibility = Visibility.Visible;
-                BtnCheckAgain.IsEnabled = true;
-                TextCurrentDesc.Text = Lang.Text("Setup.Update.CheckFailed");
-                break;
-            }
-        }
+                UpdateStatus.Available => "Setup.Update.Available",
+                UpdateStatus.Error => "Setup.Update.CheckFailed",
+                _ => "Setup.Update.Latest"
+            });
+        CardUpdate.Visibility = updateInfo is null ? Visibility.Collapsed : Visibility.Visible;
+        BtnUpdate.Text = Lang.Text("Setup.Update.Install");
+        BtnUpdate.IsEnabled = updateInfo is not null && !_isChecking;
+        TextUpdateDesc.Text = Lang.Text("Setup.Update.Available");
     }
 
-    public void BtnUpdate_Timer()
+    private bool RenderSharedUpdate()
     {
-        while (UpdateManager.updateLoader is not null && UpdateManager.updateLoader.State == ModBase.LoadState.Loading)
+        var target = UpdateManager.ActiveUpdateVersion;
+        var loader = UpdateManager.updateLoader;
+        var error = UpdateManager.LastUpdateError;
+        var preparing = UpdateManager.IsPreparingUpdate;
+        var downloading = loader?.State == ModBase.LoadState.Loading;
+        var waiting = UpdateManager.isUpdateWaitingRestart;
+        var cancelled = loader?.State == ModBase.LoadState.Aborted;
+        var failed = error is not null || loader?.State == ModBase.LoadState.Failed;
+        if (!preparing && !downloading && !waiting && !cancelled && !failed) return false;
+        if (!preparing && !downloading && !waiting && _ignoreInactiveState &&
+            ReferenceEquals(target, _ignoredTarget) && ReferenceEquals(error, _ignoredError) && ReferenceEquals(loader, _ignoredLoader))
+            return false;
+        if (preparing || downloading || waiting) _ignoreInactiveState = false;
+        if (_isChecking || _checkQueued) InvalidateCheck();
+        SetTargetVersion(target);
+        CardCheck.Visibility = Visibility.Visible;
+        CardUpdate.Visibility = Visibility.Visible;
+        ComboSystemUpdateChannel.IsEnabled = !preparing && !downloading && !waiting;
+        BtnCheckAgain.IsEnabled = !preparing && !downloading && !waiting;
+        BtnUpdate.IsEnabled = !preparing && !downloading;
+        TextCurrentDesc.Text = Lang.Text("Setup.Update.Available");
+        if (waiting)
         {
-            ModBase.RunInUi(() => BtnUpdate.Text = Lang.Number(UpdateManager.updateLoader.Progress, "P2"));
-            Thread.Sleep(200);
+            TextUpdateDesc.Text = Lang.Text("Setup.Update.Ready");
+            BtnUpdate.Text = Lang.Text("Setup.Update.RestartInstall");
         }
+        else if (preparing)
+        {
+            TextUpdateDesc.Text = Lang.Text("Setup.Update.Preparing");
+            BtnUpdate.Text = Lang.Text("Setup.Update.Preparing");
+        }
+        else if (downloading)
+        {
+            TextUpdateDesc.Text = Lang.Text("Setup.Update.Downloading");
+            BtnUpdate.Text = Lang.Number(loader!.Progress, "P2");
+        }
+        else
+        {
+            TextUpdateDesc.Text = Lang.Text(cancelled ? "Setup.Update.Cancelled" : "Setup.Update.DownloadFailed");
+            BtnUpdate.Text = Lang.Text("Setup.Update.Retry");
+        }
+        return true;
+    }
+
+    private void SetTargetVersion(VersionDataModel? target)
+    {
+        updateInfo = target;
+        BtnChangelogDetail.IsEnabled = target is not null;
+        if (target is null)
+        {
+            _displayedTarget = null;
+            TextUpdateName.Text = Lang.Text("Setup.Update.TargetVersionPending");
+            TextChangelog.Text = Lang.Text("Setup.Update.Changelog.Empty");
+            return;
+        }
+        if (ReferenceEquals(_displayedTarget, target)) return;
+        _displayedTarget = target;
+        TextUpdateName.Text = Lang.Text("Setup.Update.TargetVersion", VersionNameFormat(target.VersionName));
+        var changelog = target.Changelog ?? "";
+        var summary = changelog.Contains("<summary>") && changelog.Contains("</summary>")
+            ? changelog.Between("<summary>", "</summary>").Trim() : "";
+        TextChangelog.Text = string.IsNullOrWhiteSpace(summary) ? Lang.Text("Setup.Update.Changelog.Empty") : summary;
     }
 
     private void BtnUpdate_Click(object sender, MouseButtonEventArgs e)
     {
-        if (UpdateManager.isUpdateWaitingRestart) UpdateManager.UpdateRestart(true);
-        // 开始更新流程
-        UpdateManager.UpdateStart(UpdateEnums.UpdateType.UpdateNow);
+        if (UpdateManager.isUpdateWaitingRestart)
+        {
+            UpdateManager.UpdateRestart(true);
+            return;
+        }
+        if (SharedUpdateIsBusy) return;
+        InvalidateCheck();
+        _ignoreInactiveState = false;
+        UpdateManager.UpdateStart(UpdateEnums.UpdateType.UpdateNow, targetVersion: updateInfo);
+        RefreshUpdateState();
     }
 
     private void BtnChangelogDetail_Click(object sender, EventArgs e)
@@ -174,14 +285,20 @@ public partial class PageSetupUpdate
 
     private void ComboSystemUpdateMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (!ModAnimation.AniExitsAnyControl())
+        if (!_syncingSettings && !ModAnimation.AniExitsAnyControl())
             Config.Update.UpdateMode = (LauncherAutoUpdateBehavior)ComboSystemUpdateMode.SelectedIndex;
     }
 
     private void ComboSystemUpdateBranch_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ModAnimation.AniExitsAnyControl())
+        if (_syncingSettings || ModAnimation.AniExitsAnyControl())
             return;
+        if (SharedUpdateIsBusy)
+        {
+            RestoreConfiguredChannel();
+            RefreshUpdateState();
+            return;
+        }
 
         var isCancelled = false;
         switch (ComboSystemUpdateChannel.SelectedIndex)
@@ -228,14 +345,25 @@ public partial class PageSetupUpdate
 
         if (isCancelled)
         {
-            ModAnimation.AniBeginControl();
-            ComboSystemUpdateChannel.SelectedItem = e.RemovedItems[0];
-            ModAnimation.AniEndControl();
+            RestoreConfiguredChannel();
         }
         else
         {
             Config.Update.UpdateChannel = (Core.App.UpdateChannel)ComboSystemUpdateChannel.SelectedIndex;
+            InvalidateCheck();
             CheckUpdate();
+        }
+    }
+
+    private void RestoreConfiguredChannel()
+    {
+        _syncingSettings = true;
+        ModAnimation.AniBeginControl();
+        try { ComboSystemUpdateChannel.SelectedIndex = (int)Config.Update.UpdateChannel; }
+        finally
+        {
+            ModAnimation.AniEndControl();
+            _syncingSettings = false;
         }
     }
 
@@ -246,7 +374,7 @@ public partial class PageSetupUpdate
 
     public string VersionNameFormat(string str)
     {
-        str = str.Replace("v", "");
+        str = str.TrimStart('v', 'V');
         if (!str.Contains("-"))
             return str;
         var add = str.AfterLast("-");

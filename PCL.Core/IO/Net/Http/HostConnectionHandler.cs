@@ -174,7 +174,7 @@ public class HostConnectionHandler
         }
         catch (Exception ex)
         {
-            LogWrapper.Error(ex, ModuleName, $"All connection attempts failed for {host}");
+            LogWrapper.Debug(ex, ModuleName, $"All connection attempts failed for {host}");
             throw new HttpRequestException(HttpRequestError.ConnectionError, $"Connection failed for {host}", ex);
         }
         finally

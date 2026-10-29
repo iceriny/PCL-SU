@@ -3213,7 +3213,7 @@
 
     <!-- Setup.Update -->
 
-    <sys:String x:Key="Setup.Update.Changelog.Empty">开发者似乎忘记提供更新摘要了...也许你可以点击下方看看完整更新日志？</sys:String>
+    <sys:String x:Key="Setup.Update.Changelog.Empty">此版本暂无更新摘要。</sys:String>
     <sys:String x:Key="Setup.Update.Changelog.MoreInfo">有关此更新的更多信息...</sys:String>
     <sys:String x:Key="Setup.Update.Changelog.Placeholder">PCL SU 2.14.0 带来了让人眼前一亮的新设计和 Pigeon 智能的多项功能，同时还带来了令人愉快的跨实例工作方式，助你提高工作效率。</sys:String>
     <sys:String x:Key="Setup.Update.Changelog.Title">关于此更新</sys:String>
@@ -3614,4 +3614,14 @@
     <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicy">大厅服务隐私政策</sys:String>
     <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicyInfo">了解所配置的大厅服务如何处理你的个人信息。</sys:String>
     <sys:String x:Key="Launch.Account.Microsoft.Error.AppRegistrationRejected">Minecraft 服务未接受此启动器的应用注册。请核对 AppID 审核结果。</sys:String>
+    <sys:String x:Key="Setup.Update.CurrentVersion">当前版本：PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.TargetVersion">目标版本：PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.TargetVersionPending">正在获取目标版本</sys:String>
+    <sys:String x:Key="Setup.Update.Available">发现可用更新</sys:String>
+    <sys:String x:Key="Setup.Update.Preparing">准备更新中</sys:String>
+    <sys:String x:Key="Setup.Update.Downloading">正在下载更新</sys:String>
+    <sys:String x:Key="Setup.Update.Ready">更新已下载，重启后安装</sys:String>
+    <sys:String x:Key="Setup.Update.DownloadFailed">更新失败，请重试</sys:String>
+    <sys:String x:Key="Setup.Update.Cancelled">更新已取消，可重新下载</sys:String>
+    <sys:String x:Key="Setup.Update.Retry">重试下载</sys:String>
 </ResourceDictionary>

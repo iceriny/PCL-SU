@@ -29,4 +29,15 @@
     <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicyInfo">設定されたロビーサービスによる個人情報の取り扱いについて。</sys:String>
     <sys:String x:Key="Setup.Ui.Theme.Color.MistRose">ミストローズ</sys:String>
     <sys:String x:Key="Launch.Account.Microsoft.Error.AppRegistrationRejected">Minecraft サービスがこのランチャーのアプリ登録を受け付けませんでした。AppID の審査結果を確認してください。</sys:String>
+    <sys:String x:Key="Setup.Update.Changelog.Empty">このバージョンの更新概要はありません。</sys:String>
+    <sys:String x:Key="Setup.Update.CurrentVersion">現在のバージョン：PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.TargetVersion">更新先のバージョン：PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.TargetVersionPending">更新先のバージョンを取得中</sys:String>
+    <sys:String x:Key="Setup.Update.Available">更新があります</sys:String>
+    <sys:String x:Key="Setup.Update.Preparing">更新を準備中</sys:String>
+    <sys:String x:Key="Setup.Update.Downloading">更新をダウンロード中</sys:String>
+    <sys:String x:Key="Setup.Update.Ready">ダウンロード済みです。再起動してインストールします。</sys:String>
+    <sys:String x:Key="Setup.Update.DownloadFailed">更新に失敗しました。再試行してください。</sys:String>
+    <sys:String x:Key="Setup.Update.Cancelled">更新をキャンセルしました。再ダウンロードできます。</sys:String>
+    <sys:String x:Key="Setup.Update.Retry">再試行</sys:String>
 </ResourceDictionary>

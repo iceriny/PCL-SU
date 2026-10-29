@@ -3151,7 +3151,7 @@
 
     <!-- Setup.Update -->
 
-    <sys:String x:Key="Setup.Update.Changelog.Empty">The developers seem to have forgotten to provide an update summary... Maybe click below to view the full changelog?</sys:String>
+    <sys:String x:Key="Setup.Update.Changelog.Empty">No update summary is available for this version.</sys:String>
     <sys:String x:Key="Setup.Update.Changelog.MoreInfo">More information about this update...</sys:String>
     <sys:String x:Key="Setup.Update.Changelog.Placeholder">PCL SU 2.14.0 brings a refreshing new design, several Pigeon smart features, and a delightful cross-instance workflow to boost your productivity.</sys:String>
     <sys:String x:Key="Setup.Update.Changelog.Title">About this update</sys:String>
@@ -3553,4 +3553,14 @@
     <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicy">Lobby service privacy policy</sys:String>
     <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicyInfo">Learn how the configured lobby service handles your personal information.</sys:String>
     <sys:String x:Key="Launch.Account.Microsoft.Error.AppRegistrationRejected">Minecraft Services did not accept this launcher's application registration. Check the AppID review result.</sys:String>
+    <sys:String x:Key="Setup.Update.CurrentVersion">Current version: PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.TargetVersion">Target version: PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.TargetVersionPending">Retrieving target version</sys:String>
+    <sys:String x:Key="Setup.Update.Available">An update is available</sys:String>
+    <sys:String x:Key="Setup.Update.Preparing">Preparing…</sys:String>
+    <sys:String x:Key="Setup.Update.Downloading">Downloading update</sys:String>
+    <sys:String x:Key="Setup.Update.Ready">Update downloaded. Restart to install.</sys:String>
+    <sys:String x:Key="Setup.Update.DownloadFailed">The update failed. Try again.</sys:String>
+    <sys:String x:Key="Setup.Update.Cancelled">Update cancelled. You can download it again.</sys:String>
+    <sys:String x:Key="Setup.Update.Retry">Retry</sys:String>
 </ResourceDictionary>

@@ -11,6 +11,13 @@ namespace PCL;
 public static class UpdateManager
 {
     public static bool isUpdateWaitingRestart;
+    private static int _isPreparingUpdate;
+    private static VersionDataModel? _activeUpdateVersion;
+    private static Exception? _lastUpdateError;
+
+    internal static bool IsPreparingUpdate => Volatile.Read(ref _isPreparingUpdate) != 0;
+    internal static VersionDataModel? ActiveUpdateVersion => Volatile.Read(ref _activeUpdateVersion);
+    internal static Exception? LastUpdateError => Volatile.Read(ref _lastUpdateError) ?? updateLoader?.Error;
 
     public static UpdatesWrapperModel remoteServer = new(new List<IUpdateSource>
     {
@@ -64,24 +71,39 @@ public static class UpdateManager
     
     public static ModLoader.LoaderCombo<JsonObject> updateLoader;
 
-    public static void UpdateStart(UpdateEnums.UpdateType type, string receivedKey = null, bool forceValidated = false)
+    public static void UpdateStart(UpdateEnums.UpdateType type, string receivedKey = null, bool forceValidated = false,
+        VersionDataModel? targetVersion = null)
     {
+        if (isUpdateWaitingRestart)
+        {
+            if (type == UpdateEnums.UpdateType.UpdateNow) UpdateRestart(true);
+            return;
+        }
+        if (updateLoader?.State == ModBase.LoadState.Loading ||
+            Interlocked.CompareExchange(ref _isPreparingUpdate, 1, 0) != 0)
+            return;
+
+        Volatile.Write(ref _lastUpdateError, null);
+        Volatile.Write(ref _activeUpdateVersion, targetVersion);
+        updateLoader = null;
+        var channel = IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable;
+        var architecture = SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64;
         var dlTargetPath = ModBase.exePath + @"PCL\Plain Craft Launcher SU.exe";
         ModBase.RunInNewThread(() =>
         {
             try
             {
-                var version = remoteServer.GetLatestVersion(
-                    IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable,
-                    SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64
-                );
+                var version = targetVersion ?? remoteServer.GetLatestVersion(channel, architecture);
 
                 if (version is null)
                     return;
                 ModBase.WriteFile($"{ModBase.pathTemp}SUUpdateLog.md", version.Changelog);
                 ModBase.Log($"[Update] 远程最新版本: {version.VersionName}, 当前版本: {ModBase.versionBaseName}");
                 if (!(SemVer.Parse(version.VersionName) > SemVer.Parse(ModBase.versionBaseName)))
+                {
+                    Volatile.Write(ref _activeUpdateVersion, null);
                     return;
+                }
                 if (type == UpdateEnums.UpdateType.PromptOnly)
                 {
                     ModBase.RunInUi(() =>
@@ -98,11 +120,12 @@ public static class UpdateManager
                     // 构造步骤加载器
                 }
 
+                Volatile.Write(ref _activeUpdateVersion, version);
+
                 var loaders = new List<ModLoader.LoaderBase>();
                 // 下载
                 loaders.AddRange(remoteServer.GetDownloadLoader(
-                    IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable,
-                    SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64, dlTargetPath));
+                    channel, architecture, dlTargetPath));
                 loaders.Add(new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.Check"), _ =>
                 {
                     var curHash = ModBase.GetFileSHA256(dlTargetPath);
@@ -110,7 +133,11 @@ public static class UpdateManager
                         throw new Exception(Lang.Text("Update.Error.Sha256Mismatch", version.Sha256, curHash));
                 }));
                 if (type == UpdateEnums.UpdateType.UpdateNow)
-                    loaders.Add(new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.Install"), _ => UpdateRestart(true)));
+                    loaders.Add(new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.Install"), _ =>
+                    {
+                        isUpdateWaitingRestart = true;
+                        UpdateRestart(true);
+                    }));
                 else if (type == UpdateEnums.UpdateType.Silent)
                     loaders.Add(new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.Prepare"), _ => isUpdateWaitingRestart = true));
                 else if (type == UpdateEnums.UpdateType.DownloadAndPrompt)
@@ -131,11 +158,7 @@ public static class UpdateManager
                 loaders.Add(new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.RefreshSettings"), _ =>
                 {
                     if (ModMain.frmSetupUpdate is not null)
-                        ModBase.RunInUi(() =>
-                        {
-                            ModMain.frmSetupUpdate.BtnUpdate.Text = Lang.Text("Update.Task.RestartInstall");
-                            ModMain.frmSetupUpdate.BtnUpdate.IsEnabled = true;
-                        });
+                        ModBase.RunInUi(() => ModMain.frmSetupUpdate.RefreshUpdateState());
                 })
                 {
                     show = false
@@ -152,9 +175,14 @@ public static class UpdateManager
             }
             catch (Exception ex)
             {
+                Volatile.Write(ref _lastUpdateError, ex);
                 ModBase.Log(ex, "[Update] 获取启动器更新失败");
                 if (type != UpdateEnums.UpdateType.Silent)
                     HintService.Hint(Lang.Text("Update.Error.FetchFailed"), HintType.Error);
+            }
+            finally
+            {
+                Volatile.Write(ref _isPreparingUpdate, 0);
             }
         });
     }

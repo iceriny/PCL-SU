@@ -47,45 +47,7 @@
                     </Grid>
                 </StackPanel>
             </local:MyCard>
-            <local:MyCard x:Name="CardUpdate" Margin="0,15">
-                <StackPanel Margin="20,20,20,20">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="50" />
-                            <ColumnDefinition Width="10" />
-                            <ColumnDefinition Width="1*" />
-                            <ColumnDefinition Width="85" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="29" />
-                            <RowDefinition Height="1" />
-                            <RowDefinition Height="20" />
-                            <RowDefinition Height="8" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="10" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <local:MyImage x:Name="ImgUpdateIcon" Source="pack://application:,,,/Images/icon.png"
-                                       Grid.Column="0" Grid.Row="0" Grid.RowSpan="3" Height="50" Width="50"
-                                       HorizontalAlignment="Left" VerticalAlignment="Center" />
-                        <TextBlock x:Name="TextUpdateName" Text="PCL SU" FontWeight="Bold" FontSize="20"
-                                   Grid.Row="0" Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Bottom" />
-                        <TextBlock x:Name="TextUpdateDesc" Text="iceriny/PCL-SU" FontSize="14" Grid.Row="2"
-                                   Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Top" />
-                        <local:MyButton x:Name="BtnUpdate" Text="{DynamicResource Setup.Update.Install}" ColorType="Highlight" Grid.Row="0"
-                                        Grid.RowSpan="2" Grid.Column="3" HorizontalAlignment="Center"
-                                        VerticalAlignment="Center" Width="85" Height="30"
-                                        Click="BtnUpdate_Click" />
-                        <TextBlock x:Name="TextChangelog"
-                                    Text="{DynamicResource Setup.Update.Changelog.Placeholder}"
-                                   Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="4" TextWrapping="Wrap" />
-                        <local:MyTextButton x:Name="BtnChangelogDetail" Text="{DynamicResource Setup.Update.Changelog.MoreInfo}" FontWeight="Thin"
-                                            Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="4" HorizontalAlignment="Left"
-                                            VerticalAlignment="Center" Click="BtnChangelogDetail_Click" />
-                    </Grid>
-                </StackPanel>
-            </local:MyCard>
-            <local:MyCard x:Name="CardCheck" Margin="0,15" Visibility="Collapsed">
+            <local:MyCard x:Name="CardCheck" Margin="0,15,0,0">
                 <StackPanel Margin="20,20,20,20">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -97,23 +59,61 @@
                             <ColumnDefinition Width="100" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="29" />
+                            <RowDefinition Height="Auto" MinHeight="29" />
                             <RowDefinition Height="1" />
-                            <RowDefinition Height="20" />
+                            <RowDefinition Height="Auto" MinHeight="20" />
                         </Grid.RowDefinitions>
                         <Image Source="pack://application:,,,/Images/icon.png" Grid.Column="0" Grid.Row="0"
                                Grid.RowSpan="3" Height="50" Width="50" HorizontalAlignment="Left"
                                VerticalAlignment="Center" />
-                        <TextBlock x:Name="TextCurrentVersion" Text="PCL SU" FontWeight="Bold" FontSize="20"
+                        <TextBlock x:Name="TextCurrentVersion" Text="PCL SU" FontWeight="Bold" FontSize="20" TextWrapping="Wrap"
                                    Grid.Row="0" Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Bottom" />
-                        <TextBlock x:Name="TextCurrentDesc" Text="{DynamicResource Setup.Update.Latest}" FontSize="14" Grid.Row="2" Grid.Column="2"
-                                   HorizontalAlignment="Left" VerticalAlignment="Top" />
+                        <TextBlock x:Name="TextCurrentDesc" Text="{DynamicResource Setup.Update.Checking}" FontSize="14" Grid.Row="2" Grid.Column="2"
+                                   TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top" />
                         <local:MyButton x:Name="BtnCheckAgain" Text="{DynamicResource Setup.Update.CheckAgain}" ColorType="Highlight" Grid.Row="0"
                                         Grid.RowSpan="2" Grid.Column="3" HorizontalAlignment="Stretch"
                                         VerticalAlignment="Stretch" Click="BtnCheckAgain_OnClick" />
                         <local:MyButton x:Name="BtnChangelog" Text="{DynamicResource Setup.Update.Changelog.View}" ColorType="Normal" Grid.Row="0"
                                         Grid.RowSpan="2" Grid.Column="5" HorizontalAlignment="Stretch"
                                         VerticalAlignment="Stretch" Click="BtnChangelog_Click" />
+                    </Grid>
+                </StackPanel>
+            </local:MyCard>
+            <local:MyCard x:Name="CardUpdate" Margin="0,15" Visibility="Collapsed">
+                <StackPanel Margin="20,20,20,20">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="50" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="1*" />
+                            <ColumnDefinition Width="85" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" MinHeight="29" />
+                            <RowDefinition Height="1" />
+                            <RowDefinition Height="Auto" MinHeight="20" />
+                            <RowDefinition Height="8" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <local:MyImage x:Name="ImgUpdateIcon" Source="pack://application:,,,/Images/icon.png"
+                                       Grid.Column="0" Grid.Row="0" Grid.RowSpan="3" Height="50" Width="50"
+                                       HorizontalAlignment="Left" VerticalAlignment="Center" />
+                        <TextBlock x:Name="TextUpdateName" Text="{DynamicResource Setup.Update.TargetVersionPending}" FontWeight="Bold" FontSize="20" TextWrapping="Wrap"
+                                   Grid.Row="0" Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Bottom" />
+                        <TextBlock x:Name="TextUpdateDesc" Text="{DynamicResource Setup.Update.Available}" FontSize="14" TextWrapping="Wrap" Grid.Row="2"
+                                   Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                        <local:MyButton x:Name="BtnUpdate" Text="{DynamicResource Setup.Update.Install}" ColorType="Highlight" Grid.Row="0"
+                                        Grid.RowSpan="2" Grid.Column="3" HorizontalAlignment="Center"
+                                        VerticalAlignment="Center" Width="85" Height="30"
+                                        Click="BtnUpdate_Click" />
+                        <TextBlock x:Name="TextChangelog"
+                                    Text="{DynamicResource Setup.Update.Changelog.Empty}"
+                                   Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="4" TextWrapping="Wrap" />
+                        <local:MyTextButton x:Name="BtnChangelogDetail" Text="{DynamicResource Setup.Update.Changelog.MoreInfo}" FontWeight="Thin"
+                                            Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="4" HorizontalAlignment="Left"
+                                            VerticalAlignment="Center" Click="BtnChangelogDetail_Click" />
                     </Grid>
                 </StackPanel>
             </local:MyCard>

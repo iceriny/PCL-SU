@@ -1892,7 +1892,7 @@ public static class ModDownload
             {
                 DlSourceLoader(loader,
                     new List<KeyValuePair<ModLoader.LoaderTask<int, DlLabyModListResult>, int>>
-                        { new(dlLabyModListOfficialLoader, 30), new(dlLabyModListOfficialLoader, 60) },
+                        { new(dlLabyModListOfficialLoader, 60) },
                     loader.isForceRestarting);
                 break;
             }
@@ -1900,7 +1900,7 @@ public static class ModDownload
             {
                 DlSourceLoader(loader,
                     new List<KeyValuePair<ModLoader.LoaderTask<int, DlLabyModListResult>, int>>
-                        { new(dlLabyModListOfficialLoader, 5), new(dlLabyModListOfficialLoader, 35) },
+                        { new(dlLabyModListOfficialLoader, 35) },
                     loader.isForceRestarting);
                 break;
             }
@@ -1909,7 +1909,7 @@ public static class ModDownload
             {
                 DlSourceLoader(loader,
                     new List<KeyValuePair<ModLoader.LoaderTask<int, DlLabyModListResult>, int>>
-                        { new(dlLabyModListOfficialLoader, 60), new(dlLabyModListOfficialLoader, 60) },
+                        { new(dlLabyModListOfficialLoader, 60) },
                     loader.isForceRestarting);
                 break;
             }

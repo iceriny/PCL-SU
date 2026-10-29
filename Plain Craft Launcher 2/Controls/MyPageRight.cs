@@ -564,9 +564,7 @@ public class MyPageRight : AdornerDecorator
             foreach (var Control in GetAllAnimControls(Element, true))
             {
                 // 还原被隐藏的卡片的消失动画
-                Control.IsHitTestVisible = true;
-                if (Control.RenderTransform is TranslateTransform)
-                    Control.RenderTransform = null;
+                RestoreAnimationState(Control);
             }
 
             foreach (var Control in GetAllAnimControls(Element))
@@ -600,6 +598,14 @@ public class MyPageRight : AdornerDecorator
         // 结束
         aniList.Add(ModAnimation.AaCode(() => PageOnEnterAnimationFinished(), after: true));
         ModAnimation.AniStart(aniList, "PageRight PageChange " + pageUuid, true);
+    }
+
+    internal static void RestoreAnimationState(FrameworkElement control)
+    {
+        control.IsHitTestVisible = true;
+        control.Opacity = 1d;
+        if (control.RenderTransform is TranslateTransform)
+            control.RenderTransform = null;
     }
 
     // 逐个退出动画
