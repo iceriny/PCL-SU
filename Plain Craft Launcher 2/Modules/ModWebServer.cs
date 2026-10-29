@@ -167,7 +167,7 @@ public static class ModWebServer
                 }
                 catch (Exception ex)
                 {
-                    _status = OAuthCompleteStatus.Failed("回调参数解析出错", ex);
+                    _status = OAuthCompleteStatus.Failed(Lang.Text("Launch.Account.Auth.OAuth.CallbackParseFailed"), ex);
                     return redirect;
                 }
 
@@ -184,7 +184,7 @@ public static class ModWebServer
                 }
                 catch (Exception ex)
                 {
-                    _status = OAuthCompleteStatus.Failed("读取回调内容出错", ex);
+                    _status = OAuthCompleteStatus.Failed(Lang.Text("Launch.Account.Auth.OAuth.CallbackReadFailed"), ex);
                     return redirect;
                 }
 
@@ -213,7 +213,7 @@ public static class ModWebServer
             }
             catch (Exception ex)
             {
-                _status = OAuthCompleteStatus.Failed("处理回调出错", ex);
+                _status = OAuthCompleteStatus.Failed(Lang.Text("Launch.Account.Auth.OAuth.CallbackHandleFailed"), ex);
             }
 
             return HttpRouteResponse.Json(_status).AsTask();
@@ -349,7 +349,7 @@ public static class ModWebServer
                 if (resultEx is null)
                     status = OAuthCompleteStatus.Complete(NatayarkProfileManager.NaidProfile.Username);
                 else
-                    status = OAuthCompleteStatus.Failed("获取用户信息失败，请尝试重新登录", resultEx);
+                    status = OAuthCompleteStatus.Failed(Lang.Text("Launch.Account.Auth.OAuth.ProfileFetchFailed"), resultEx);
                 completeCallback?.Invoke();
                 return status;
             });

@@ -29,6 +29,7 @@ $filter = @(
     'FullyQualifiedName~HostConnectionHandlerTest'
     'FullyQualifiedName~ProfileManagementTest'
     'FullyQualifiedName~UpdatePageStateTest'
+    'FullyQualifiedName~PCL.Core.Test.Validate.'
     'FullyQualifiedName~EncryptHelperKeyTest'
     'FullyQualifiedName~LocalizationTest.LanguageDictionariesShouldNotContainDuplicateKeys'
     'FullyQualifiedName~LocalizationTest.LanguageKeysShouldUseDotNaming'
