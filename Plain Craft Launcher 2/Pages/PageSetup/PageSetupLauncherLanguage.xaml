@@ -115,7 +115,7 @@
                                         FontSize="42"
                                         FontWeight="Bold"
                                         Foreground="{DynamicResource ColorBrush1}"
-                                        Text="PCL CE"
+                                        Text="PCL SU"
                                         TextWrapping="Wrap" />
 
                                     <TextBlock
@@ -169,7 +169,7 @@
                             SvgIcon="lucide/globe"
                             ColorType="Highlight"
                             local:CustomEventService.EventType="OpenUrl"
-                            local:CustomEventService.EventData="https://translate.pclc.cc/projects/pcl-ce/" />
+                            local:CustomEventService.EventData="https://github.com/iceriny/PCL-SU/tree/dev/PCL.Core/App/Localization/Languages" />
 
                         <local:MyIconTextButton
                             x:Name="BtnSubmitPullRequest"
@@ -177,7 +177,7 @@
                             Text="{DynamicResource Setup.Language.Banner.SubmitPullRequest}"
                             SvgIcon="lucide/git-pull-request-arrow"
                             local:CustomEventService.EventType="OpenUrl"
-                            local:CustomEventService.EventData="https://github.com/PCL-Community/PCL-CE/pulls" />
+                            local:CustomEventService.EventData="https://github.com/iceriny/PCL-SU/pulls" />
                     </StackPanel>
                 </StackPanel>
             </local:MyCard>

@@ -168,7 +168,7 @@ public class EasyTierEntity
             .AddFlag("multi-thread")
             .AddFlag("enable-kcp-proxy")
             .AddFlag("enable-quic-proxy")
-            .AddFlagIf(!Config.Link.TryPunchSym, "disable-sys-hole-punching")
+            .AddFlagIf(!Config.Link.TryPunchSym, "disable-sym-hole-punching")
             .AddFlagIf(!Config.Link.EnableIPv6, "disable-ipv6")
             .AddFlagIf(Config.Link.UseLatencyFirstMode, "latency-first")
             .Add("encryption-algorithm", "aes-gcm")

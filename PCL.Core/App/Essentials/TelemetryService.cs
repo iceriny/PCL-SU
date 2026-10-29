@@ -24,12 +24,13 @@ namespace PCL.Core.App.Essentials;
 public sealed partial class TelemetryService
 {
     public static bool IsBuildUntrusted { get; private set; }
+    private static readonly string? SentryDsn = EnvironmentInterop.GetSecret("SENTRY_DSN", readEnvDebugOnly: true);
+    public static bool IsConfigured => !string.IsNullOrWhiteSpace(SentryDsn);
 
     private static void _InitSentry()
     {
         Context.Info("开始初始化 Sentry SDK");
-        var dsn = EnvironmentInterop.GetSecret("SENTRY_DSN");
-        if (dsn is null)
+        if (!IsConfigured)
         {
             Context.Warn("未找到 Sentry DSN");
             return;
@@ -45,7 +46,7 @@ public sealed partial class TelemetryService
         
         SentrySdk.Init(options =>
         {
-            options.Dsn = dsn;
+            options.Dsn = SentryDsn;
             #if DEBUG
             options.Debug = true;
             #else
@@ -155,7 +156,7 @@ public sealed partial class TelemetryService
     [LifecycleStart]
     private static async Task _StartAsync()
     {
-        if (!Config.System.Telemetry) return;
+        if (!IsConfigured || !Config.System.Telemetry) return;
         if (!await BuildProvenance.IsTrustedAsync().ConfigureAwait(false))
         {
             IsBuildUntrusted = true;

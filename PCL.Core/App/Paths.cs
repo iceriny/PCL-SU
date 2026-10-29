@@ -40,6 +40,11 @@ public static class Paths
     public static string OldSharedData { get; set; }
 
     /// <summary>
+    /// PCL CE shared data, read only when importing existing configuration.
+    /// </summary>
+    public static string CommunitySharedData { get; }
+
+    /// <summary>
     /// Shared local data directory, used to put some large files that can be released or downloaded back anytime.
     /// </summary>
     public static string SharedLocalData { get => _sharedLocalData; set => _sharedLocalData = value; }
@@ -64,10 +69,12 @@ public static class Paths
     static Paths()
     {
 #if DEBUG
-        const string name = "PCLCE_Debug";
+        const string name = "PCLSU_Debug";
+        const string communityName = "PCLCE_Debug";
         const string oldName = ".PCLCEDebug";
 #else
-        const string name = "PCLCE";
+        const string name = "PCLSU";
+        const string communityName = "PCLCE";
         const string oldName = ".PCLCE";
 #endif
         // fill paths
@@ -76,6 +83,7 @@ public static class Paths
         _sharedLocalData = GetSpecialPath(Special.LocalApplicationData, name);
         _temp = Path.Combine(Path.GetTempPath(), name);
         OldSharedData = GetSpecialPath(Special.ApplicationData, oldName);
+        CommunitySharedData = GetSpecialPath(Special.ApplicationData, communityName);
 #if DEBUG
         // read environment variables
         EnvironmentInterop.ReadVariable("PCL_PATH", ref _data);

@@ -161,6 +161,8 @@ public sealed partial class ConfigService
                 {
                     string[] oldPaths = [
                         Path.Combine(Paths.OldSharedData, "Config.json"),
+                        Path.Combine(Paths.CommunitySharedData, "config.json"),
+                        Path.Combine(Paths.CommunitySharedData, "config.v1.json"),
                         Path.Combine(Paths.SharedData, "config.json")
                     ];
                     _TryMigrate(SharedConfigPath, oldPaths.Select(path =>
@@ -217,6 +219,10 @@ public sealed partial class ConfigService
         return;
         void SharedJsonMigration(string from, string to)
         {
+            var sourceKey = Path.Combine(Path.GetDirectoryName(from)!, "UserKey.bin");
+            var targetKey = Path.Combine(Paths.SharedData, "UserKey.bin");
+            if (!File.Exists(targetKey) && File.Exists(sourceKey))
+                File.Copy(sourceKey, targetKey);
             File.Copy(from, to);
         }
         void CatIniMigration(string from, string to)

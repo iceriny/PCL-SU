@@ -1,20 +1,15 @@
 # 如何为项目做贡献
 
-> **重要：** 提交 Issue 或 Pull Request 前，请先阅读 [生成式人工智能使用方针](https://docs.pclc.cc/ce/developers/ai-policy)。使用生成式 AI 工具时，必须按方针披露使用情况，并对提交内容的正确性承担全部责任。不符合方针的贡献可能会被要求修改或关闭。
+提交 Issue 或 Pull Request 时，请说明问题、改动范围和验证结果，并对提交内容的正确性负责。
 
 开发文档：
 
-* [开发环境配置](https://docs.pclc.cc/ce/developers/setup)
-* [技术规范](https://docs.pclc.cc/ce/developers/guidelines)
-* [生成式人工智能使用方针](https://docs.pclc.cc/ce/developers/ai-policy)
-
-<details>
-
-<summary>原 CONTRIBUTING.md 内容</summary>
+* [开发环境与构建](README.md#运行与构建)
+* [上游架构与技术规范参考](https://docs.pclc.cc/ce/developers/guidelines)
 
 ## 开始之前
 
-查看 [Issues](https://github.com/PCL-Community/PCL2-CE/issues) 寻找可以参与的任务，或创建新 Issue 讨论您的想法。
+查看 [Issues](https://github.com/iceriny/PCL-SU/issues) 寻找可以参与的任务，或创建新 Issue 讨论您的想法。
 
 ## 贡献流程
 
@@ -58,7 +53,7 @@
    ```
 
 6. 创建 Pull Request
-   - 指向上游仓库的 `dev` 分支
+   - 指向 `iceriny/PCL-SU` 仓库的 `dev` 分支
    - 详细填写 PR 信息
    - 关联 Issue（如有）
 
@@ -161,5 +156,3 @@ revert:<type>(<scope>): <subject>
 ## 提交上游
 
 若你要将他人在 CE 中实现的功能或修复提交到上游，请用 Co-authored 来指明原始贡献者
-
-</details>

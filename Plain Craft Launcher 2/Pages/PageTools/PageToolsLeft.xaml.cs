@@ -23,7 +23,7 @@ public partial class PageToolsLeft
         var isHiddenPage = false;
         var hide = Config.Preference.Hide;
 
-        if (ItemGameLink.Checked && hide.ToolsGameLink) isHiddenPage = true;
+        if (ItemGameLink.Checked && (hide.ToolsGameLink || !Secrets.HasLobbyService)) isHiddenPage = true;
         if (ItemTest.Checked && hide.ToolsTest) isHiddenPage = true;
         if (PageSetupUI.HiddenForceShow)
             isHiddenPage = false;
@@ -37,12 +37,12 @@ public partial class PageToolsLeft
         if (isPageSwitched) 
             return;
         var hideCfg = Config.Preference.Hide;
-        if (!hideCfg.ToolsGameLink)
+        if (Secrets.HasLobbyService && !hideCfg.ToolsGameLink)
             ItemGameLink.SetChecked(true, false, false);
         else if (!hideCfg.ToolsTest)
             ItemTest.SetChecked(true, false, false);
         else
-            ItemGameLink.SetChecked(true, false, false);
+            ItemTest.SetChecked(true, false, false);
     }
 
     private void PageOtherLeft_Unloaded(object sender, RoutedEventArgs e)
@@ -74,7 +74,9 @@ public partial class PageToolsLeft
     /// <summary>
     ///     当前页面的编号。
     /// </summary>
-    public FormMain.PageSubType pageID = FormMain.PageSubType.ToolsGameLink;
+    public FormMain.PageSubType pageID = Secrets.HasLobbyService
+        ? FormMain.PageSubType.ToolsGameLink
+        : FormMain.PageSubType.ToolsTest;
 
     /// <summary>
     ///     勾选事件改变页面。
@@ -91,7 +93,9 @@ public partial class PageToolsLeft
     public object PageGet(FormMain.PageSubType? id = null)
     {
         var targetID = id ?? pageID;
-        switch (id)
+        if (targetID == FormMain.PageSubType.ToolsGameLink && !Secrets.HasLobbyService)
+            targetID = FormMain.PageSubType.ToolsTest;
+        switch (targetID)
         {
             case FormMain.PageSubType.ToolsGameLink:
             {
@@ -117,6 +121,8 @@ public partial class PageToolsLeft
     /// </summary>
     public void PageChange(FormMain.PageSubType id)
     {
+        if (id == FormMain.PageSubType.ToolsGameLink && !Secrets.HasLobbyService)
+            id = FormMain.PageSubType.ToolsTest;
         if (pageID == id)
             return;
         ModAnimation.AniBeginControl();

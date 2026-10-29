@@ -56,14 +56,7 @@
                         x:Name="ImgPCLLogo"
                         Grid.Row="2"
                         Margin="3" MouseLeftButtonDown="ImgPCLLogo_Click"
-                        Source="/Plain Craft Launcher 2;component/Images/Heads/Logo-CE.png">
-                        <Image.Clip>
-                            <EllipseGeometry
-                                Center="17 17"
-                                RadiusX="17"
-                                RadiusY="17" />
-                        </Image.Clip>
-                    </Image>
+                        Source="/Plain Craft Launcher 2;component/Images/Heads/Logo-SU.png" RenderOptions.BitmapScalingMode="HighQuality" />
                     <Image
                         Grid.Row="0"
                         Margin="3"
@@ -98,7 +91,7 @@
                         Grid.Row="2"
                         Grid.Column="2"
                         Height="35"
-                        local:CustomEventService.EventData="https://github.com/PCL-Community/PCL2-CE"
+                        local:CustomEventService.EventData="https://github.com/iceriny/PCL-SU"
                         local:CustomEventService.EventType="OpenUrl"
                         Text="{DynamicResource Setup.About.SourceCode}" />
                 </Grid>
@@ -336,7 +329,7 @@
                     <local:MyTextButton
                         Grid.Row="2"
                         HorizontalAlignment="Center"
-                        local:CustomEventService.EventData="https://github.com/PCL-Community/PCL2-CE/graphs/contributors"
+                        local:CustomEventService.EventData="https://github.com/PCL-Community/PCL-CE/graphs/contributors"
                         local:CustomEventService.EventType="OpenUrl"
                         Text="{DynamicResource Setup.About.Contributors.ViewMore}" />
                 </Grid>
@@ -375,17 +368,12 @@
                         <local:MyButton
                             Margin="0,0,20,0"
                             ColorType="Highlight"
-                            local:CustomEventService.EventData="https://github.com/PCL-Community/PCL2-CE"
+                            local:CustomEventService.EventData="https://github.com/iceriny/PCL-SU"
                             local:CustomEventService.EventType="OpenUrl"
                             Padding="13,0"
                             Text="{DynamicResource Setup.About.Legal.CommunitySource}" />
                         <local:MyButton
-                            Margin="0,0,20,0"
-                            local:CustomEventService.EventData="https://www.pclc.cc/privacy/personal-info-brief.html"
-                            local:CustomEventService.EventType="OpenUrl"
-                            Padding="13,0"
-                            Text="{DynamicResource Setup.About.Legal.CommunityLobbyPrivacy}" />
-                        <local:MyButton
+                            x:Name="BtnNatayarkTerms"
                             Margin="0,0,20,0"
                             local:CustomEventService.EventData="https://account.naids.com/policy"
                             local:CustomEventService.EventType="OpenUrl"
@@ -429,7 +417,7 @@
                             Width="160"
                             Margin="0,0,20,0"
                             ColorType="Highlight"
-                            local:CustomEventService.EventData="https://shimo.im/docs/rGrd8pY8xWkt6ryW"
+                            local:CustomEventService.EventData="https://github.com/iceriny/PCL-SU/blob/dev/Plain%20Craft%20Launcher%202/LICENCE"
                             local:CustomEventService.EventType="OpenUrl"
                             Padding="13,0"
                             Text="{DynamicResource Setup.About.UpstreamLegal.TermsAndDisclaimer}" />

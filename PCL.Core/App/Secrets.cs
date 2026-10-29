@@ -1,3 +1,4 @@
+using System;
 using PCL.Core.Utils.Exts;
 using PCL.Core.Utils.OS;
 
@@ -34,7 +35,20 @@ public static class Secrets
     /// <summary>
     /// 联机根服务器
     /// </summary>
-    public static string[] LinkServers { get; } = EnvironmentInterop.GetSecret("LINK_SERVER_ROOT", readEnvDebugOnly: true).ReplaceNullOrEmpty().Split("|");
+    public static string[] LinkServers { get; } = EnvironmentInterop.GetSecret("LINK_SERVER_ROOT", readEnvDebugOnly: true)
+        .ReplaceNullOrEmpty().Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    public static bool HasLobbyService => LinkServers.Length > 0;
+
+    /// <summary>
+    /// 自建大厅的上报地址；未配置时不发送上报。
+    /// </summary>
+    public static string LobbyReportEndpoint { get; } = EnvironmentInterop.GetSecret("LOBBY_REPORT_ENDPOINT", readEnvDebugOnly: true).ReplaceNullOrEmpty();
+
+    /// <summary>
+    /// 自建大厅的隐私政策地址。
+    /// </summary>
+    public static string LobbyPrivacyUrl { get; } = EnvironmentInterop.GetSecret("LOBBY_PRIVACY_URL", readEnvDebugOnly: true).ReplaceNullOrEmpty();
 
     /// <summary>
     /// 当前版本的 Git 提交 SHA

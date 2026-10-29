@@ -2177,6 +2177,8 @@ public static class ModLocalComp
         /// </summary>
         public CompFile compFile;
 
+        private readonly object _updateFileLock = new();
+
         /// <summary>
         ///     该 Mod 对应的联网最新版本。
         /// </summary>
@@ -2194,6 +2196,34 @@ public static class ModLocalComp
         ///     该 Mod 的更新日志网址。
         /// </summary>
         public List<string> changelogUrls = new();
+
+        internal void MergeUpdateFile(CompFile updateFile, string changelogUrl)
+        {
+            lock (_updateFileLock)
+            {
+                var current = UpdateFile;
+                if (current is not null && !string.IsNullOrEmpty(updateFile.Hash) &&
+                    string.Equals(current.Hash, updateFile.Hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    // 同一文件优先保留 Modrinth 元数据，同时保留两个来源的下载地址。
+                    var preferred = current.FromCurseForge && !updateFile.FromCurseForge ? updateFile : current;
+                    var other = ReferenceEquals(preferred, current) ? updateFile : current;
+                    preferred.DownloadUrls = (preferred.DownloadUrls ?? [])
+                        .Concat(other.DownloadUrls ?? []).Distinct(StringComparer.Ordinal).ToList();
+                    if (preferred.FileSize < 0 && other.FileSize >= 0)
+                        preferred.FileSize = other.FileSize;
+                    changelogUrls = changelogUrls.Append(changelogUrl).Distinct(StringComparer.Ordinal).ToList();
+                    UpdateFile = preferred;
+                }
+                else if (current is null || updateFile.ReleaseDate > current.ReleaseDate ||
+                         (!updateFile.FromCurseForge && updateFile.ReleaseDate == current.ReleaseDate))
+                {
+                    updateFile.DownloadUrls = updateFile.DownloadUrls?.Distinct(StringComparer.Ordinal).ToList();
+                    changelogUrls = new List<string> { changelogUrl };
+                    UpdateFile = updateFile;
+                }
+            }
+        }
 
         /// <summary>
         ///     所有网络信息是否已成功加载。
@@ -2743,21 +2773,8 @@ public static class ModLocalComp
                         Entry.compFile.Hash == updateFile.Hash) continue;
 
                     // 设置更新日志与更新文件
-                    if (Entry.UpdateFile is not null && updateFile.Hash == Entry.UpdateFile.Hash)
-                    {
-                        Entry.changelogUrls.Add(
-                            $"https://modrinth.com/mod/{modrinthUpdate[Entry.ModrinthHash]["project_id"]}/changelog?g={mcInstance}");
-                        Entry.UpdateFile.DownloadUrls.AddRange(updateFile.DownloadUrls);
-                        Entry.UpdateFile = updateFile;
-                    }
-                    else if (Entry.UpdateFile is null || updateFile.ReleaseDate >= Entry.UpdateFile.ReleaseDate)
-                    {
-                        Entry.changelogUrls = new List<string>
-                        {
-                            $"https://modrinth.com/mod/{modrinthUpdate[Entry.ModrinthHash]["project_id"]}/changelog?g={mcInstance}"
-                        };
-                        Entry.UpdateFile = updateFile;
-                    }
+                    Entry.MergeUpdateFile(updateFile,
+                        $"https://modrinth.com/mod/{modrinthUpdate[Entry.ModrinthHash]["project_id"]}/changelog?g={mcInstance}");
                 }
 
                 ModBase.Log("[Mod] 从 Modrinth 获取本地 Mod 信息结束");
@@ -2925,18 +2942,7 @@ public static class ModLocalComp
                         $"https://www.curseforge.com/minecraft/mc-mods/{fileIdToProjectSlug[int.Parse(updateFile.Id)]}/files/{updateFile.Id}";
 
                     // 设置更新日志与更新文件
-                    if (Entry.UpdateFile is not null && updateFile.Hash == Entry.UpdateFile.Hash)
-                    {
-                        // 合并下载源
-                        Entry.changelogUrls.Add(changelogUrl);
-                        Entry.UpdateFile.DownloadUrls.AddRange(updateFile.DownloadUrls);
-                    }
-                    else if (Entry.UpdateFile is null || updateFile.ReleaseDate > Entry.UpdateFile.ReleaseDate)
-                    {
-                        // 替换
-                        Entry.changelogUrls = new List<string> { changelogUrl };
-                        Entry.UpdateFile = updateFile;
-                    }
+                    Entry.MergeUpdateFile(updateFile, changelogUrl);
                 }
 
                 ModBase.Log("[Mod] 从 CurseForge 获取 Mod 更新信息结束");

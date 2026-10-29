@@ -133,6 +133,8 @@ public class LobbyService() : GeneralService("lobby", "LobbyService")
 
     public static async Task InitializeAsync()
     {
+        if (!Secrets.HasLobbyService) return;
+
         if (CurrentState is not LobbyState.Idle && CurrentState is not LobbyState.Error)
         {
             return;
@@ -153,7 +155,7 @@ public class LobbyService() : GeneralService("lobby", "LobbyService")
 
             // refresh naid token
             var naidRefreshToken = States.Link.NaidRefreshToken;
-            if (!string.IsNullOrWhiteSpace(naidRefreshToken))
+            if (NatayarkProfileManager.IsConfigured && !string.IsNullOrWhiteSpace(naidRefreshToken))
             {
                 var expTime = States.Link.NaidRefreshExpireTime;
                 if (!string.IsNullOrWhiteSpace(expTime) &&
@@ -246,6 +248,21 @@ public class LobbyService() : GeneralService("lobby", "LobbyService")
         LobbyInfoProvider.RequiresLogin &&
         string.IsNullOrWhiteSpace(NatayarkProfileManager.NaidProfile.AccessToken);
 
+    private static bool _CheckServiceConfiguration()
+    {
+        if (!Secrets.HasLobbyService)
+        {
+            HintWrapper.Show(Lang.Text("Tools.GameLink.Unconfigured"), HintTheme.Error);
+            return false;
+        }
+        if (LobbyInfoProvider.RequiresLogin && !NatayarkProfileManager.IsConfigured)
+        {
+            HintWrapper.Show(Lang.Text("Tools.GameLink.CloudAccountUnavailable"), HintTheme.Error);
+            return false;
+        }
+        return true;
+    }
+
     /// <summary>
     /// Create a new lobby.
     /// </summary>
@@ -253,6 +270,8 @@ public class LobbyService() : GeneralService("lobby", "LobbyService")
     /// <param name="username">Player name.</param>
     public static async Task<bool> CreateLobbyAsync(int port, string username)
     {
+        if (!_CheckServiceConfiguration()) return false;
+
         if (_NotHaveNaid())
         {
             HintWrapper.Show(Lang.Text("Link.Lobby.LoginRequired"), HintTheme.Error);
@@ -365,6 +384,8 @@ public class LobbyService() : GeneralService("lobby", "LobbyService")
     /// <param name="username">Current use name.</param>
     public static async Task<bool> JoinLobbyAsync(string lobbyCode, string username)
     {
+        if (!_CheckServiceConfiguration()) return false;
+
         await _discoveringCts.CancelAsync().ConfigureAwait(false);
 
         _SetState(LobbyState.Joining);

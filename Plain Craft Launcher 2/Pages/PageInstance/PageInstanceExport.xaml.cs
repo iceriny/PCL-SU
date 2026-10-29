@@ -874,7 +874,7 @@ public partial class PageInstanceExport : IRefreshable
                 loader =>
                 {
                     UpdateManager.DownloadLatestPCL(loader);
-                    ModBase.CopyFile(Path.Combine(ModBase.pathTemp, "CE-Latest.exe"),
+                    ModBase.CopyFile(Path.Combine(ModBase.pathTemp, "SU-Latest.exe"),
                         Path.Combine(cacheFolder, "Plain Craft Launcher.exe"));
                 })
             {

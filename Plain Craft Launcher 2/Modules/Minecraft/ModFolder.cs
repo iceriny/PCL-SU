@@ -86,6 +86,17 @@ public static class ModFolder
                 var path = folder.Split(">")[1];
                 try
                 {
+                    // 只跳过已移动或删除的目录，保留权限及其它 I/O 错误的提示。
+                    try
+                    {
+                        File.GetAttributes(path);
+                    }
+                    catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+                    {
+                        ModBase.Log($"[Minecraft] 已跳过不存在的已保存 Minecraft 文件夹：{path}");
+                        continue;
+                    }
+
                     ModBase.CheckPermissionWithException(path);
                     cacheMcFolderList.Add(new McFolder { Name = name, Location = path, type = McFolder.Types.Custom });
                 }

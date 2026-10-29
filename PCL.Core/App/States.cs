@@ -109,11 +109,6 @@ public static partial class States
         [ConfigItem<bool>("HintDisableGamePathCheckTip", false)] public partial bool NonAsciiGamePath { get; set; }
 
         /// <summary>
-        /// 启动时的社区版提示。
-        /// </summary>
-        [ConfigItem<bool>("UiLauncherCEHint", true)] public partial bool CEMessage { get; set; }
-
-        /// <summary>
         /// 投影管理首次使用提示。
         /// </summary>
         [ConfigItem<bool>("UiSchematicFirstTimeHintShown", false)] public partial bool SchematicFirstTime { get; set; }

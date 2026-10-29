@@ -226,7 +226,7 @@ public partial class MyMsgLogin
                         new ModAnimation.AniEaseOutFluent(ModAnimation.AniEasePower.Weak))
                 }, "MyMsgBox " + uuid);
             // 记录日志
-            ModBase.Log($"[Control] 正版验证弹窗：{LabTitle.Text}\r\n{LabCaption.Text}");
+            ModBase.Log($"[Control] 正版验证弹窗：{LabTitle.Text}");
         }
         catch (Exception ex)
         {

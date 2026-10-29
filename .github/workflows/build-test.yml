@@ -13,15 +13,22 @@ on:
       - '**/*.md'
       - '**/LICENSE'
       - '**/LICENCE'
-      - 'PCL.Core.Test/**'
       - '.github/ISSUE_TEMPLATE/**'
-      - '.github/FUNDING.yml'
   pull_request:
     paths-ignore: *ignored
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  test:
+    name: Regression tests
+    uses: ./.github/workflows/reusable-test.yml
+
   build:
+    needs: test
     strategy:
       matrix:
         include:

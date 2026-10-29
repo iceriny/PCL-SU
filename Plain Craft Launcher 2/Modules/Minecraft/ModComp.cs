@@ -2752,6 +2752,11 @@ public static class ModComp
         public readonly string FileName;
 
         /// <summary>
+        ///     文件的准确大小（字节），未知时为 -1。
+        /// </summary>
+        public long FileSize { get; internal set; } = -1;
+
+        /// <summary>
         ///     该文件来自 CurseForge 还是 Modrinth。
         /// </summary>
         public readonly bool FromCurseForge;
@@ -2859,6 +2864,7 @@ public static class ModComp
                 Status = (CompFileStatus)data["Status"].ToObject<int>();
                 if (data.ContainsKey("FileName"))
                     FileName = data["FileName"].ToString();
+                FileSize = ReadFileSize(data["FileSize"]);
                 if (data.ContainsKey("DownloadUrls"))
                     DownloadUrls = data["DownloadUrls"].ToObject<List<string>>();
                 if (data.ContainsKey("ModLoaders"))
@@ -2897,6 +2903,7 @@ public static class ModComp
                     Status = (CompFileStatus)data["releaseType"].ToObject<int>();
                     DownloadCount = (int)data["downloadCount"];
                     FileName = (string)data["fileName"];
+                    FileSize = ReadFileSize(data["fileLength"]);
                     Hash =
                         (string)((JsonArray)data["hashes"]).ToList().FirstOrDefault(s => s["algo"].ToObject<int>() == 1)?[
                             "value"];
@@ -2977,6 +2984,7 @@ public static class ModComp
                     {
                         var file = data["files"][0];
                         FileName = (string)file["filename"];
+                        FileSize = ReadFileSize(file["size"]);
                         DownloadUrls = ModDownload.DlSourceModDownloadGet(file["url"].ToString()); // 同时添加了镜像源
                         Hash = (string)file["hashes"]["sha1"];
                     }
@@ -3096,6 +3104,9 @@ public static class ModComp
             }
         }
 
+        private static long ReadFileSize(JsonNode? value) =>
+            long.TryParse(value?.ToString(), out var size) && size >= 0 ? size : -1;
+
         /// <summary>
         ///     发布状态的友好描述。例如："正式版"，"Beta 版"。
         /// </summary>
@@ -3160,7 +3171,7 @@ public static class ModComp
             
             return new DownloadFile(HandleModrinthDownloadUrls(DownloadUrls, reason, version, modLoader),
                 localAddress + (localAddress.EndsWithF(@"\") ? CompFileNameSanitize(FileName) : ""),
-                new ModBase.FileChecker(hash: Hash), true);
+                new ModBase.FileChecker(actualSize: FileSize, hash: Hash), true);
         }
 
         /// <summary>
@@ -3234,6 +3245,7 @@ public static class ModComp
             json.Add("Status", (int)Status);
             if (FileName is not null)
                 json.Add("FileName", FileName);
+            json.Add("FileSize", FileSize);
             if (DownloadUrls is not null)
                 json.Add("DownloadUrls", new JsonArray(DownloadUrls.Select(s => (JsonNode)s).ToArray()));
             if (Hash is not null)

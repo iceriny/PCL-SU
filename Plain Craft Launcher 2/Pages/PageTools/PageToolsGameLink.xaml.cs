@@ -92,6 +92,9 @@ public partial class PageToolsGameLink
 
     public async void Reload()
     {
+        RefreshServiceLinks();
+        if (!CheckLobbyConfiguration()) return;
+
         HintAnnounce.Visibility = Visibility.Visible;
         HintAnnounce.Text = Lang.Text("Tools.GameLink.Loading.ConnectingServer");
         HintAnnounce.Theme = MyHint.Themes.Blue;
@@ -109,6 +112,39 @@ public partial class PageToolsGameLink
             await _LinkAnnounceUpdateAsync())); // 我实在不理解为啥 BeginInvoke 这个委托要 MustBeInherit
 
         await LobbyService.InitializeAsync().ConfigureAwait(false);
+    }
+
+    private bool CheckLobbyConfiguration()
+    {
+        if (Secrets.HasLobbyService) return true;
+
+        LobbyInfoProvider.IsLobbyAvailable = false;
+        HintAnnounce.Visibility = Visibility.Visible;
+        HintAnnounce.Theme = MyHint.Themes.Blue;
+        HintAnnounce.Text = Lang.Text("Tools.GameLink.Unconfigured");
+        PanEula.Visibility = Visibility.Collapsed;
+        PanSelect.Visibility = Visibility.Collapsed;
+        PanFinish.Visibility = Visibility.Collapsed;
+        PanFooter.Visibility = Visibility.Collapsed;
+        return false;
+    }
+
+    private void RefreshServiceLinks()
+    {
+        var privacyVisibility = string.IsNullOrWhiteSpace(Secrets.LobbyPrivacyUrl)
+            ? Visibility.Collapsed : Visibility.Visible;
+        ItemLobbyPrivacy.Visibility = privacyVisibility;
+        BtnLobbyPrivacy.Visibility = privacyVisibility;
+        PrivacySeparator.Visibility = privacyVisibility;
+        CustomEventService.SetEventData(ItemLobbyPrivacy, Secrets.LobbyPrivacyUrl);
+        CustomEventService.SetEventData(BtnLobbyPrivacy, Secrets.LobbyPrivacyUrl);
+
+        var naidVisibility = NatayarkProfileManager.IsConfigured
+            ? Visibility.Visible : Visibility.Collapsed;
+        ItemNatayarkTerms.Visibility = naidVisibility;
+        BtnNatayarkTerms.Visibility = naidVisibility;
+        NatayarkSeparator.Visibility = naidVisibility;
+        BtnNatayarkUserName.Visibility = naidVisibility;
     }
 
     private void BtnAgreeEula_Click(object sender, MouseButtonEventArgs e)
@@ -383,6 +419,8 @@ public partial class PageToolsGameLink
     // 获取公告信息
     private void GetAnnouncement()
     {
+        if (!Secrets.HasLobbyService) return;
+
         var requestId = Volatile.Read(ref _announcementRequestId);
         ModBase.RunInNewThread(() =>
         {
@@ -520,7 +558,11 @@ public partial class PageToolsGameLink
 
                 #region 处理账户登录状态显示
 
-                if (string.IsNullOrWhiteSpace(States.Link.NaidRefreshToken))
+                if (!NatayarkProfileManager.IsConfigured)
+                {
+                    ModBase.RunInUi(() => LabNatayarkUserName.Text = Lang.Text("Tools.GameLink.Natayark.Unconfigured"));
+                }
+                else if (string.IsNullOrWhiteSpace(States.Link.NaidRefreshToken))
                 {
                     ModBase.RunInUi(() => LabNatayarkUserName.Text = Lang.Text("Tools.GameLink.Natayark.Login"));
                 }
@@ -633,6 +675,8 @@ public partial class PageToolsGameLink
 
     private void ReloadNaidData()
     {
+        if (!Secrets.HasLobbyService || !NatayarkProfileManager.IsConfigured) return;
+
         ModBase.RunInNewThread(() =>
         {
             try
@@ -708,10 +752,12 @@ public partial class PageToolsGameLink
 
     private void LabNatayarkUserName_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        // If Not IsLobbyAvailable Then
-        // Hint("大厅功能暂不可用，请稍后再试", HintType.Critical)
-        // Exit Sub
-        // End If
+        if (!CheckLobbyConfiguration()) return;
+        if (!NatayarkProfileManager.IsConfigured)
+        {
+            HintService.Hint(Lang.Text("Tools.GameLink.Natayark.Unconfigured"), HintType.Error);
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(States.Link.NaidRefreshToken))
         {
@@ -1075,6 +1121,8 @@ public partial class PageToolsGameLink
 
     private void PageLinkLobby_OnPageEnter()
     {
+        if (!CheckLobbyConfiguration()) return;
+
         ModMain.frmToolsGameLink.PanEula.Visibility =
             CurrentSubpage == Subpages.PanEula ? Visibility.Visible : Visibility.Collapsed;
         ModMain.frmToolsGameLink.PanSelect.Visibility =

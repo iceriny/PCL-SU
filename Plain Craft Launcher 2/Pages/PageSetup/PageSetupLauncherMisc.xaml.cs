@@ -51,7 +51,7 @@ public partial class PageSetupLauncherMisc
         SliderAniFPS.Value = Config.System.AnimationFpsLimit;
         SliderMaxLog.Value = Config.System.MaxGameLog;
         CheckSystemTelemetry.Checked = Config.System.Telemetry;
-        if (TelemetryService.IsBuildUntrusted)
+        if (!TelemetryService.IsConfigured || TelemetryService.IsBuildUntrusted)
         {
             CheckSystemTelemetry.Checked = false;
             CheckSystemTelemetry.IsEnabled = false;
@@ -235,7 +235,7 @@ public partial class PageSetupLauncherMisc
 
     #endregion
 
-    #region 停止使用 PCL CE
+    #region 停止使用 PCL SU
 
     private void BtnSystemStopUsingPclCe_Click(object sender, MouseButtonEventArgs e)
     {
@@ -263,7 +263,7 @@ public partial class PageSetupLauncherMisc
 
     private void StopUsingPClCeCore(bool removeMcResources)
     {
-        // 删除 MC 文件夹内的 PCL CE 配置
+        // 删除 MC 文件夹内的启动器配置
         if (removeMcResources && States.Game.Folders != "")
         {
             foreach (var path in States.Game.Folders.Split('|'))

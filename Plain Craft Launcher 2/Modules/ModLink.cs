@@ -23,6 +23,12 @@ public static class ModLink
 
     public static bool LobbyPrecheck()
     {
+        if (!Secrets.HasLobbyService)
+        {
+            HintService.Hint(Lang.Text("Tools.GameLink.Unconfigured"), HintType.Error);
+            return false;
+        }
+
         if (!LobbyInfoProvider.IsLobbyAvailable)
         {
             HintService.Hint(Lang.Text("Link.Mod.LobbyUnavailable"), HintType.Error);
@@ -38,6 +44,12 @@ public static class ModLink
 
         if (LobbyInfoProvider.RequiresLogin)
         {
+            if (!NatayarkProfileManager.IsConfigured)
+            {
+                HintService.Hint(Lang.Text("Tools.GameLink.CloudAccountUnavailable"), HintType.Error);
+                return false;
+            }
+
             if (string.IsNullOrWhiteSpace(States.Link.NaidRefreshToken))
             {
                 HintService.Hint(Lang.Text("Link.Mod.LoginFirst"), HintType.Error);
@@ -328,14 +340,16 @@ public static class ModLink
                 var architecture = SystemInfo.IsArm64System ? "arm64" : "x86_64";
                 var addresses = new List<string>
                 {
-                    $"https://staticassets.naids.com/resources/pclce/static/easytier/easytier-windows-{architecture}-v{ETInfoProvider.ETVersion}.zip",
-                    $"https://s3.pysio.online/pcl2-ce/static/easytier/easytier-windows-{architecture}-v{ETInfoProvider.ETVersion}.zip"
+                    $"https://github.com/EasyTier/EasyTier/releases/download/v{ETInfoProvider.ETVersion}/easytier-windows-{architecture}-v{ETInfoProvider.ETVersion}.zip"
                 };
+                var hash = SystemInfo.IsArm64System
+                    ? "37023f8a3451c9234b17ee2089a03dc344ce90d803b5b359cb6c46682b0549b4"
+                    : "27af91e270e554709b048bd32327fefd2dfce5062ae1e8701af7550c6f525f84";
 
                 // 1. Download EasyTier
                 loaders.Add(new LoaderDownload(Lang.Text("Link.Mod.Task.DownloadEasyTier"), new List<DownloadFile>
                 {
-                    new(addresses.ToArray(), dlTargetPath, new ModBase.FileChecker(1024 * 64))
+                    new(addresses.ToArray(), dlTargetPath, new ModBase.FileChecker(1024 * 64, hash: hash))
                 }) { ProgressWeight = 15 });
 
                 // 2. Extract files

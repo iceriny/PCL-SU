@@ -80,12 +80,11 @@
                         <StackPanel Margin="20,40,18,18">
                             <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
                                        Text="{DynamicResource Tools.GameLink.Agreement.Description}" />
-                            <local:MyListItem Title="{DynamicResource Tools.GameLink.Agreement.PrivacyPolicy}"
+                            <local:MyListItem x:Name="ItemLobbyPrivacy" Title="{DynamicResource Tools.GameLink.Agreement.PrivacyPolicy}"
                                               Info="{DynamicResource Tools.GameLink.Agreement.PrivacyPolicyInfo}"
                                               Type="Clickable" local:CustomEventService.EventType="OpenUrl"
-                                              local:CustomEventService.EventData="https://www.pclc.cc/privacy/personal-info-brief.html"
                                               Logo="pack://application:,,,/images/Blocks/Grass.png" />
-                            <local:MyListItem Title="{DynamicResource Tools.GameLink.Agreement.NatayarkTerms}"
+                            <local:MyListItem x:Name="ItemNatayarkTerms" Title="{DynamicResource Tools.GameLink.Agreement.NatayarkTerms}"
                                               Info="{DynamicResource Tools.GameLink.Agreement.NatayarkTermsInfo}"
                                               Type="Clickable" local:CustomEventService.EventType="OpenUrl"
                                               local:CustomEventService.EventData="https://account.naids.com/policy"
@@ -190,15 +189,14 @@
                                     Orientation="Horizontal">
                             <local:MyTextButton Text="{DynamicResource Tools.GameLink.Link.Report}"
                                                 local:CustomEventService.EventType="OpenUrl"
-                                                local:CustomEventService.EventData="https://qm.qq.com/q/zfml1KaPWS" />
-                            <TextBlock Text=" | " />
-                            <local:MyTextButton Text="{DynamicResource Tools.GameLink.Link.Terms}"
+                                                local:CustomEventService.EventData="https://github.com/iceriny/PCL-SU/issues" />
+                            <TextBlock x:Name="NatayarkSeparator" Text=" | " />
+                            <local:MyTextButton x:Name="BtnNatayarkTerms" Text="{DynamicResource Tools.GameLink.Link.Terms}"
                                                 local:CustomEventService.EventType="OpenUrl"
                                                 local:CustomEventService.EventData="https://account.naids.com/policy" />
-                            <TextBlock Text=" | " />
-                            <local:MyTextButton Text="{DynamicResource Tools.GameLink.Link.Privacy}"
-                                                local:CustomEventService.EventType="OpenUrl"
-                                                local:CustomEventService.EventData="https://www.pclc.cc/privacy/personal-info-brief.html" />
+                            <TextBlock x:Name="PrivacySeparator" Text=" | " />
+                            <local:MyTextButton x:Name="BtnLobbyPrivacy" Text="{DynamicResource Tools.GameLink.Link.Privacy}"
+                                                local:CustomEventService.EventType="OpenUrl" />
                             <TextBlock Text=" | " />
                             <local:MyTextButton Text="{DynamicResource Tools.GameLink.Link.Disable}"
                                                 x:Name="BtnEulaStop" Click="BtnEulaStop_Click" />
@@ -209,9 +207,6 @@
                             <local:MyTextButton Text="{DynamicResource Tools.GameLink.Link.EasyTier}"
                                                 local:CustomEventService.EventType="OpenUrl"
                                                 local:CustomEventService.EventData="https://easytier.cn/" />
-                            <TextBlock Text=" | " />
-                            <local:MyTextButton Text="Pysio's Home" local:CustomEventService.EventType="OpenUrl"
-                                                local:CustomEventService.EventData="https://pysio.online/" />
                         </StackPanel>
                     </StackPanel>
                 </local:MyCard>

@@ -67,7 +67,6 @@ public static partial class Config
         [ConfigItem<int>("SystemDebugAnim", 9)] public partial int AnimationSpeed { get; set; }
         [ConfigItem<bool>("SystemDebugDelay", false)] public partial bool AddRandomDelay { get; set; }
         [ConfigItem<bool>("SystemDebugSkipCopy", false)] public partial bool DontCopy { get; set; }
-        [ConfigItem<bool>("SystemDebugAllowRestrictedFeature", false)] public partial bool AllowRestrictedFeature { get; set; }
     }
 
     /// <summary>
@@ -127,10 +126,6 @@ public static partial class Config
         /// </summary>
         [ConfigItem<UpdateChannel>("SystemUpdateChannel", UpdateChannel.Release, ConfigSource.Local)] public partial UpdateChannel UpdateChannel { get; set; }
             
-        /// <summary>
-        /// Mirror 酱 CDK。
-        /// </summary>
-        [ConfigItem<string>("SystemMirrorChyanKey", "", ConfigSource.SharedEncrypt)] public partial string MirrorChyanKey { get; set; }
     }
 
     /// <summary>
@@ -268,12 +263,17 @@ public static partial class Config
             /// <summary>
             /// 暗色配色主题。
             /// </summary>
-            [ConfigItem<ColorTheme>("UiDarkColor", ColorTheme.CatBlue)] public partial ColorTheme DarkColor { get; set; }
+            [ConfigItem<ColorTheme>("UiDarkColor", ColorTheme.MistRose)] public partial ColorTheme DarkColor { get; set; }
 
             /// <summary>
             /// 亮色配色主题。
             /// </summary>
-            [ConfigItem<ColorTheme>("UiLightColor", ColorTheme.CatBlue)] public partial ColorTheme LightColor { get; set; }
+            [ConfigItem<ColorTheme>("UiLightColor", ColorTheme.MistRose)] public partial ColorTheme LightColor { get; set; }
+
+            /// <summary>
+            /// 默认配色迁移版本。
+            /// </summary>
+            [ConfigItem<int>("UiPaletteVersion", 0)] public partial int PaletteVersion { get; set; }
 
             /// <summary>
             /// 窗口透明度。
@@ -564,7 +564,7 @@ public static partial class Config
         /// <summary>
         /// 自定义左下角版本信息。
         /// </summary>
-        [ConfigItem<string>("LaunchArgumentInfo", "PCLCE", ConfigSource.Local)] public partial string TypeInfo { get; set; }
+        [ConfigItem<string>("LaunchArgumentInfo", "PCLSU", ConfigSource.Local)] public partial string TypeInfo { get; set; }
 
         /// <summary>
         /// 选择的默认 Java 实例。

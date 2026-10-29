@@ -12,9 +12,18 @@ namespace PCL;
 
 public partial class PageSetupUI
 {
-    public string[] ThemeColors => Basics.IsAprilFool 
-        ? [Lang.Text("Setup.Ui.Theme.Color.SkyBlue"), Lang.Text("Setup.Ui.Theme.Color.CatBlue"), Lang.Text("Setup.Ui.Theme.Color.CrashBlue"), Lang.Text("Setup.Ui.Theme.Color.Hmcl")]
-        : [Lang.Text("Setup.Ui.Theme.Color.SkyBlue"), Lang.Text("Setup.Ui.Theme.Color.CatBlue"), Lang.Text("Setup.Ui.Theme.Color.CrashBlue")];
+    public record ThemeColorOption(ColorTheme Value, string Name);
+
+    public ThemeColorOption[] ThemeColors =>
+    [
+        new(ColorTheme.MistRose, Lang.Text("Setup.Ui.Theme.Color.MistRose")),
+        new(ColorTheme.SkyBlue, Lang.Text("Setup.Ui.Theme.Color.SkyBlue")),
+        new(ColorTheme.CatBlue, Lang.Text("Setup.Ui.Theme.Color.CatBlue")),
+        new(ColorTheme.DeathBlue, Lang.Text("Setup.Ui.Theme.Color.CrashBlue")),
+        .. Basics.IsAprilFool
+            ? new[] { new ThemeColorOption(ColorTheme.HmclBlue, Lang.Text("Setup.Ui.Theme.Color.Hmcl")) }
+            : Array.Empty<ThemeColorOption>()
+    ];
     
     public new bool isLoaded;
 
@@ -52,8 +61,8 @@ public partial class PageSetupUI
             SliderLauncherOpacity.Value = Config.Preference.Theme.WindowOpacity;
             CheckLauncherLogo.Checked = Config.Preference.ShowStartupLogo;
             ComboDarkMode.SelectedIndex = (int)Config.Preference.Theme.ColorMode;
-            ComboDarkColor.SelectedIndex = (int)Config.Preference.Theme.DarkColor;
-            ComboLightColor.SelectedIndex = (int)Config.Preference.Theme.LightColor;
+            ComboDarkColor.SelectedValue = Config.Preference.Theme.DarkColor;
+            ComboLightColor.SelectedValue = Config.Preference.Theme.LightColor;
             CheckShowLaunchingHint.Checked = Config.Preference.ShowLaunchingHint;
 
             // 字体设置
@@ -130,12 +139,14 @@ public partial class PageSetupUI
             CheckHiddenLauncherMisc.Checked = uiHidden.SetupLauncherMisc;
             CheckHiddenSetupUpdate.Checked = uiHidden.SetupUpdate;
             CheckHiddenSetupGameLink.Checked = uiHidden.SetupGameLink;
+            CheckHiddenSetupGameLink.Visibility = Secrets.HasLobbyService ? Visibility.Visible : Visibility.Collapsed;
             CheckHiddenSetupAbout.Checked = uiHidden.SetupAbout;
             CheckHiddenSetupFeedback.Checked = uiHidden.SetupFeedback;
             CheckHiddenSetupLog.Checked = uiHidden.SetupLog;
 
             // 子页面 工具
             CheckHiddenToolsGameLink.Checked = uiHidden.ToolsGameLink;
+            CheckHiddenToolsGameLink.Visibility = Secrets.HasLobbyService ? Visibility.Visible : Visibility.Collapsed;
             CheckHiddenToolsTest.Checked = uiHidden.ToolsTest;
 
             // 子页面 实例设置
@@ -663,8 +674,8 @@ public partial class PageSetupUI
     private void ThemeColor_Change(object senderRaw, SelectionChangedEventArgs e)
     {
         var sender = (MyComboBox)senderRaw;
-        SetByTag(sender.Tag?.ToString(), sender.SelectedIndex);
-        ThemeManager.ThemeRefresh();
+        if (!ModAnimation.AniExitsAnyControl() && sender.SelectedValue is ColorTheme theme)
+            SetByTag(sender.Tag?.ToString(), theme);
     }
 
     // 赞助
@@ -774,7 +785,7 @@ public partial class PageSetupUI
                     !HiddenForceShow && conf.SetupJava ? Visibility.Collapsed : Visibility.Visible;
                 ModMain.frmSetupLeft.ItemUpdate.Visibility =
                     !HiddenForceShow && conf.SetupUpdate ? Visibility.Collapsed : Visibility.Visible;
-                ModMain.frmSetupLeft.ItemGameLink.Visibility = !HiddenForceShow && conf.SetupGameLink
+                ModMain.frmSetupLeft.ItemGameLink.Visibility = !Secrets.HasLobbyService || (!HiddenForceShow && conf.SetupGameLink)
                     ? Visibility.Collapsed
                     : Visibility.Visible;
                 ModMain.frmSetupLeft.ItemAbout.Visibility =
@@ -789,7 +800,7 @@ public partial class PageSetupUI
                 {
                     (ModMain.frmSetupLeft.TextGameCategory,
                         !(conf.SetupLaunch && conf.SetupJava && conf.SetupGameManage)),
-                    (ModMain.frmSetupLeft.TextToolsCategory, !conf.SetupGameLink),
+                    (ModMain.frmSetupLeft.TextToolsCategory, Secrets.HasLobbyService && !conf.SetupGameLink),
                     (ModMain.frmSetupLeft.TextLauncherCategory, !(conf.SetupUi && conf.SetupLauncherLanguage && conf.SetupLauncherMisc)),
                     (ModMain.frmSetupLeft.TextAboutCategory,
                         !(conf.SetupAbout && conf.SetupUpdate && conf.SetupFeedback && conf.SetupLog))
@@ -798,6 +809,8 @@ public partial class PageSetupUI
                 foreach (var category in categories)
                 {
                     var isVisible = category.Item2 || HiddenForceShow;
+                    if (category.Item1 == ModMain.frmSetupLeft.TextToolsCategory && !Secrets.HasLobbyService)
+                        isVisible = false;
                     category.Item1.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
                     if (isVisible)
                         category.Item1.Opacity = 0.6d;
@@ -819,7 +832,7 @@ public partial class PageSetupUI
                     setupCount += 1;
                 if (!conf.SetupUpdate)
                     setupCount += 1;
-                if (!conf.SetupGameLink)
+                if (Secrets.HasLobbyService && !conf.SetupGameLink)
                     setupCount += 1;
                 if (!conf.SetupAbout)
                     setupCount += 1;
@@ -834,14 +847,14 @@ public partial class PageSetupUI
             // 工具子页面 (FrmToolsLeft)
             if (ModMain.frmToolsLeft is not null)
             {
-                ModMain.frmToolsLeft.ItemGameLink.Visibility = !HiddenForceShow && conf.ToolsGameLink
+                ModMain.frmToolsLeft.ItemGameLink.Visibility = !Secrets.HasLobbyService || (!HiddenForceShow && conf.ToolsGameLink)
                     ? Visibility.Collapsed
                     : Visibility.Visible;
                 ModMain.frmToolsLeft.ItemTest.Visibility =
                     !HiddenForceShow && conf.ToolsTest ? Visibility.Collapsed : Visibility.Visible;
                 
                 // 处理分类标题
-                var isGameLinkVisible = (!HiddenForceShow && !conf.ToolsGameLink) || HiddenForceShow;
+                var isGameLinkVisible = Secrets.HasLobbyService && (!conf.ToolsGameLink || HiddenForceShow);
                 ModMain.frmToolsLeft.TextGameLinkCategory.Visibility = isGameLinkVisible ? Visibility.Visible : Visibility.Collapsed;
                 if (isGameLinkVisible) ModMain.frmToolsLeft.TextGameLinkCategory.Opacity = 0.6;
 
@@ -851,7 +864,7 @@ public partial class PageSetupUI
                 
                 // 统计工具页可用项数量
                 var toolsCount = 0;
-                if (!conf.ToolsGameLink)
+                if (Secrets.HasLobbyService && !conf.ToolsGameLink)
                     toolsCount += 1;
                 if (!conf.ToolsTest)
                     toolsCount += 1;

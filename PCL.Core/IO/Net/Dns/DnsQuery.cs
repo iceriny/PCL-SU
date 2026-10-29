@@ -37,10 +37,6 @@ public class DnsQuery : IDisposable
             },
             new HttpClient(proxyHandler)
             {
-                BaseAddress = new Uri("https://doh.pysio.online/")
-            },
-            new HttpClient(proxyHandler)
-            {
                 BaseAddress = new Uri("https://cloudflare-dns.com/")
             }
         ];

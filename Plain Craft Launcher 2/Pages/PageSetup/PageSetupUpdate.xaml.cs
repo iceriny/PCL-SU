@@ -21,12 +21,10 @@ public partial class PageSetupUpdate
     private void Init()
     {
         ModAnimation.AniBeginControl();
-        TextMirrorCDK.Password = Config.Update.MirrorChyanKey;
-
         ComboSystemUpdateChannel.SelectedIndex = (int)Config.Update.UpdateChannel;
         ComboSystemUpdateMode.SelectedIndex = (int)Config.Update.UpdateMode;
 
-        TextCurrentVersion.Text = "PCL CE " + VersionNameFormat(ModBase.versionBaseName);
+        TextCurrentVersion.Text = "PCL SU " + VersionNameFormat(ModBase.versionBaseName);
         ModAnimation.AniEndControl();
         CheckUpdate();
     }
@@ -35,8 +33,6 @@ public partial class PageSetupUpdate
     {
         try
         {
-            // 修复：使用 dynamic 绕过命名空间重名导致的编译期类型冲突，
-            // 或者你可以尝试替换为 PCL.Core.App.SemVer.Parse(ModBase.versionBaseName)
             if (await UpdateManager.remoteServer.IsLatestAsync(
                     UpdateManager.IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable,
                     SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64,
@@ -64,6 +60,7 @@ public partial class PageSetupUpdate
     public async void CheckUpdate()
     {
         ModBase.Log("[Update] 开始检查更新");
+        updateInfo = null;
         CardUpdate.Visibility = Visibility.Collapsed;
         CardCheck.Visibility = Visibility.Visible;
         TextCurrentDesc.Text = Lang.Text("Setup.Update.Checking");
@@ -75,11 +72,13 @@ public partial class PageSetupUpdate
                 Exception checkUpdateEx = null;
                 try
                 {
-                    updateInfo = UpdateManager.remoteServer.GetLatestVersion(
+                    updateInfo = await Task.Run(() => UpdateManager.remoteServer.GetLatestVersion(
                         UpdateManager.IsCurrentVersionBeta
                             ? UpdateChannel.beta
-                            : UpdateChannel.stable, SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64);
-                    TextUpdateName.Text = "PCL CE " + VersionNameFormat(updateInfo.VersionName);
+                            : UpdateChannel.stable, SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64));
+                    if (updateInfo is null)
+                        throw new InvalidOperationException(Lang.Text("Update.Error.UnableToGetUpdate"));
+                    TextUpdateName.Text = "PCL SU " + VersionNameFormat(updateInfo.VersionName);
                     var summary = updateInfo.Changelog.Between("<summary>", "</summary>");
                     if (!updateInfo.Changelog.Contains("<summary>") || string.IsNullOrWhiteSpace(summary.Trim()))
                         TextChangelog.Text = Lang.Text("Setup.Update.Changelog.Empty");
@@ -88,6 +87,7 @@ public partial class PageSetupUpdate
                 }
                 catch (Exception ex)
                 {
+                    updateInfo = null;
                     checkUpdateEx = ex;
                 }
 
@@ -111,7 +111,7 @@ public partial class PageSetupUpdate
 
                 if (UpdateManager.updateLoader is not null && UpdateManager.updateLoader.State == ModBase.LoadState.Loading)
                 {
-                    BtnUpdate_Timer();
+                    ModBase.RunInNewThread(BtnUpdate_Timer, "Update Progress");
                     BtnUpdate.IsEnabled = false;
                 }
                 else if (UpdateManager.isUpdateWaitingRestart)
@@ -197,8 +197,6 @@ public partial class PageSetupUpdate
                         Lang.Text("Setup.Update.Channel.Common.Warning.Confirm"),
                         Lang.Text("Common.Action.Cancel"), isWarn: true) == 2)
                     isCancelled = true;
-                else
-                    CheckUpdate();
                 break;
             }
             case 2:
@@ -219,11 +217,7 @@ public partial class PageSetupUpdate
                     button1: Lang.Text("Setup.Update.Channel.Dev.FinalConfirm.Submit"),
                     button2: Lang.Text("Common.Action.Cancel"), isWarn: true);
     
-                if (ret == confirmText)
-                {
-                    CheckUpdate();
-                }
-                else
+                if (ret != confirmText)
                 {
                     HintService.Hint(Lang.Text("Setup.Update.Channel.Dev.FinalConfirm.WrongInput"));
                     isCancelled = true;
@@ -241,22 +235,13 @@ public partial class PageSetupUpdate
         else
         {
             Config.Update.UpdateChannel = (Core.App.UpdateChannel)ComboSystemUpdateChannel.SelectedIndex;
+            CheckUpdate();
         }
-    }
-
-    private void TextMirrorCDK_PasswordChanged(object sender, EventArgs e)
-    {
-        Config.Update.MirrorChyanKey = TextMirrorCDK.Password;
-    }
-
-    private void BtnGetMirrorCDK_Click(object sender, MouseButtonEventArgs e)
-    {
-        ModBase.OpenWebsite("https://mirrorchyan.com/");
     }
 
     private void BtnChangelog_Click(object sender, MouseButtonEventArgs e)
     {
-        ModBase.OpenWebsite("https://github.com/PCL-Community/PCL2-CE/releases/v" + ModBase.versionBaseName);
+        ModBase.OpenWebsite("https://github.com/iceriny/PCL-SU/releases");
     }
 
     public string VersionNameFormat(string str)

@@ -2,6 +2,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using PCL.Core.App;
+using PCL.Core.App.Localization;
 using PCL.Core.IO.Net.Http;
 using PCL.Core.Link.Natayark;
 
@@ -308,6 +309,18 @@ public static class ModWebServer
 
     public static void StartNaidAuthorize(Action? completeCallback = null)
     {
+        if (!Secrets.HasLobbyService)
+        {
+            HintService.Hint(Lang.Text("Tools.GameLink.Unconfigured"), HintType.Error);
+            return;
+        }
+
+        if (!NatayarkProfileManager.IsConfigured)
+        {
+            HintService.Hint(Lang.Text("Tools.GameLink.Natayark.Unconfigured"), HintType.Error);
+            return;
+        }
+
         Exception? resultEx = null;
         StartOAuthWaitingCallback("NatayarkID",
             $"https://account.naids.com/oauth2/authorize?response_type=code&client_id={Secrets.NatayarkClientId}&redirect_uri=%r",

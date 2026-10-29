@@ -261,8 +261,6 @@ public partial class ProfileService
         return profile;
     }
 
-    public static bool HasMicrosoftProfile => Profiles.Any(p => p.ProfileType == ProfileType.Microsoft);
-
     private static async Task<IAuthenticateProvider> _CreateProviderAsync(ProfileType profileType,
         AuthenticationRequest request, McProfile? existing, CancellationToken token)
     {
@@ -338,6 +336,7 @@ public partial class ProfileService
         var candidates = new[]
         {
             Path.Combine(Paths.OldSharedData, "profiles.json"),
+            Path.Combine(Paths.CommunitySharedData, "profiles.json"),
             Path.Combine(Paths.SharedData, "profiles.json")
         };
         var path = candidates.FirstOrDefault(File.Exists);

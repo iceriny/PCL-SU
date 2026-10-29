@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using PCL.Core.App;
+using PCL.Core.App.Essentials;
 using PCL.Core.Minecraft.Profile;
 using PCL.Core.App.IoC;
 using PCL.Core.App.Localization;
@@ -39,7 +40,7 @@ public partial class FormMain
     {
         ModBase.RunInNewThread(() =>
         {
-            var changelogFile = $"{ModBase.pathTemp}CEUpdateLog.md";
+            var changelogFile = $"{ModBase.pathTemp}SUUpdateLog.md";
             string changelog;
             if (File.Exists(changelogFile))
                 changelog = ModBase.ReadFile(changelogFile);
@@ -47,7 +48,7 @@ public partial class FormMain
                 changelog = Lang.Text("Main.UpdateLog.Empty");
             if (ModMain.MyMsgBoxMarkdown(changelog,
                     Lang.Text("Main.UpdateLog.Title", ModBase.versionBranchName, ModBase.versionBaseName), Lang.Text("Common.Action.Confirm"), Lang.Text("Main.UpdateLog.FullChangelog")) ==
-                2) ModBase.OpenWebsite("https://github.com/PCL-Community/PCL2-CE/releases");
+                2) ModBase.OpenWebsite("https://github.com/iceriny/PCL-SU/releases");
         }, "UpdateLog Output");
     }
 
@@ -172,8 +173,7 @@ public partial class FormMain
             RemoveResizer();
         // PLC 彩蛋
         if (RandomUtils.NextInt(1, 1000) == 233)
-            ShapeTitleLogo.Data = (Geometry)new GeometryConverter().ConvertFromString(
-                "M26,29 v-25 h6 a7,7 180 0 1 0,14 h-6 M83,6.5 a10,11.5 180 1 0 0,18 M48,2.5 v24.5 h13.5");
+            LabBrandTitle.Text = "PLC SU";
         // 加载窗口
 
         ThemeManager.ThemeRefresh();
@@ -243,7 +243,7 @@ public partial class FormMain
                         $"{hint}{"\r\n"}{"\r\n"}{Lang.Text("Main.SpecialVersion.HideHintNotice")}",
                         Lang.Text("Main.SpecialVersion.Title"), Lang.Text("Main.SpecialVersion.IUnderstand"), Lang.Text("Main.SpecialVersion.OpenDownloadPageAndExit"), isWarn: true, button2Action: () =>
                         {
-                            ModBase.OpenWebsite("https://github.com/PCL-Community/PCL2-CE/releases/latest");
+                            ModBase.OpenWebsite("https://github.com/iceriny/PCL-SU/releases/latest");
                             EndProgram(false);
                         });
                 }
@@ -253,7 +253,7 @@ public partial class FormMain
                 // EULA 提示
                 if (!States.System.LauncherEula)
                     switch (ModMain.MyMsgBox(Lang.Text("Main.Eula.Message"), Lang.Text("Main.Eula.Title"), Lang.Text("Common.Action.Agree"), Lang.Text("Common.Action.Decline"), Lang.Text("Main.Eula.View"),
-                                button3Action: () => ModBase.OpenWebsite("https://shimo.im/docs/rGrd8pY8xWkt6ryW")))
+                                button3Action: () => ModBase.OpenWebsite("https://github.com/iceriny/PCL-SU/blob/dev/Plain%20Craft%20Launcher%202/LICENCE")))
                     {
                         case 1:
                             {
@@ -268,7 +268,7 @@ public partial class FormMain
                     }
 
                 // 遥测提示
-                if (Config.System.TelemetryConfig.IsDefault())
+                if (TelemetryService.IsConfigured && Config.System.TelemetryConfig.IsDefault())
                 {
                     var selection = ModMain.MyMsgBox(
                                 Lang.Text("Main.Telemetry.Message"),
@@ -339,8 +339,6 @@ public partial class FormMain
         if ((int)Config.Launch.GameWindowMode == 5)
             Config.Launch.GameWindowMode = GameWindowSizeMode.Default;
 
-        // 更新后展示社区版提示
-        UpdateManager.ShowCEAnnounce();
         // 输出更新日志
         if (lastVersionCode <= 0)
             return;
@@ -587,7 +585,7 @@ public partial class FormMain
             if (!isLogShown)
             {
                 ModBase.FeedbackInfo();
-                ModBase.Log("请在 https://github.com/PCL-Community/PCL2-CE/issues 提交错误报告，以便于社区解决此问题！（这也有可能是原版 PCL 的问题）");
+                ModBase.Log("请在 https://github.com/iceriny/PCL-SU/issues 提交错误报告。");
                 isLogShown = true;
                 ModBase.ShellOnly(LogWrapper.CurrentLogger.CurrentLogFiles.Last());
             }

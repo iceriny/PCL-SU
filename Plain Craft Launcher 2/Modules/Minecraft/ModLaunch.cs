@@ -132,49 +132,6 @@ public static class ModLaunch
             }, "Donate");
         }
 #endif
-        
-        #if DEBUG || DEBUGCI
-        return;
-        #endif
-
-        // 正版购买提示
-        if (!ProfileService.HasMicrosoftProfile)
-        {
-            if (Lang.IsFeaturesUnrestricted)
-            {
-                if (ModMain.MyMsgBox(
-                        Lang.Text("Minecraft.Launch.PurchaseHint.Message"),
-                        Lang.Text("Minecraft.Launch.PurchaseHint.Title"), Lang.Text("Minecraft.Launch.PurchaseHint.Purchase"), Lang.Text("Minecraft.Launch.PurchaseHint.Later")) ==
-                    1)
-                    ModBase.OpenWebsite(
-                        "https://www.xbox.com/zh-cn/games/store/minecraft-java-bedrock-edition-for-pc/9nxp44l49shj");
-            }
-            else
-            {                
-                switch (ModMain.MyMsgBox(Lang.Text("Minecraft.Launch.AccountVerification.Message"), 
-                            Lang.Text("Minecraft.Launch.AccountVerification.Title"), 
-                            Lang.Text("Minecraft.Launch.AccountVerification.Purchase"), 
-                            Lang.Text("Minecraft.Launch.AccountVerification.Demo"), 
-                            Lang.Text("Minecraft.Launch.AccountVerification.Back"),
-                            button1Action: () =>
-                                ModBase.OpenWebsite(
-                                    "https://www.xbox.com/zh-cn/games/store/minecraft-java-bedrock-edition-for-pc/9nxp44l49shj")))
-                {
-                    case 2:
-                    {
-                        HintService.Hint(Lang.Text("Minecraft.Launch.DemoMode"), HintType.Error);
-                        currentLaunchOptions.ExtraArgs.Add("--demo");
-                        break;
-                    }
-                    case 3:
-                    {
-                        throw new Exception("$$");
-                    }
-                }
-
-            }
-
-        }
     }
 
     #endregion
@@ -337,22 +294,13 @@ public static class ModLaunch
         try
         {
             // 构造主加载器
-            var skipClientDownloads = RestrictedFeaturePolicy.IsRestricted;
-            if (skipClientDownloads && !ModDownload.McClientFilesAvailableLocally(ModInstanceList.McMcInstanceSelected))
-            {
-                RestrictedFeaturePolicy.Check("minecraft-launch-missing-files");
-                throw new ModBase.CancelledException();
-            }
-
             var loaders = new List<ModLoader.LoaderBase>
             {
                 new ModLoader.LoaderTask<int, int>(Lang.Text("Minecraft.Launch.Stage.GetJava"), McLaunchJava) { ProgressWeight = 4d, block = false },
                 mcLoginLoader,
                 new ModLoader.LoaderCombo<string>(Lang.Text("Minecraft.Launch.Stage.CompleteFiles"),
-                        skipClientDownloads
-                            ? new List<ModLoader.LoaderBase>()
-                            : ModDownload.DlClientFix(ModInstanceList.McMcInstanceSelected, false,
-                                ModDownload.AssetsIndexExistsBehaviour.DownloadInBackground))
+                        ModDownload.DlClientFix(ModInstanceList.McMcInstanceSelected, false,
+                            ModDownload.AssetsIndexExistsBehaviour.DownloadInBackground))
                     { ProgressWeight = 15d, show = false },
                 new ModLoader.LoaderTask<string, List<ModLibrary.McLibToken>>(Lang.Text("Minecraft.Launch.Stage.GetArguments"), McLaunchArgumentMain)
                     { ProgressWeight = 2d },
@@ -1967,7 +1915,7 @@ public static class ModLaunch
         gameArguments.Add("${natives_directory}", ModBase.ShortenPath(GetNativesFolder()));
         gameArguments.Add("${library_directory}", ModBase.ShortenPath(ModFolder.mcFolderSelected + "libraries"));
         gameArguments.Add("${libraries_directory}", ModBase.ShortenPath(ModFolder.mcFolderSelected + "libraries"));
-        gameArguments.Add("${launcher_name}", "PCLCE");
+        gameArguments.Add("${launcher_name}", "PCLSU");
         gameArguments.Add("${launcher_version}", ModBase.versionCode.ToString());
         gameArguments.Add("${version_name}", instance.Name);
         var argumentInfo = Config.Instance.TypeInfo[ModInstanceList.McMcInstanceSelected?.PathInstance];

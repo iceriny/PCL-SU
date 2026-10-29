@@ -95,6 +95,9 @@
         <Resource Include="UI\Assets\Shaders\*.ps" />
         <Resource Include="UI\Assets\IconPacks\**\*.svg" />
     </ItemGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="PCL.Core.Test" />
+    </ItemGroup>
     <!-- 项目自定义源生成器 -->
     <ItemGroup>
         <AdditionalFiles Include="App\IoC\LifecycleState.cs" />

@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Input;
 using PCL.Core.App.Localization;
 using PCL.Core.IO.Net.Http;
+using PCL.Core.Link.Natayark;
 using PCL.Core.Utils;
 
 namespace PCL;
@@ -46,6 +47,9 @@ public partial class PageSetupAbout
         }
 
         LoadContributersAsync();
+        BtnNatayarkTerms.Visibility = NatayarkProfileManager.IsConfigured
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private async void LoadContributersAsync()
@@ -53,7 +57,7 @@ public partial class PageSetupAbout
         try
         {
             using (var response = await HttpRequest
-                       .Create("https://api.github.com/repos/PCL-Community/PCL2-CE/contributors").SendAsync())
+                       .Create("https://api.github.com/repos/PCL-Community/PCL-CE/contributors").SendAsync())
             {
                 response.EnsureSuccessStatusCode();
                 var cos = await response.AsJsonAsync<List<GitHubContributor>>(JsonCompat.SerializerOptions);

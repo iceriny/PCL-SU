@@ -1,7 +1,9 @@
 ﻿using System.Security.Authentication;
 using System.Windows;
+using System.Runtime.ExceptionServices;
 using PCL.Core.App.Localization;
 using PCL.Core.Minecraft.Profile;
+using PCL.Core.Minecraft.Profile.Authentication;
 
 namespace PCL;
 
@@ -50,7 +52,7 @@ public partial class PageLoginMs
                 else if (ModLaunch.mcLoginMsLoader.Error is null)
                     throw new InvalidOperationException(Lang.Text("Launch.Account.Microsoft.Error.Unknown"));
                 else
-                    throw ModLaunch.mcLoginMsLoader.Error;
+                    ExceptionDispatchInfo.Capture(ModLaunch.mcLoginMsLoader.Error).Throw();
             }
             catch (ThreadInterruptedException ex)
             {
@@ -68,6 +70,12 @@ public partial class PageLoginMs
                     HintService.Hint(
                         Lang.Text("Launch.Account.Microsoft.LoginFailed.WithDetail", ex.Message.TrimStart('$')),
                         HintType.Error);
+                }
+                else if (ex is MinecraftServiceException { IsAppRegistrationRejected: true })
+                {
+                    ModBase.Log(ex, Lang.Text("Launch.Account.Microsoft.Error.AppRegistrationRejected"),
+                        ModBase.LogLevel.Msgbox,
+                        userSummary: Lang.Text("Launch.Account.Microsoft.Error.AppRegistrationRejected"));
                 }
                 else if (ex is AuthenticationException && ex.Message.ContainsF("SSL/TLS"))
                 {

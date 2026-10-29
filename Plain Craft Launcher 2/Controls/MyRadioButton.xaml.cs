@@ -328,7 +328,7 @@ public partial class MyRadioButton
                         if (Checked)
                         {
                             // 勾选
-                            var color3 = new ModBase.MyColor(ThemeManager.AppResources["ColorObject3"]);
+                            var color3 = new ModBase.MyColor(ThemeManager.AppResources["ColorObjectTitle"]);
                             ModAnimation.AniStart(
                                 new[]
                                 {
@@ -398,11 +398,8 @@ public partial class MyRadioButton
                             ModAnimation.AniStart(
                                 new[]
                                 {
-                                    ModAnimation.AaColor(ShapeLogo, Shape.FillProperty,
-                                        new ModBase.MyColor(255d, 255d, 255d) - ShapeLogo.Fill, animationTimeOfCheck),
-                                    ModAnimation.AaColor(LabText, TextBlock.ForegroundProperty,
-                                        new ModBase.MyColor(255d, 255d, 255d) - LabText.Foreground,
-                                        animationTimeOfCheck)
+                                    ModAnimation.AaColor(ShapeLogo, Shape.FillProperty, "ColorBrushOnAccent", animationTimeOfCheck),
+                                    ModAnimation.AaColor(LabText, TextBlock.ForegroundProperty, "ColorBrushOnAccent", animationTimeOfCheck)
                                 }, "MyRadioButton Checked " + Uuid);
                             ModAnimation.AniStart(
                                 ModAnimation.AaColor(this, BackgroundProperty, "ColorBrush3", animationTimeOfCheck),
@@ -464,8 +461,8 @@ public partial class MyRadioButton
                         if (Checked)
                         {
                             Background = new ModBase.MyColor(255d, 255d, 255d);
-                            ShapeLogo.SetResourceReference(Shape.FillProperty, "ColorBrush3");
-                            LabText.SetResourceReference(TextBlock.ForegroundProperty, "ColorBrush3");
+                            ShapeLogo.SetResourceReference(Shape.FillProperty, "ColorBrushTitle");
+                            LabText.SetResourceReference(TextBlock.ForegroundProperty, "ColorBrushTitle");
                         }
                         else
                         {
@@ -481,8 +478,8 @@ public partial class MyRadioButton
                         if (Checked)
                         {
                             SetResourceReference(BackgroundProperty, "ColorBrush3");
-                            ShapeLogo.Fill = new ModBase.MyColor(255d, 255d, 255d);
-                            LabText.Foreground = new ModBase.MyColor(255d, 255d, 255d);
+                            ShapeLogo.SetResourceReference(Shape.FillProperty, "ColorBrushOnAccent");
+                            LabText.SetResourceReference(TextBlock.ForegroundProperty, "ColorBrushOnAccent");
                         }
                         else
                         {

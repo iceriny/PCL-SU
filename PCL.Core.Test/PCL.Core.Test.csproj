@@ -51,6 +51,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\PCL.Core\PCL.Core.csproj" />
+    <ProjectReference Include="..\Plain Craft Launcher 2\Plain Craft Launcher 2.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="Net\**" />

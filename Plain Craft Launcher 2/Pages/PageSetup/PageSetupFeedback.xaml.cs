@@ -9,34 +9,19 @@ namespace PCL;
 
 public partial class PageSetupFeedback
 {
-    public enum TagId : long
-    {
-        Processing = 6820804544L,
-        WaitingProcess = 6820804546L,
-        Completed = 6820804547L,
-        Decline = 6820804539L,
-        Ignored = 8064650117L,
-        Duplicate = 6820804541L,
-        Wait = 8743070786L,
-        Pause = 8558220235L,
-        Upnext = 8550609020L
-    }
-
     private bool _isLoaded;
 
     public ModLoader.LoaderTask<bool, List<Feedback>> Loader;
 
-    private static readonly Dictionary<string, (Func<PageSetupFeedback, StackPanel> Panel, string Icon)> TagMap = new()
+    private static readonly Dictionary<string, (Func<PageSetupFeedback, StackPanel> Panel, string Icon)> TagMap = new(StringComparer.OrdinalIgnoreCase)
     {
-        [((long)TagId.Processing).ToString()] = (p => p.PanListProcessing, "Blocks/CommandBlock.png"),
-        [((long)TagId.WaitingProcess).ToString()] = (p => p.PanListWaitingProcess, "Blocks/RedstoneBlock.png"),
-        [((long)TagId.Wait).ToString()] = (p => p.PanListWait, "Blocks/Anvil.png"),
-        [((long)TagId.Pause).ToString()] = (p => p.PanListPause, "Blocks/RedstoneLampOff.png"),
-        [((long)TagId.Upnext).ToString()] = (p => p.PanListUpnext, "Blocks/RedstoneLampOn.png"),
-        [((long)TagId.Completed).ToString()] = (p => p.PanListCompleted, "Blocks/Grass.png"),
-        [((long)TagId.Decline).ToString()] = (p => p.PanListDecline, "Blocks/CobbleStone.png"),
-        [((long)TagId.Ignored).ToString()] = (p => p.PanListIgnored, "Blocks/CobbleStone.png"),
-        [((long)TagId.Duplicate).ToString()] = (p => p.PanListDuplicate, "Blocks/CobbleStone.png"),
+        ["in progress"] = (p => p.PanListProcessing, "Blocks/CommandBlock.png"),
+        ["waiting"] = (p => p.PanListWait, "Blocks/Anvil.png"),
+        ["on hold"] = (p => p.PanListPause, "Blocks/RedstoneLampOff.png"),
+        ["planned"] = (p => p.PanListUpnext, "Blocks/RedstoneLampOn.png"),
+        ["wontfix"] = (p => p.PanListDecline, "Blocks/CobbleStone.png"),
+        ["invalid"] = (p => p.PanListIgnored, "Blocks/CobbleStone.png"),
+        ["duplicate"] = (p => p.PanListDuplicate, "Blocks/CobbleStone.png"),
     };
 
     public PageSetupFeedback()
@@ -60,12 +45,12 @@ public partial class PageSetupFeedback
     public void FeedbackListGet(ModLoader.LoaderTask<bool, List<Feedback>> task)
     {
         var list = Requester.FetchJson(
-            "https://api.github.com/repos/PCL-Community/PCL2-CE/issues?state=all&sort=created&per_page=200",
+            "https://api.github.com/repos/iceriny/PCL-SU/issues?state=all&sort=created&per_page=100",
             new RequestParam
             {
                 Retries = 3,
                 UseBrowserUserAgent = true
-            }) as JsonArray; // 获取近期 200 条数据就够了
+            }) as JsonArray;
         if (list is null)
             throw new Exception(Lang.Text("Setup.Feedback.LoadFailed"));
         var res = new List<Feedback>();
@@ -92,7 +77,7 @@ public partial class PageSetupFeedback
             if (issue["labels"] is JsonArray thisTags)
                 foreach (var thisTag in thisTags)
                     if (thisTag is JsonObject tagObj)
-                        item.Tags.Add(tagObj["id"]!.ToString());
+                        item.Tags.Add(tagObj["name"]!.ToString());
 
             res.Add(item);
         }
@@ -158,6 +143,16 @@ public partial class PageSetupFeedback
                 var (panel, icon) = TagMap[tag];
                 panel(this).Children.Add(CreateFeedbackItem(item, icon));
             }
+            else if (item.State == "closed")
+            {
+                var declined = item.StateReason == "not_planned";
+                var panel = declined ? PanListDecline : PanListCompleted;
+                panel.Children.Add(CreateFeedbackItem(item, declined ? "Blocks/CobbleStone.png" : "Blocks/Grass.png"));
+            }
+            else
+            {
+                PanListWaitingProcess.Children.Add(CreateFeedbackItem(item, "Blocks/RedstoneBlock.png"));
+            }
         }
 
         SetPanelVisibility(PanListProcessing, PanContentProcessing);
@@ -188,6 +183,10 @@ public partial class PageSetupFeedback
         public string Content { get; init; } = string.Empty;
         [JsonPropertyName("html_url")]
         public string Url { get; init; } = string.Empty;
+        [JsonPropertyName("state")]
+        public string State { get; init; } = string.Empty;
+        [JsonPropertyName("state_reason")]
+        public string StateReason { get; init; } = string.Empty;
         [JsonIgnore]
         public string Id { get; set; } = string.Empty;
         public List<string> Tags { get; } = new();

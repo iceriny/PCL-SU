@@ -1,142 +1,133 @@
 name: Release publish
-
-permissions:
-  contents: write
-  actions: write
+run-name: PCL SU ${{ inputs.version }}
 
 on:
   workflow_dispatch:
     inputs:
-      configuration:
-        description: 'Build configuration (Beta is published as prerelease)'
-        required: true
-        default: Beta
-        type: choice
-        options:
-          - Release
-          - Beta
       version:
-        description: 'Version to release (e.g., 2.14.2)'
+        description: 'Stable version matching metadata.json (for example 2.15.2)'
         required: true
         type: string
 
+permissions:
+  contents: read
+
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - configuration: ${{ inputs.configuration }}
-            architecture: x64
-          - configuration: ${{ inputs.configuration }}
-            architecture: ARM64
-      fail-fast: false
-
-    uses: ./.github/workflows/reusable-build.yml
-    with:
-      configuration: ${{ matrix.configuration }}
-      architecture: ${{ matrix.architecture }}
-    secrets: inherit
-
-  changelog:
+  validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Checkout all
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-
-      - name: Install git-cliff
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
-        with:
-          tool: git-cliff
-
-      - name: Create local release tag
-        run: git tag -f "v${{ inputs.version }}"
-
-      - name: Generate changelog
-        run: git-cliff --latest -o CHANGELOG.md
+          persist-credentials: false
+      - name: Validate release target
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create or update release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          draft: true
-          tag_name: v${{ inputs.version }}
-          name: Release ${{ inputs.version }}
-          body_path: CHANGELOG.md
-          prerelease: ${{ inputs.configuration == 'Beta' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  rename_and_release:
-    needs: [build, changelog]
-    permissions:
-      actions: read
-      contents: write
-      id-token: write
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - configuration: ${{ inputs.configuration }}
-            architecture: x64
-          - configuration: ${{ inputs.configuration }}
-            architecture: ARM64
-    steps:
-      - name: Download Build Artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: PCL2_CE_${{ matrix.configuration }}_${{ matrix.architecture }}
-          path: ./artifact
-
-      - name: Rename binaries
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_REF: ${{ github.ref }}
         run: |
-          mv "./artifact/Plain Craft Launcher 2.exe" "PCL2_CE_${{ matrix.configuration }}_${{ matrix.architecture }}.exe"
-
-      - name: Sign the binary
-        uses: sigstore/gh-action-sigstore-python@790bc6befb9d733738f18d8f895854b453640ec9 # v3.5.0
-        with:
-          inputs: PCL2_CE_${{ matrix.configuration }}_${{ matrix.architecture }}.exe
-          verify: true
-          verify-cert-identity: https://github.com/PCL-Community/PCL-CE/.github/workflows/release-publish.yml@refs/heads/dev
-          verify-oidc-issuer: https://token.actions.githubusercontent.com
-
-      - name: Upload binary and signature to Release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          draft: true
-          tag_name: v${{ inputs.version }}
-          files: |
-            PCL2_CE_${{ matrix.configuration }}_${{ matrix.architecture }}.exe
-            PCL2_CE_${{ matrix.configuration }}_${{ matrix.architecture }}.exe.sigstore.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  publish_draft:
-    needs: [rename_and_release]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Publish Draft
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          tag_name: v${{ inputs.version }}
-
-      - name: Trigger MirrorChyanUploading
-        run: |
-          MRC_CHANNEL="stable"
-          if [ "${{ inputs.configuration }}" = "Beta" ]; then
-            MRC_CHANNEL="beta"
+          set -euo pipefail
+          [[ "$RELEASE_REF" == "refs/heads/dev" ]]
+          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$RELEASE_VERSION" = "$(jq -r '.version.base' 'Plain Craft Launcher 2/metadata.json')"
+          test -z "$(jq -r '.version.suffix' 'Plain Craft Launcher 2/metadata.json')"
+          grep -Fq "<AssemblyVersion>$RELEASE_VERSION.0</AssemblyVersion>" 'Plain Craft Launcher 2/Plain Craft Launcher 2.csproj'
+          grep -Fq "<FileVersion>$RELEASE_VERSION.0</FileVersion>" 'Plain Craft Launcher 2/Plain Craft Launcher 2.csproj'
+          test -s "release-notes/$RELEASE_VERSION.md"
+          tag="v$RELEASE_VERSION"
+          if existing_sha=$(gh api "repos/$GH_REPO/commits/$tag" --jq '.sha' 2>/dev/null); then
+            test "$existing_sha" = "$RELEASE_SHA"
+          fi
+          if draft=$(gh release view "$tag" --json isDraft --jq '.isDraft' 2>/dev/null); then
+            test "$draft" = "true"
           fi
 
-          for arch in x64 arm64; do
-            gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_uploading.yml -f channel=$MRC_CHANNEL -f arch=$arch
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  test:
+    needs: validate
+    uses: ./.github/workflows/reusable-test.yml
 
-      - name: Trigger MirrorChyanReleaseNote
+  build:
+    needs: [validate, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x64, ARM64]
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      configuration: Release
+      architecture: ${{ matrix.architecture }}
+      require-ms-client-id: true
+    secrets: inherit
+
+  publish:
+    needs: [validate, test, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+    steps:
+      - name: Checkout release notes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: PCL_SU_Release_*
+          merge-multiple: true
+          path: dist
+
+      - name: Verify packages
+        working-directory: dist
         run: |
-          gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_release_note.yml
+          set -euo pipefail
+          test -s PCL_SU_Release_x64.exe
+          test -s PCL_SU_Release_ARM64.exe
+          sha256sum --check PCL_SU_Release_x64.exe.sha256 PCL_SU_Release_ARM64.exe.sha256
+
+      - name: Sign and verify binaries
+        uses: sigstore/gh-action-sigstore-python@790bc6befb9d733738f18d8f895854b453640ec9 # v3.5.0
+        with:
+          inputs: dist/PCL_SU_Release_x64.exe dist/PCL_SU_Release_ARM64.exe
+          verify: true
+          verify-cert-identity: https://github.com/${{ github.workflow_ref }}
+          verify-oidc-issuer: https://token.actions.githubusercontent.com
+          upload-signing-artifacts: false
+
+      - name: Publish release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tag="v$RELEASE_VERSION"
+          for arch in x64 ARM64; do
+            test -s "dist/PCL_SU_Release_$arch.exe.sigstore.json"
+          done
+          if existing_sha=$(gh api "repos/$GH_REPO/commits/$tag" --jq '.sha' 2>/dev/null); then
+            test "$existing_sha" = "$RELEASE_SHA"
+          else
+            gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$tag" -f sha="$RELEASE_SHA"
+          fi
+          if draft=$(gh release view "$tag" --json isDraft --jq '.isDraft' 2>/dev/null); then
+            test "$draft" = "true"
+            gh release edit "$tag" --title "PCL SU $RELEASE_VERSION" --notes-file "release-notes/$RELEASE_VERSION.md"
+          else
+            gh release create "$tag" --verify-tag --draft --title "PCL SU $RELEASE_VERSION" --notes-file "release-notes/$RELEASE_VERSION.md"
+          fi
+          gh release upload "$tag" dist/*.exe dist/*.sha256 dist/*.sigstore.json --clobber
+          test "$(gh release view "$tag" --json assets --jq '.assets | length')" -eq 6
+          gh release edit "$tag" --draft=false --prerelease=false --latest
+          echo "Published: https://github.com/$GH_REPO/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"

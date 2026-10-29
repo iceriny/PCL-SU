@@ -19,7 +19,7 @@ public partial class PageSetupLeft
         if (ItemLaunch.Checked && hide.SetupLaunch) isHiddenPage = true;
         if (ItemJava.Checked && hide.SetupJava) isHiddenPage = true;
         if (ItemGameManage.Checked && hide.SetupGameManage)  isHiddenPage = true;
-        if (ItemGameLink.Checked && hide.SetupGameLink) isHiddenPage = true;
+        if (ItemGameLink.Checked && (hide.SetupGameLink || !Secrets.HasLobbyService)) isHiddenPage = true;
         if (ItemUI.Checked && hide.SetupUi) isHiddenPage = true;
         if (ItemLauncherLanguage.Checked && hide.SetupLauncherLanguage) isHiddenPage = true;
         if (ItemLauncherMisc.Checked && hide.SetupLauncherMisc) isHiddenPage = true;
@@ -45,7 +45,7 @@ public partial class PageSetupLeft
             ItemJava.SetChecked(true, false, false);    
         else if (!hideCfg.SetupGameManage) 
             ItemGameManage.SetChecked(true, false, false);
-        else if (!hideCfg.SetupGameLink) 
+        else if (Secrets.HasLobbyService && !hideCfg.SetupGameLink)
             ItemGameLink.SetChecked(true, false, false);    
         else if (!hideCfg.SetupUi) 
             ItemUI.SetChecked(true, false, false);
@@ -154,8 +154,6 @@ public partial class PageSetupLeft
     {
         ModBase.RunInNewThread(() =>
         {
-            if (!ModBase.CanFeedback(true))
-                return;
             switch (ModMain.MyMsgBox(Lang.Text("Setup.Left.Feedback.Message"), Lang.Text("Setup.Left.Feedback.Title"),
                         Lang.Text("Setup.Left.Feedback.SubmitNew"), Lang.Text("Setup.Left.Feedback.ViewList"), Lang.Text("Common.Action.Cancel")))
             {
@@ -166,7 +164,7 @@ public partial class PageSetupLeft
                 }
                 case 2:
                 {
-                    ModBase.OpenWebsite("https://github.com/PCL-Community/PCL2-CE/issues/");
+                    ModBase.OpenWebsite("https://github.com/iceriny/PCL-SU/issues/");
                     break;
                 }
             }
@@ -253,7 +251,9 @@ public partial class PageSetupLeft
     public object PageGet(FormMain.PageSubType? id = null)
     {
         var targetID = id ?? pageID;
-        switch (id)
+        if (targetID == FormMain.PageSubType.SetupGameLink && !Secrets.HasLobbyService)
+            targetID = FormMain.PageSubType.SetupLaunch;
+        switch (targetID)
         {
             case FormMain.PageSubType.SetupLaunch:
             {
@@ -334,6 +334,8 @@ public partial class PageSetupLeft
     /// </summary>
     public void PageChange(FormMain.PageSubType id)
     {
+        if (id == FormMain.PageSubType.SetupGameLink && !Secrets.HasLobbyService)
+            id = FormMain.PageSubType.SetupLaunch;
         if (pageID == id)
             return;
         ModAnimation.AniBeginControl();

@@ -6,7 +6,6 @@ using PCL.Core.Link.Scaffolding.Client.Models;
 using PCL.Core.Link.Scaffolding.Client.Requests;
 using PCL.Core.Logging;
 using PCL.Core.Utils.Exts;
-using PCL.Core.Utils.OS;
 using PCL.Core.Utils.Secret;
 using System;
 using System.Linq;
@@ -54,7 +53,7 @@ public sealed class LobbyController
     /// <returns>Created <see cref="ScaffoldingClientEntity"/>.</returns>
     public async Task<ScaffoldingClientEntity?> LaunchClientAsync(string username, string code, CancellationToken ct = default)
     {
-        if (!await _SendTelemetryAsync(false).ConfigureAwait(false))
+        if (!Secrets.HasLobbyService || !await _SendTelemetryAsync(false).ConfigureAwait(false))
         {
             return null;
         }
@@ -146,7 +145,7 @@ public sealed class LobbyController
     /// </remarks>
     public async Task<ScaffoldingServerEntity?> LaunchServerAsync(string username, int port)
     {
-        if (!await _SendTelemetryAsync(true).ConfigureAwait(false))
+        if (!Secrets.HasLobbyService || !await _SendTelemetryAsync(true).ConfigureAwait(false))
         {
             return null;
         }
@@ -214,6 +213,8 @@ public sealed class LobbyController
 
     private static async Task<bool> _SendTelemetryAsync(bool isHost)
     {
+        if (string.IsNullOrWhiteSpace(Secrets.LobbyReportEndpoint)) return true;
+
         LogWrapper.Info("Link", "开始发送联机数据");
         var servers = Config.Link.CustomRelayServer;
         var serverType = Config.Link.ServerType;
@@ -242,9 +243,9 @@ public sealed class LobbyController
 
         try
         {
-            HttpContent httpContent = new StringContent(sendData.ToJsonString(), Encoding.UTF8, "application/json");
-            var key = EnvironmentInterop.GetSecret("TelemetryKey");
-            if (key is null)
+            using HttpContent httpContent = new StringContent(sendData.ToJsonString(), Encoding.UTF8, "application/json");
+            var key = Secrets.TelemetryKey;
+            if (string.IsNullOrWhiteSpace(key))
             {
                 if (RequiresLogin)
                 {
@@ -256,7 +257,7 @@ public sealed class LobbyController
             else
             {
                 using var response = await HttpRequest
-                    .CreatePost("https://pcl2ce.pysio.online/post")
+                    .CreatePost(Secrets.LobbyReportEndpoint)
                     .WithContent(httpContent)
                     .WithBearerToken(key)
                     .SendAsync()
