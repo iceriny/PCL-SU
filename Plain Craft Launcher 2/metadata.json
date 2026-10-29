@@ -1,10 +1,10 @@
 {
   "name": "Plain Craft Launcher SU",
   "version": {
-    "base": "2.15.5",
+    "base": "2.15.6",
     "upstream": "2.12.1",
     "suffix": "",
-    "code": 528
+    "code": 529
   },
   "licenses": [
     {

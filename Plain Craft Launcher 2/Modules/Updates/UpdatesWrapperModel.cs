@@ -32,76 +32,48 @@ public class UpdatesWrapperModel : IUpdateSource
 
     public bool RefreshCache()
     {
+        Exception? lastError = null;
         foreach (var item in _sources)
             try
             {
-                item.RefreshCache();
+                if (!item.RefreshCache()) continue;
                 _versionSource = item;
-                break;
+                return true;
             }
             catch (Exception ex)
             {
+                lastError = ex;
                 ModBase.Log(ex, $"[Update] {item.SourceName} 暂不可用");
             }
 
-        return _versionSource is not null;
+        throw new Exception(Lang.Text("Update.Task.GetVersionInfoFailed"), lastError);
     }
 
     public VersionDataModel GetLatestVersion(UpdateChannel channel, UpdateArch arch)
+        => FromVersionSources(source => source.GetLatestVersion(channel, arch));
+
+    private T FromVersionSources<T>(Func<IUpdateSource, T> fetch)
     {
-        foreach (var item in _sources)
+        Exception? lastError = null;
+        foreach (var item in _sources.Prepend(_versionSource).Where(source => source is not null).Distinct())
             try
             {
-                if (_versionSource is not null)
-                    try
-                    {
-                        return _versionSource.GetLatestVersion(channel, arch);
-                    }
-                    catch (Exception ex)
-                    {
-                        ModBase.Log(ex, $"[Update] 缓存的版本源 {_versionSource.SourceName} 不可用");
-                    }
-
-                var ret = item.GetLatestVersion(channel, arch);
+                var ret = fetch(item);
                 _versionSource = item;
                 return ret;
             }
             catch (Exception ex)
             {
+                lastError = ex;
                 ModBase.Log(ex, $"[Update] {item.SourceName} 无法获取最新版本信息");
             }
 
         ModBase.Log("[Update] 错误！所有的版本源都无法使用！");
-        throw new Exception(Lang.Text("Update.Task.GetVersionInfoFailed"));
+        throw new Exception(Lang.Text("Update.Task.GetVersionInfoFailed"), lastError);
     }
 
     public bool IsLatest(UpdateChannel channel, UpdateArch arch, SemVer currentVersion, int currentVersionCode)
-    {
-        foreach (var item in _sources)
-            try
-            {
-                if (_versionSource is not null)
-                    try
-                    {
-                        return _versionSource.IsLatest(channel, arch, currentVersion, currentVersionCode);
-                    }
-                    catch (Exception ex)
-                    {
-                        ModBase.Log(ex, $"[Update] 缓存的版本源 {_versionSource.SourceName} 不可用");
-                    }
-
-                var ret = item.IsLatest(channel, arch, currentVersion, currentVersionCode);
-                _versionSource = item;
-                return ret;
-            }
-            catch (Exception ex)
-            {
-                ModBase.Log(ex, $"[Update] {item.SourceName} 无法获取最新版本信息");
-            }
-
-        ModBase.Log("[Update] 错误！所有的版本源都无法使用！");
-        throw new Exception(Lang.Text("Update.Task.GetVersionInfoFailed"));
-    }
+        => FromVersionSources(source => source.IsLatest(channel, arch, currentVersion, currentVersionCode));
 
     public VersionAnnouncementDataModel GetAnnouncementList()
     {
@@ -132,32 +104,7 @@ public class UpdatesWrapperModel : IUpdateSource
     }
 
     public List<ModLoader.LoaderBase> GetDownloadLoader(UpdateChannel channel, UpdateArch arch, string output)
-    {
-        foreach (var item in _sources)
-            try
-            {
-                if (_versionSource is not null)
-                    try
-                    {
-                        return _versionSource.GetDownloadLoader(channel, arch, output);
-                    }
-                    catch (Exception ex)
-                    {
-                        ModBase.Log(ex, $"[Update] 缓存的版本源 {_versionSource.SourceName} 不可用");
-                    }
-
-                var ret = item.GetDownloadLoader(channel, arch, output);
-                _versionSource = item;
-                return ret;
-            }
-            catch (Exception ex)
-            {
-                ModBase.Log(ex, $"[Update] {item.SourceName} 无法获取最新版本信息");
-            }
-
-        ModBase.Log("[Update] 错误！所有的版本源都无法使用！");
-        throw new Exception(Lang.Text("Update.Task.GetVersionInfoFailed"));
-    }
+        => FromVersionSources(source => source.GetDownloadLoader(channel, arch, output));
 
     public async Task<bool> IsLatestAsync(UpdateChannel channel, UpdateArch arch, SemVer currentVersion,
         int currentVersionCode)

@@ -19,6 +19,8 @@ public partial class PageSetupUpdate
     private bool _checkInFlight;
     private bool _checkQueued;
     private bool _hasCheckResult;
+    private UpdateChannel? _checkedChannel;
+    private DateTime _lastCheckTimeUtc;
     private int _checkGeneration;
     private int _inFlightGeneration;
     private UpdateStatus _checkStatus = UpdateStatus.Checking;
@@ -65,15 +67,16 @@ public partial class PageSetupUpdate
         TextCurrentVersion.Text = Lang.Text("Setup.Update.CurrentVersion", VersionNameFormat(ModBase.versionBaseName));
         CardCheck.Visibility = Visibility.Visible;
         _progressTimer.Start();
-        if (!RenderSharedUpdate())
-            _ = CheckUpdateAsync(false);
+        var channel = UpdateManager.IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable;
+        if (_hasCheckResult && (_checkedChannel != channel ||
+            DateTime.UtcNow - _lastCheckTimeUtc > TimeSpan.FromMinutes(5))) _hasCheckResult = false;
+        RefreshUpdateState();
     }
 
     private void SuspendPage()
     {
         _pageActive = false;
         _progressTimer.Stop();
-        InvalidateCheck();
     }
 
     private void InvalidateCheck()
@@ -126,22 +129,27 @@ public partial class PageSetupUpdate
         ModBase.Log("[Update] 开始检查更新");
         try
         {
-            var latest = await UpdateManager.remoteServer.IsLatestAsync(channel, architecture,
-                SemVer.Parse(ModBase.versionBaseName), ModBase.versionCode);
+            var version = await Task.Run(() =>
+            {
+                if (explicitRequest) UpdateManager.remoteServer.RefreshCache();
+                return UpdateManager.remoteServer.GetLatestVersion(channel, architecture);
+            });
             if (!CanApplyCheck(generation)) return;
-            var version = latest ? null : await Task.Run(() => UpdateManager.remoteServer.GetLatestVersion(channel, architecture));
-            if (!CanApplyCheck(generation)) return;
-            if (!latest && version is null)
-                throw new InvalidOperationException(Lang.Text("Update.Error.UnableToGetUpdate"));
-            SetTargetVersion(version);
+            var latest = version is null || SemVer.Parse(version.VersionName) <= SemVer.Parse(ModBase.versionBaseName);
+            SetTargetVersion(latest ? null : version);
             _checkStatus = latest ? UpdateStatus.Latest : UpdateStatus.Available;
             _hasCheckResult = true;
+            _checkedChannel = channel;
+            _lastCheckTimeUtc = DateTime.UtcNow;
+            UpdateManager.DownloadAutomatically(updateInfo);
         }
         catch (Exception ex)
         {
             if (!CanApplyCheck(generation)) return;
             _checkStatus = UpdateStatus.Error;
             _hasCheckResult = true;
+            _checkedChannel = channel;
+            _lastCheckTimeUtc = DateTime.UtcNow;
             ModBase.Log(ex, "[Update] 检查更新失败", ModBase.LogLevel.Hint,
                 userSummary: Lang.Text("Setup.Update.Error.NetworkFailed"));
         }
@@ -163,7 +171,7 @@ public partial class PageSetupUpdate
     }
 
     private bool CanApplyCheck(int generation)
-        => _pageActive && generation == _checkGeneration && !RenderSharedUpdate();
+        => generation == _checkGeneration && !RenderSharedUpdate();
 
     internal void RefreshUpdateState()
     {
@@ -286,7 +294,11 @@ public partial class PageSetupUpdate
     private void ComboSystemUpdateMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_syncingSettings && !ModAnimation.AniExitsAnyControl())
+        {
             Config.Update.UpdateMode = (LauncherAutoUpdateBehavior)ComboSystemUpdateMode.SelectedIndex;
+            UpdateManager.DownloadAutomatically(updateInfo);
+            RefreshUpdateState();
+        }
     }
 
     private void ComboSystemUpdateBranch_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -351,6 +363,8 @@ public partial class PageSetupUpdate
         {
             Config.Update.UpdateChannel = (Core.App.UpdateChannel)ComboSystemUpdateChannel.SelectedIndex;
             InvalidateCheck();
+            _hasCheckResult = false;
+            SetTargetVersion(null);
             CheckUpdate();
         }
     }

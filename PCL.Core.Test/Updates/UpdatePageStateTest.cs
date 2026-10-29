@@ -44,9 +44,11 @@ public sealed class UpdatePageStateTest
         AddResources(application.Resources);
         var original = new ManagerSnapshot();
         var source = new MemoryUpdateSource();
+        var originalMode = PCL.Core.App.Config.Update.UpdateMode;
         global::PCL.PageSetupUpdate? page = null;
         try
         {
+            PCL.Core.App.Config.Update.UpdateMode = PCL.Core.App.LauncherAutoUpdateBehavior.AnnounceOnly;
             global::PCL.UpdateManager.remoteServer = new global::PCL.UpdatesWrapperModel([source]);
             var target = Version("2.15.99");
             var downloading = LoadingUpdate();
@@ -98,14 +100,49 @@ public sealed class UpdatePageStateTest
             AssertDownload(page, newerTarget, timer);
             Assert.AreEqual(1d, page.CardUpdate.Opacity);
             Assert.AreEqual(1, source.CheckCalls);
-            Assert.IsFalse(page.TextUpdateName.Text.Contains("2.15.3", StringComparison.Ordinal),
+            Assert.IsFalse(page.TextUpdateName.Text.Contains("2.15.99", StringComparison.Ordinal),
                 "The old check must not replace the active download's target version.");
+
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            SeedManager(null, null);
+            source.BlockChecks = false;
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            PumpUntil(() => !PageField<bool>(page, "_checkInFlight"), TimeSpan.FromSeconds(5));
+            Assert.AreEqual(2, source.CheckCalls);
+            var available = page.updateInfo;
+            Assert.IsNotNull(available);
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            Assert.AreSame(available, page.updateInfo);
+            Assert.AreEqual(2, source.CheckCalls, "Navigation must reuse a successful check.");
+
+            page.ComboSystemUpdateMode.SelectedIndex = (int)PCL.Core.App.LauncherAutoUpdateBehavior.DownloadAndAnnounce;
+            PumpUntil(() => source.DownloadCalls == 1 && !global::PCL.UpdateManager.IsPreparingUpdate, TimeSpan.FromSeconds(5));
+            Assert.AreSame(available, global::PCL.UpdateManager.ActiveUpdateVersion);
+            page.RefreshUpdateState();
+            Assert.AreEqual("Retry", page.BtnUpdate.Text);
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            Assert.AreEqual(1, source.DownloadCalls, "Navigation must not restart a failed download automatically.");
+
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            SeedManager(null, null);
+            source = new MemoryUpdateSource { BlockChecks = true };
+            global::PCL.UpdateManager.remoteServer = new global::PCL.UpdatesWrapperModel([source]);
+            page = new global::PCL.PageSetupUpdate();
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            PumpUntil(() => source.CheckStarted.IsSet, TimeSpan.FromSeconds(5));
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            source.AllowCheckCompletion.Set();
+            PumpUntil(() => source.DownloadCalls == 1 && !global::PCL.UpdateManager.IsPreparingUpdate, TimeSpan.FromSeconds(5));
+            Assert.AreEqual(1, source.CheckCalls, "A check finishing off-page must still trigger the configured download.");
         }
         finally
         {
             source.AllowCheckCompletion.Set();
             page?.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
             original.Restore();
+            PCL.Core.App.Config.Update.UpdateMode = originalMode;
             application.Shutdown();
             dispatcher.InvokeShutdown();
             SynchronizationContext.SetSynchronizationContext(null);
@@ -243,23 +280,28 @@ public sealed class UpdatePageStateTest
         internal readonly ManualResetEventSlim CheckStarted = new();
         internal readonly ManualResetEventSlim AllowCheckCompletion = new();
         private int _checkCalls;
+        private int _downloadCalls;
+        internal int DownloadCalls => Volatile.Read(ref _downloadCalls);
         internal int CheckCalls => Volatile.Read(ref _checkCalls);
         public string SourceName { get; set; } = "memory";
         public bool IsAvailable() => true;
         public bool RefreshCache() => true;
         public global::PCL.VersionDataModel GetLatestVersion(global::PCL.UpdateChannel channel, global::PCL.UpdateArch arch)
-            => Version("2.15.3");
-        public bool IsLatest(global::PCL.UpdateChannel channel, global::PCL.UpdateArch arch, SemVer currentVersion,
-            int currentVersionCode)
         {
             Interlocked.Increment(ref _checkCalls);
             CheckStarted.Set();
             if (BlockChecks && !AllowCheckCompletion.Wait(TimeSpan.FromSeconds(10)))
                 throw new TimeoutException("The in-memory update check was not released.");
-            return false;
+            return Version("2.15.99");
         }
+        public bool IsLatest(global::PCL.UpdateChannel channel, global::PCL.UpdateArch arch, SemVer currentVersion,
+            int currentVersionCode) => false;
         public global::PCL.VersionAnnouncementDataModel GetAnnouncementList() => new() { Content = [] };
         public List<global::PCL.ModLoader.LoaderBase> GetDownloadLoader(global::PCL.UpdateChannel channel,
-            global::PCL.UpdateArch arch, string output) => throw new InvalidOperationException("This scenario must not download files.");
+            global::PCL.UpdateArch arch, string output)
+        {
+            Interlocked.Increment(ref _downloadCalls);
+            throw new InvalidOperationException("Simulated download preparation failure.");
+        }
     }
 }

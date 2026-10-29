@@ -11,6 +11,23 @@ public sealed class UpdatesGitHubModel : IUpdateSource
     private const string ReleasesApiUrl = "https://api.github.com/repos/iceriny/PCL-SU/releases?per_page=100";
     private readonly object _cacheLock = new();
     private JsonArray _releases;
+    private DateTime _cacheExpires;
+    private readonly Dictionary<string, string> _checksums = new();
+    private readonly Func<JsonArray> _fetchReleases;
+    private readonly Func<string, string> _fetchChecksum;
+
+    public UpdatesGitHubModel() : this(
+        () => Requester.FetchJson(ReleasesApiUrl, new RequestParam
+        {
+            Timeout = 15000, Retries = 1, UseBrowserUserAgent = true
+        }) as JsonArray ?? throw new Exception(Lang.Text("Update.Task.GetVersionInfoFailed")),
+        url => Requester.FetchString(url, new RequestParam { Timeout = 15000, Retries = 1 })) { }
+
+    internal UpdatesGitHubModel(Func<JsonArray> fetchReleases, Func<string, string> fetchChecksum)
+    {
+        _fetchReleases = fetchReleases;
+        _fetchChecksum = fetchChecksum;
+    }
 
     public string SourceName { get; set; } = "GitHub";
 
@@ -18,13 +35,11 @@ public sealed class UpdatesGitHubModel : IUpdateSource
 
     public bool RefreshCache()
     {
-        var releases = Requester.FetchJson(ReleasesApiUrl, new RequestParam
-        {
-            Retries = 3,
-            UseBrowserUserAgent = true
-        }) as JsonArray ?? throw new Exception(Lang.Text("Update.Task.GetVersionInfoFailed"));
         lock (_cacheLock)
-            _releases = releases;
+        {
+            _releases = _fetchReleases();
+            _cacheExpires = DateTime.UtcNow.AddMinutes(5);
+        }
         return true;
     }
 
@@ -36,13 +51,13 @@ public sealed class UpdatesGitHubModel : IUpdateSource
             VersionName = release.Version.ToString(),
             Changelog = release.Changelog,
             Sha256 = GetSha256(release),
-            Source = SourceName
+            Source = SourceName,
+            DownloadUrl = release.DownloadUrl
         };
     }
 
     public bool IsLatest(UpdateChannel channel, UpdateArch arch, SemVer currentVersion, int currentVersionCode)
     {
-        RefreshCache();
         var release = GetRelease(channel, arch);
         return release is null || currentVersion >= release.Version;
     }
@@ -51,13 +66,19 @@ public sealed class UpdatesGitHubModel : IUpdateSource
 
     public List<ModLoader.LoaderBase> GetDownloadLoader(UpdateChannel channel, UpdateArch arch, string output)
     {
-        var release = GetRelease(channel, arch)
-                      ?? throw new Exception(Lang.Text("Update.Error.UnableToGetUpdate"));
-        var expectedHash = GetSha256(release);
+        return CreateDownloadLoader(GetLatestVersion(channel, arch)
+            ?? throw new Exception(Lang.Text("Update.Error.UnableToGetUpdate")), output);
+    }
+
+    internal static List<ModLoader.LoaderBase> CreateDownloadLoader(VersionDataModel version, string output)
+    {
+        if (!IsReleaseAssetUrl(version.DownloadUrl))
+            throw new InvalidOperationException(Lang.Text("Update.Error.UnableToGetUpdate"));
+        var expectedHash = version.Sha256;
         return
         [
             new LoaderDownload(Lang.Text("Update.Task.DownloadFile"),
-                [new DownloadFile([release.DownloadUrl], output)]),
+                [new DownloadFile([version.DownloadUrl!], output)]),
             new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.Check"), _ =>
             {
                 var actualHash = ModBase.GetFileSHA256(output);
@@ -69,11 +90,13 @@ public sealed class UpdatesGitHubModel : IUpdateSource
 
     private ReleaseAsset GetRelease(UpdateChannel channel, UpdateArch arch)
     {
-        if (_releases is null)
-            RefreshCache();
         JsonArray releases;
         lock (_cacheLock)
+        {
+            if (_releases is null || DateTime.UtcNow >= _cacheExpires)
+                RefreshCache();
             releases = _releases;
+        }
 
         ReleaseAsset latest = null;
         foreach (var release in releases.OfType<JsonObject>())
@@ -97,10 +120,13 @@ public sealed class UpdatesGitHubModel : IUpdateSource
             var checksum = assets.OfType<JsonObject>().FirstOrDefault(x => x["name"]?.ToString() == assetName + ".sha256");
             var downloadUrl = binary?["browser_download_url"]?.ToString();
             var checksumUrl = checksum?["browser_download_url"]?.ToString();
-            if (!IsReleaseAssetUrl(downloadUrl) || !IsReleaseAssetUrl(checksumUrl))
+            var digest = binary?["digest"]?.ToString();
+            var hash = digest is not null && Regex.IsMatch(digest, "\\Asha256:[0-9a-fA-F]{64}\\z")
+                ? digest[7..] : null;
+            if (!IsReleaseAssetUrl(downloadUrl) || (hash is null && !IsReleaseAssetUrl(checksumUrl)))
                 continue;
 
-            latest = new ReleaseAsset(version, release["body"]?.ToString() ?? "", downloadUrl, checksumUrl);
+            latest = new ReleaseAsset(version, release["body"]?.ToString() ?? "", downloadUrl, checksumUrl, hash);
         }
         return latest;
     }
@@ -111,15 +137,20 @@ public sealed class UpdatesGitHubModel : IUpdateSource
         uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) &&
         uri.AbsolutePath.StartsWith("/iceriny/PCL-SU/releases/download/", StringComparison.Ordinal);
 
-    private static string GetSha256(ReleaseAsset release)
+    private string GetSha256(ReleaseAsset release)
     {
-        var checksum = Requester.FetchString(release.ChecksumUrl, RequestParam.WithRetry)
-            .Split((char[])null, StringSplitOptions.RemoveEmptyEntries)
-            .FirstOrDefault();
-        if (checksum is null || !Regex.IsMatch(checksum, "\\A[0-9a-fA-F]{64}\\z"))
-            throw new Exception(Lang.Text("Update.Task.GetVersionInfoFailed"));
-        return checksum;
+        if (release.Sha256 is not null) return release.Sha256;
+        lock (_cacheLock)
+        {
+            if (_checksums.TryGetValue(release.ChecksumUrl, out var cached)) return cached;
+            var checksum = _fetchChecksum(release.ChecksumUrl)
+                .Split((char[])null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+            if (checksum is null || !Regex.IsMatch(checksum, "\\A[0-9a-fA-F]{64}\\z"))
+                throw new Exception(Lang.Text("Update.Task.GetVersionInfoFailed"));
+            _checksums[release.ChecksumUrl] = checksum;
+            return checksum;
+        }
     }
 
-    private sealed record ReleaseAsset(SemVer Version, string Changelog, string DownloadUrl, string ChecksumUrl);
+    private sealed record ReleaseAsset(SemVer Version, string Changelog, string DownloadUrl, string ChecksumUrl, string? Sha256);
 }

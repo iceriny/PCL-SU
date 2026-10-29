@@ -7,4 +7,5 @@ public class VersionDataModel
     public string Source { get; set; }
     public int VersionCode { get; set; }
     public string VersionName { get; set; }
+    public string? DownloadUrl { get; set; }
 }

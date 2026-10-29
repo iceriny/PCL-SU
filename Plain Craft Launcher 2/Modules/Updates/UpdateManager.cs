@@ -71,6 +71,18 @@ public static class UpdateManager
     
     public static ModLoader.LoaderCombo<JsonObject> updateLoader;
 
+    internal static void DownloadAutomatically(VersionDataModel? version)
+    {
+        if (version is null || SemVer.Parse(version.VersionName) <= SemVer.Parse(ModBase.versionBaseName)) return;
+        var mode = Config.Update.UpdateMode;
+        if (mode is not (LauncherAutoUpdateBehavior.DownloadAndInstall or LauncherAutoUpdateBehavior.DownloadAndAnnounce)) return;
+        // Failed or cancelled downloads remain available for an explicit retry.
+        if (ActiveUpdateVersion?.VersionName == version.VersionName &&
+            (LastUpdateError is not null || updateLoader?.State == ModBase.LoadState.Aborted)) return;
+        UpdateStart(mode == LauncherAutoUpdateBehavior.DownloadAndInstall
+            ? UpdateEnums.UpdateType.Silent : UpdateEnums.UpdateType.DownloadAndPrompt, targetVersion: version);
+    }
+
     public static void UpdateStart(UpdateEnums.UpdateType type, string receivedKey = null, bool forceValidated = false,
         VersionDataModel? targetVersion = null)
     {
@@ -124,8 +136,9 @@ public static class UpdateManager
 
                 var loaders = new List<ModLoader.LoaderBase>();
                 // 下载
-                loaders.AddRange(remoteServer.GetDownloadLoader(
-                    channel, architecture, dlTargetPath));
+                loaders.AddRange(version.DownloadUrl is not null
+                    ? UpdatesGitHubModel.CreateDownloadLoader(version, dlTargetPath)
+                    : remoteServer.GetDownloadLoader(channel, architecture, dlTargetPath));
                 loaders.Add(new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.Check"), _ =>
                 {
                     var curHash = ModBase.GetFileSHA256(dlTargetPath);
@@ -249,8 +262,10 @@ public static class UpdateManager
             return;
         }
 
-        var loaders = remoteServer.GetDownloadLoader(UpdateChannel.stable,
-            SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64, latestPCLPath);
+        var loaders = target.DownloadUrl is not null
+            ? UpdatesGitHubModel.CreateDownloadLoader(target, latestPCLPath)
+            : remoteServer.GetDownloadLoader(UpdateChannel.stable,
+                SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64, latestPCLPath);
         var loader = new ModLoader.LoaderCombo<int>(Lang.Text("Update.Task.DownloadLatestStable"), loaders);
         loader.Start();
         loader.WaitForExit();
