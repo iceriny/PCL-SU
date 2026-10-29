@@ -29,6 +29,8 @@ $filter = @(
     'FullyQualifiedName~HostConnectionHandlerTest'
     'FullyQualifiedName~ProfileManagementTest'
     'FullyQualifiedName~UpdatePageStateTest'
+    'FullyQualifiedName~UpdateManagerTest'
+    'FullyQualifiedName~UpdateInstallTest'
     'FullyQualifiedName~UpdateSourceTest'
     'FullyQualifiedName~EncryptHelperKeyTest'
     'FullyQualifiedName~LocalizationTest.LanguageDictionariesShouldNotContainDuplicateKeys'
@@ -71,8 +73,8 @@ try {
         }
         [xml]$report = Get-Content -LiteralPath $trxPath -Raw
         $counters = $report.TestRun.ResultSummary.Counters
-        if ([int]$counters.passed -lt 67 -or [int]$counters.failed -gt 0 -or [int]$counters.notExecuted -gt 0) {
-            throw "Expected at least 67 passing regressions with no failed or skipped cases; passed=$($counters.passed), failed=$($counters.failed), skipped=$($counters.notExecuted)."
+        if ([int]$counters.passed -lt 79 -or [int]$counters.failed -gt 0 -or [int]$counters.notExecuted -gt 0) {
+            throw "Expected at least 79 passing regressions with no failed or skipped cases; passed=$($counters.passed), failed=$($counters.failed), skipped=$($counters.notExecuted)."
         }
     }
 } catch {

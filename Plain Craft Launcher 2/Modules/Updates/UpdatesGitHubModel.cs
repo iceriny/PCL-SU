@@ -72,19 +72,10 @@ public sealed class UpdatesGitHubModel : IUpdateSource
 
     internal static List<ModLoader.LoaderBase> CreateDownloadLoader(VersionDataModel version, string output)
     {
-        if (!IsReleaseAssetUrl(version.DownloadUrl))
-            throw new InvalidOperationException(Lang.Text("Update.Error.UnableToGetUpdate"));
-        var expectedHash = version.Sha256;
         return
         [
             new LoaderDownload(Lang.Text("Update.Task.DownloadFile"),
-                [new DownloadFile([version.DownloadUrl!], output)]),
-            new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.Check"), _ =>
-            {
-                var actualHash = ModBase.GetFileSHA256(output);
-                if (!string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase))
-                    throw new Exception(Lang.Text("Update.Error.Sha256Mismatch", expectedHash, actualHash));
-            })
+                [new DownloadFile([version.DownloadUrl!], output, new ModBase.FileChecker(hash: version.Sha256))])
         ];
     }
 

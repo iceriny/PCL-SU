@@ -1,10 +1,10 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using PCL.Core.App;
 using PCL.Core.App.Localization;
 using PCL.Core.Utils;
-using PCL.Core.Utils.OS;
 
 namespace PCL;
 
@@ -14,6 +14,7 @@ public static class UpdateManager
     private static int _isPreparingUpdate;
     private static VersionDataModel? _activeUpdateVersion;
     private static Exception? _lastUpdateError;
+    private static UpdateEnums.UpdateType _activeUpdateType = UpdateEnums.UpdateType.UpdateNow;
 
     internal static bool IsPreparingUpdate => Volatile.Read(ref _isPreparingUpdate) != 0;
     internal static VersionDataModel? ActiveUpdateVersion => Volatile.Read(ref _activeUpdateVersion);
@@ -24,36 +25,19 @@ public static class UpdateManager
         new UpdatesGitHubModel()
     });
 
-    public static bool IsCurrentVersionBeta
-    {
-        get
-        {
-            if (ModBase.versionBaseName.Contains("beta"))
-                return true;
-            return (int)Config.Update.UpdateChannel == 1;
-        }
-    }
+    internal static UpdateChannel SelectedChannel => (int)Config.Update.UpdateChannel == 1
+        ? UpdateChannel.beta : UpdateChannel.stable;
+    internal static UpdateArch CurrentArchitecture => RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+        ? UpdateArch.arm64 : UpdateArch.x64;
+    internal static bool ShouldInstallOnExit => isUpdateWaitingRestart &&
+        Config.Update.UpdateMode == LauncherAutoUpdateBehavior.DownloadAndInstall;
     
     public static UpdateEnums.VersionStatus GetVersionStatus()
     {
         try
         {
-            if (IsCurrentVersionBeta && (int)Config.Update.UpdateChannel != 1)
-            {
-                var isNewerThanStable = remoteServer.IsLatest(UpdateChannel.stable,
-                    SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64, SemVer.Parse(ModBase.versionBaseName),
-                    ModBase.versionCode);
-                var isBetaLatest = remoteServer.IsLatest(UpdateChannel.beta,
-                    SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64, SemVer.Parse(ModBase.versionBaseName),
-                    ModBase.versionCode);
-                return isNewerThanStable && isBetaLatest
-                    ? UpdateEnums.VersionStatus.Latest
-                    : UpdateEnums.VersionStatus.NotLatest;
-            }
-
             return remoteServer.IsLatest(
-                IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable,
-                SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64, SemVer.Parse(ModBase.versionBaseName),
+                SelectedChannel, CurrentArchitecture, SemVer.Parse(ModBase.versionBaseName),
                 ModBase.versionCode)
                 ? UpdateEnums.VersionStatus.Latest
                 : UpdateEnums.VersionStatus.NotLatest;
@@ -83,6 +67,8 @@ public static class UpdateManager
             ? UpdateEnums.UpdateType.Silent : UpdateEnums.UpdateType.DownloadAndPrompt, targetVersion: version);
     }
 
+    internal static void RetryUpdate() => UpdateStart(_activeUpdateType, targetVersion: ActiveUpdateVersion);
+
     public static void UpdateStart(UpdateEnums.UpdateType type, string receivedKey = null, bool forceValidated = false,
         VersionDataModel? targetVersion = null)
     {
@@ -97,9 +83,10 @@ public static class UpdateManager
 
         Volatile.Write(ref _lastUpdateError, null);
         Volatile.Write(ref _activeUpdateVersion, targetVersion);
+        _activeUpdateType = type;
         updateLoader = null;
-        var channel = IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable;
-        var architecture = SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64;
+        var channel = SelectedChannel;
+        var architecture = CurrentArchitecture;
         var dlTargetPath = ModBase.exePath + @"PCL\Plain Craft Launcher SU.exe";
         ModBase.RunInNewThread(() =>
         {
@@ -139,24 +126,15 @@ public static class UpdateManager
                 loaders.AddRange(version.DownloadUrl is not null
                     ? UpdatesGitHubModel.CreateDownloadLoader(version, dlTargetPath)
                     : remoteServer.GetDownloadLoader(channel, architecture, dlTargetPath));
-                loaders.Add(new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.Check"), _ =>
+                loaders.Add(new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.Prepare"), _ =>
                 {
-                    var curHash = ModBase.GetFileSHA256(dlTargetPath);
-                    if (!string.Equals(curHash, version.Sha256, StringComparison.OrdinalIgnoreCase))
-                        throw new Exception(Lang.Text("Update.Error.Sha256Mismatch", version.Sha256, curHash));
-                }));
-                if (type == UpdateEnums.UpdateType.UpdateNow)
-                    loaders.Add(new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.Install"), _ =>
+                    isUpdateWaitingRestart = true;
+                    if (type == UpdateEnums.UpdateType.UpdateNow)
                     {
-                        isUpdateWaitingRestart = true;
                         UpdateRestart(true);
-                    }));
-                else if (type == UpdateEnums.UpdateType.Silent)
-                    loaders.Add(new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.Prepare"), _ => isUpdateWaitingRestart = true));
-                else if (type == UpdateEnums.UpdateType.DownloadAndPrompt)
-                    loaders.Add(new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.ShowButton"), _ =>
+                    }
+                    else if (Config.Update.UpdateMode != LauncherAutoUpdateBehavior.DownloadAndInstall)
                     {
-                        isUpdateWaitingRestart = true;
                         ModBase.RunInUi(() =>
                         {
                             ModMain.frmMain.BtnExtraUpdateRestart.ToolTip =
@@ -164,10 +142,8 @@ public static class UpdateManager
                             ModMain.frmMain.BtnExtraUpdateRestart.ShowRefresh();
                             ModMain.frmMain.BtnExtraUpdateRestart.Ribble();
                         });
-                    })
-                    {
-                        show = false
-                    });
+                    }
+                }));
                 loaders.Add(new ModLoader.LoaderTask<int, int>(Lang.Text("Update.Task.RefreshSettings"), _ =>
                 {
                     if (ModMain.frmSetupUpdate is not null)
@@ -200,15 +176,21 @@ public static class UpdateManager
         });
     }
 
-    public static void UpdateRestart(bool triggerRestartAndByEnd, bool triggerRestart = true)
+    public static bool UpdateRestart(bool triggerRestartAndByEnd, bool triggerRestart = true)
     {
         try
         {
             var fileName = ModBase.exePath + @"PCL\Plain Craft Launcher SU.exe";
             if (!File.Exists(fileName))
             {
-                ModBase.Log("[System] 更新失败：未找到更新文件");
-                return;
+                isUpdateWaitingRestart = false;
+                var error = new FileNotFoundException(Lang.Text("Update.Error.FileNotFound"), fileName);
+                Volatile.Write(ref _lastUpdateError, error);
+                ModBase.Log(error, "[System] 更新失败：未找到更新文件");
+                HintService.Hint(error.Message, HintType.Error);
+                if (ModMain.frmSetupUpdate is not null)
+                    ModBase.RunInUi(() => ModMain.frmSetupUpdate.RefreshUpdateState());
+                return false;
             }
 
             // id old new restart
@@ -222,9 +204,11 @@ public static class UpdateManager
                 ModMain.frmMain.EndProgram(false, true);
                 ModBase.Log("[System] 已由于更新强制结束程序");
             }
+            return true;
         }
         catch (Win32Exception ex)
         {
+            Volatile.Write(ref _lastUpdateError, ex);
             ModBase.Log(ex, "自动更新时触发 Win32 错误，疑似被拦截");
             ModMain.MyMsgBox(
                 Lang.Text("Update.Error.UpdateBlockedMessage", ModBase.exePath),
@@ -233,6 +217,7 @@ public static class UpdateManager
                 "",
                 "",
                 true);
+            return false;
         }
     }
 
@@ -244,18 +229,12 @@ public static class UpdateManager
     {
         var latestPCLPath = Path.Combine(ModBase.pathTemp, "SU-Latest.exe");
         var target = remoteServer.GetLatestVersion(UpdateChannel.stable,
-            SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64);
+            CurrentArchitecture);
         if (target is null)
         {
             ModBase.CopyFile(Basics.ExecutablePath, latestPCLPath);
             return;
         }
-        if (File.Exists(latestPCLPath) && string.Equals(ModBase.GetFileSHA256(latestPCLPath), target.Sha256, StringComparison.OrdinalIgnoreCase))
-        {
-            ModBase.Log("[System] 最新版 PCL 已存在，跳过下载");
-            return;
-        }
-
         if (string.Equals(ModBase.GetFileSHA256(Basics.ExecutablePath), target.Sha256, StringComparison.OrdinalIgnoreCase)) // 正在使用的版本符合要求，直接拿来用
         {
             ModBase.CopyFile(Basics.ExecutablePath, latestPCLPath);
@@ -265,7 +244,7 @@ public static class UpdateManager
         var loaders = target.DownloadUrl is not null
             ? UpdatesGitHubModel.CreateDownloadLoader(target, latestPCLPath)
             : remoteServer.GetDownloadLoader(UpdateChannel.stable,
-                SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64, latestPCLPath);
+                CurrentArchitecture, latestPCLPath);
         var loader = new ModLoader.LoaderCombo<int>(Lang.Text("Update.Task.DownloadLatestStable"), loaders);
         loader.Start();
         loader.WaitForExit();

@@ -1,6 +1,11 @@
 using System;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
 using System.Text.Json.Nodes;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PCL.Core.Test.Network;
 
 namespace PCL.Core.Test.Updates;
 
@@ -8,6 +13,38 @@ namespace PCL.Core.Test.Updates;
 public sealed class UpdateSourceTest
 {
     private static readonly string Hash = new('a', 64);
+
+    [TestMethod]
+    public void VerifiedStagedPayloadIsReusedWithoutAnotherDownload()
+    {
+        DownloadTestEnvironment.EnsureInitialized();
+        var directory = Path.Combine(DownloadTestEnvironment.RootDirectory, "update-cache-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "launcher.exe");
+            var payload = new byte[] { 1, 2, 3, 4 };
+            File.WriteAllBytes(path, payload);
+            var hash = Convert.ToHexStringLower(SHA256.HashData(payload));
+            var source = new global::PCL.UpdatesGitHubModel(() => Releases("sha256:" + hash),
+                _ => throw new InvalidOperationException("The release has a digest."));
+            var loaders = source.GetDownloadLoader(global::PCL.UpdateChannel.stable, global::PCL.UpdateArch.x64, path);
+            var loader = (PCL.Network.Loaders.LoaderDownload)loaders.Single();
+            var file = loader.files.Single();
+            Assert.AreEqual(hash, file.Check!.hash);
+            file.Urls.Clear(); // A valid staged payload must not require a reachable download source.
+
+            loader.Start();
+            Assert.IsTrue(SpinWait.SpinUntil(() => loader.State != global::PCL.ModBase.LoadState.Loading,
+                TimeSpan.FromSeconds(5)), "The cached update did not finish.");
+
+            Assert.AreEqual(global::PCL.ModBase.LoadState.Finished, loader.State, loader.Error?.Message);
+            Assert.IsTrue(file.IsCopy);
+            CollectionAssert.AreEqual(payload, File.ReadAllBytes(path));
+            Assert.IsFalse(File.Exists(path + global::PCL.Network.ModNet.NetDownloadEnd));
+        }
+        finally { Directory.Delete(directory, true); }
+    }
 
     [TestMethod]
     public void ReleaseDigestAvoidsChecksumRequestsAndMetadataIsReused()

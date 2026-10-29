@@ -578,7 +578,7 @@ public partial class FormMain
         // Await LobbyController.CloseAsync().ConfigureAwait(False)
         ModBase.isProgramEnded = true;
         ModAnimation.AniBeginControl();
-        if (UpdateManager.isUpdateWaitingRestart && !isUpdating)
+        if (UpdateManager.ShouldInstallOnExit && !isUpdating)
             UpdateManager.UpdateRestart(false, false);
         if (returnCode == ModBase.ProcessReturnValues.Exception)
         {

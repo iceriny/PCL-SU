@@ -8,6 +8,7 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -45,6 +46,7 @@ public sealed class UpdatePageStateTest
         var original = new ManagerSnapshot();
         var source = new MemoryUpdateSource();
         var originalMode = PCL.Core.App.Config.Update.UpdateMode;
+        var originalChannel = PCL.Core.App.Config.Update.UpdateChannel;
         global::PCL.PageSetupUpdate? page = null;
         try
         {
@@ -124,9 +126,38 @@ public sealed class UpdatePageStateTest
             page.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
             page.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
             Assert.AreEqual(1, source.DownloadCalls, "Navigation must not restart a failed download automatically.");
+            typeof(global::PCL.PageSetupUpdate).GetMethod("BtnUpdate_Click", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(page, [page.BtnUpdate, new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)]);
+            PumpUntil(() => source.DownloadCalls == 2 && !global::PCL.UpdateManager.IsPreparingUpdate, TimeSpan.FromSeconds(5));
+            Assert.AreEqual(global::PCL.UpdateEnums.UpdateType.DownloadAndPrompt,
+                ManagerField("_activeUpdateType").GetValue(null), "Retry must preserve the automatic download's completion behavior.");
 
             page.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
             SeedManager(null, null);
+            PCL.Core.App.Config.Update.UpdateMode = PCL.Core.App.LauncherAutoUpdateBehavior.AnnounceOnly;
+            PCL.Core.App.Config.Update.UpdateChannel = PCL.Core.App.UpdateChannel.Beta;
+            source = new MemoryUpdateSource { BlockChecks = true };
+            global::PCL.UpdateManager.remoteServer = new global::PCL.UpdatesWrapperModel([source]);
+            page = new global::PCL.PageSetupUpdate();
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            PumpUntil(() => source.CheckStarted.IsSet, TimeSpan.FromSeconds(5));
+            page.ComboSystemUpdateChannel.SelectedIndex = (int)PCL.Core.App.UpdateChannel.Release;
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            source.AllowCheckCompletion.Set();
+            PumpUntil(() => !PageField<bool>(page, "_checkInFlight"), TimeSpan.FromSeconds(5));
+            Assert.AreEqual(1, source.CheckCalls, "The queued channel check must wait while the page is inactive.");
+            Assert.IsNull(page.updateInfo, "The superseded check must not publish its result.");
+
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            PumpUntil(() => source.CheckCalls == 2 && !PageField<bool>(page, "_checkInFlight"), TimeSpan.FromSeconds(5));
+            Assert.IsNotNull(page.updateInfo, "Returning to the page must complete the queued channel check.");
+            Assert.AreEqual(1, source.RefreshCalls, "The queued channel change must retain its explicit cache refresh.");
+            Assert.IsTrue(page.BtnCheckAgain.IsEnabled);
+            Assert.AreEqual("Update available", page.TextCurrentDesc.Text);
+
+            page.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            SeedManager(null, null);
+            PCL.Core.App.Config.Update.UpdateMode = PCL.Core.App.LauncherAutoUpdateBehavior.DownloadAndAnnounce;
             source = new MemoryUpdateSource { BlockChecks = true };
             global::PCL.UpdateManager.remoteServer = new global::PCL.UpdatesWrapperModel([source]);
             page = new global::PCL.PageSetupUpdate();
@@ -143,6 +174,7 @@ public sealed class UpdatePageStateTest
             page?.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
             original.Restore();
             PCL.Core.App.Config.Update.UpdateMode = originalMode;
+            PCL.Core.App.Config.Update.UpdateChannel = originalChannel;
             application.Shutdown();
             dispatcher.InvokeShutdown();
             SynchronizationContext.SetSynchronizationContext(null);
@@ -259,6 +291,7 @@ public sealed class UpdatePageStateTest
         private readonly object? _version = ManagerField("_activeUpdateVersion").GetValue(null);
         private readonly object? _preparing = ManagerField("_isPreparingUpdate").GetValue(null);
         private readonly object? _error = ManagerField("_lastUpdateError").GetValue(null);
+        private readonly object? _type = ManagerField("_activeUpdateType").GetValue(null);
         private readonly global::PCL.ModLoader.LoaderCombo<JsonObject>? _loader = global::PCL.UpdateManager.updateLoader;
         private readonly bool _waiting = global::PCL.UpdateManager.isUpdateWaitingRestart;
         private readonly global::PCL.UpdatesWrapperModel _server = global::PCL.UpdateManager.remoteServer;
@@ -268,6 +301,7 @@ public sealed class UpdatePageStateTest
             ManagerField("_activeUpdateVersion").SetValue(null, _version);
             ManagerField("_isPreparingUpdate").SetValue(null, _preparing);
             ManagerField("_lastUpdateError").SetValue(null, _error);
+            ManagerField("_activeUpdateType").SetValue(null, _type);
             global::PCL.UpdateManager.updateLoader = _loader!;
             global::PCL.UpdateManager.isUpdateWaitingRestart = _waiting;
             global::PCL.UpdateManager.remoteServer = _server;
@@ -281,11 +315,17 @@ public sealed class UpdatePageStateTest
         internal readonly ManualResetEventSlim AllowCheckCompletion = new();
         private int _checkCalls;
         private int _downloadCalls;
+        private int _refreshCalls;
         internal int DownloadCalls => Volatile.Read(ref _downloadCalls);
         internal int CheckCalls => Volatile.Read(ref _checkCalls);
+        internal int RefreshCalls => Volatile.Read(ref _refreshCalls);
         public string SourceName { get; set; } = "memory";
         public bool IsAvailable() => true;
-        public bool RefreshCache() => true;
+        public bool RefreshCache()
+        {
+            Interlocked.Increment(ref _refreshCalls);
+            return true;
+        }
         public global::PCL.VersionDataModel GetLatestVersion(global::PCL.UpdateChannel channel, global::PCL.UpdateArch arch)
         {
             Interlocked.Increment(ref _checkCalls);

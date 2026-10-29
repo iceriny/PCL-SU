@@ -5,7 +5,6 @@ using System.Windows.Threading;
 using PCL.Core.App;
 using PCL.Core.Utils;
 using PCL.Core.App.Localization;
-using PCL.Core.Utils.OS;
 
 namespace PCL;
 
@@ -18,6 +17,7 @@ public partial class PageSetupUpdate
     private bool _isChecking;
     private bool _checkInFlight;
     private bool _checkQueued;
+    private bool _queuedExplicitRequest;
     private bool _hasCheckResult;
     private UpdateChannel? _checkedChannel;
     private DateTime _lastCheckTimeUtc;
@@ -67,7 +67,7 @@ public partial class PageSetupUpdate
         TextCurrentVersion.Text = Lang.Text("Setup.Update.CurrentVersion", VersionNameFormat(ModBase.versionBaseName));
         CardCheck.Visibility = Visibility.Visible;
         _progressTimer.Start();
-        var channel = UpdateManager.IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable;
+        var channel = UpdateManager.SelectedChannel;
         if (_hasCheckResult && (_checkedChannel != channel ||
             DateTime.UtcNow - _lastCheckTimeUtc > TimeSpan.FromMinutes(5))) _hasCheckResult = false;
         RefreshUpdateState();
@@ -84,6 +84,7 @@ public partial class PageSetupUpdate
         _checkGeneration++;
         _isChecking = false;
         _checkQueued = false;
+        _queuedExplicitRequest = false;
     }
 
     private static bool SharedUpdateIsBusy => UpdateManager.IsPreparingUpdate || UpdateManager.isUpdateWaitingRestart ||
@@ -112,6 +113,7 @@ public partial class PageSetupUpdate
             if (_inFlightGeneration != _checkGeneration)
             {
                 _checkQueued = true;
+                _queuedExplicitRequest |= explicitRequest;
                 _isChecking = true;
                 RefreshUpdateState();
             }
@@ -122,9 +124,10 @@ public partial class PageSetupUpdate
         _inFlightGeneration = generation;
         _checkInFlight = true;
         _checkQueued = false;
+        _queuedExplicitRequest = false;
         _isChecking = true;
-        var channel = UpdateManager.IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable;
-        var architecture = SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64;
+        var channel = UpdateManager.SelectedChannel;
+        var architecture = UpdateManager.CurrentArchitecture;
         RefreshUpdateState();
         ModBase.Log("[Update] 开始检查更新");
         try
@@ -156,17 +159,8 @@ public partial class PageSetupUpdate
         finally
         {
             _checkInFlight = false;
-            if (generation == _checkGeneration) _isChecking = false;
-            if (_pageActive)
-            {
-                if (_checkQueued)
-                {
-                    _checkQueued = false;
-                    _isChecking = false;
-                    _ = CheckUpdateAsync(false);
-                }
-                else RefreshUpdateState();
-            }
+            _isChecking = false;
+            if (_pageActive) RefreshUpdateState();
         }
     }
 
@@ -182,9 +176,9 @@ public partial class PageSetupUpdate
             return;
         }
         if (!_pageActive || RenderSharedUpdate()) return;
-        if (!_hasCheckResult && !_isChecking && !_checkInFlight)
+        if (!_checkInFlight && (_checkQueued || !_hasCheckResult && !_isChecking))
         {
-            _ = CheckUpdateAsync(false);
+            _ = CheckUpdateAsync(_queuedExplicitRequest);
             return;
         }
         CardCheck.Visibility = Visibility.Visible;
@@ -277,9 +271,11 @@ public partial class PageSetupUpdate
             return;
         }
         if (SharedUpdateIsBusy) return;
+        var retry = RenderSharedUpdate();
         InvalidateCheck();
         _ignoreInactiveState = false;
-        UpdateManager.UpdateStart(UpdateEnums.UpdateType.UpdateNow, targetVersion: updateInfo);
+        if (retry) UpdateManager.RetryUpdate();
+        else UpdateManager.UpdateStart(UpdateEnums.UpdateType.UpdateNow, targetVersion: updateInfo);
         RefreshUpdateState();
     }
 
