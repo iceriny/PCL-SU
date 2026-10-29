@@ -37,10 +37,25 @@ dotnet publish "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj" --configur
 发布稳定版时，同步修改 `metadata.json` 中的版本与递增代码、主项目的程序集版本，并添加 `release-notes/<版本>.md`。将提交推送到 `dev` 后运行：
 
 ```powershell
-gh workflow run release-publish.yml --ref dev -f version=2.15.2
+gh workflow run release-publish.yml --ref dev -f version=2.15.3
 ```
 
 发布工作流校验版本、提交与现有标签，执行回归并构建两个架构。校验和、Sigstore 签名及全部产物准备完成后，才创建或更新同一提交的草稿 Release 并公开发布。发布资产使用 `PCL_SU_Release_x64.exe`、`PCL_SU_Release_ARM64.exe` 及对应 `.sha256`、`.sigstore.json`，启动器可通过自身更新入口获取。
+
+### 更新日志格式
+
+`release-notes/<版本>.md` 使用 UTF-8 Markdown，发布时原样作为 GitHub Release 正文。启动器更新页读取其中唯一一组 `<summary>...</summary>` 之间的文字作为摘要，“查看详情”显示整篇 Markdown。标签必须使用以下小写写法；摘要写成一行纯文本，用一两句话概括本次更新对玩家的主要作用。
+
+```markdown
+<summary>CurseForge 资源搜索与下载现已可用。</summary>
+
+## 更新内容
+
+- 可以搜索 CurseForge 模组、整合包等资源，并查看版本和下载。
+- 改善 CurseForge 整合包导入时的资源获取体验。
+```
+
+正文围绕玩家能感受到的功能变化、问题修复，以及需要采取的升级操作展开。测试结果、构建过程和服务接入配置记录在 Actions 与开发文档中。发布前会校验摘要标签、非空摘要及正文。
 
 ## 服务配置
 

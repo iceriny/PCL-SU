@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Stable version matching metadata.json (for example 2.15.2)'
+        description: 'Stable version matching metadata.json (for example 2.15.3)'
         required: true
         type: string
 
@@ -41,6 +41,15 @@ jobs:
           grep -Fq "<AssemblyVersion>$RELEASE_VERSION.0</AssemblyVersion>" 'Plain Craft Launcher 2/Plain Craft Launcher 2.csproj'
           grep -Fq "<FileVersion>$RELEASE_VERSION.0</FileVersion>" 'Plain Craft Launcher 2/Plain Craft Launcher 2.csproj'
           test -s "release-notes/$RELEASE_VERSION.md"
+          python - "$RELEASE_VERSION" <<'PY'
+          import pathlib, re, sys
+          text = pathlib.Path(f"release-notes/{sys.argv[1]}.md").read_text(encoding="utf-8-sig")
+          summaries = re.findall(r"<summary>(.*?)</summary>", text, re.S)
+          assert text.count("<summary>") == text.count("</summary>") == 1, "Expected exactly one summary"
+          assert len(summaries) == 1 and summaries[0].strip(), "Missing update summary"
+          assert not re.search(r"[<>\r\n]", summaries[0]), "Summary must be one line of plain text"
+          assert text.split("</summary>", 1)[1].strip(), "Missing player-facing release details"
+          PY
           tag="v$RELEASE_VERSION"
           if existing_sha=$(gh api "repos/$GH_REPO/commits/$tag" --jq '.sha' 2>/dev/null); then
             test "$existing_sha" = "$RELEASE_SHA"
@@ -64,6 +73,7 @@ jobs:
       configuration: Release
       architecture: ${{ matrix.architecture }}
       require-ms-client-id: true
+      require-curseforge-key: true
     secrets: inherit
 
   publish:

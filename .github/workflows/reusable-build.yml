@@ -12,6 +12,9 @@ on:
       require-ms-client-id:
         type: boolean
         default: false
+      require-curseforge-key:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -42,6 +45,7 @@ jobs:
       - name: Build and package
         env:
           REQUIRE_MS_CLIENT_ID: ${{ inputs.require-ms-client-id }}
+          REQUIRE_CURSEFORGE_KEY: ${{ inputs.require-curseforge-key }}
           PCL_WRITE_SECRET: '1'
           PCL_MS_CLIENT_ID: ${{ secrets.PCL_MS_CLIENT_ID }}
           PCL_CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
@@ -61,6 +65,9 @@ jobs:
           if ($env:REQUIRE_MS_CLIENT_ID -eq 'true' -and [string]::IsNullOrWhiteSpace($env:PCL_MS_CLIENT_ID)) {
             throw 'Set the PCL_MS_CLIENT_ID repository secret before publishing a release.'
           }
+          if ($env:REQUIRE_CURSEFORGE_KEY -eq 'true' -and [string]::IsNullOrWhiteSpace($env:PCL_CURSEFORGE_API_KEY)) {
+            throw 'Set the CURSEFORGE_API_KEY repository secret before publishing a release.'
+          }
           dotnet publish 'Plain Craft Launcher 2/Plain Craft Launcher 2.csproj' -c $env:BUILD_CONFIGURATION -p:Platform=$env:BUILD_ARCHITECTURE -p:UseSharedCompilation=false --no-self-contained --output ./publish
           if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
 
@@ -68,9 +75,13 @@ jobs:
           $assetName = "PCL_SU_$($env:BUILD_CONFIGURATION)_$($env:BUILD_ARCHITECTURE).exe"
           $asset = Join-Path artifact $assetName
           Copy-Item -LiteralPath 'publish/Plain Craft Launcher 2.exe' -Destination $asset
-          if (-not [string]::IsNullOrWhiteSpace($env:PCL_MS_CLIENT_ID)) {
-            $binaryText = [Text.Encoding]::Unicode.GetString([IO.File]::ReadAllBytes($asset))
-            if (-not $binaryText.Contains($env:PCL_MS_CLIENT_ID)) { throw 'Microsoft client ID was not embedded' }
+          $binaryBytes = [IO.File]::ReadAllBytes($asset)
+          $binaryText = [Text.Encoding]::Unicode.GetString($binaryBytes)
+          $binaryTextOdd = [Text.Encoding]::Unicode.GetString($binaryBytes, 1, $binaryBytes.Length - 1)
+          foreach ($value in @($env:PCL_MS_CLIENT_ID, $env:PCL_CURSEFORGE_API_KEY)) {
+            if (-not [string]::IsNullOrWhiteSpace($value) -and -not $binaryText.Contains($value) -and -not $binaryTextOdd.Contains($value)) {
+              throw 'A configured service credential was not embedded'
+            }
           }
           $hash = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLowerInvariant()
           Set-Content -LiteralPath "$asset.sha256" -Value ("$hash  $assetName" + [char]10) -Encoding utf8NoBOM -NoNewline
