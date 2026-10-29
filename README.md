@@ -59,6 +59,8 @@ gh workflow run release-publish.yml --ref dev -f version=2.15.3
 
 ## 服务配置
 
+本地明文备份使用项目根目录的 `.env.local`，变量名见 `.env.example`。本地构建使用 `PCL_MS_CLIENT_ID` 与 `PCL_CURSEFORGE_API_KEY`；发布工作流对应的仓库 Secret 分别是 `PCL_MS_CLIENT_ID` 与 `CURSEFORGE_API_KEY`。
+
 在本仓库的 Actions Secrets 中配置下列值，重新构建后生效：
 
 | Secret | 用途 |
