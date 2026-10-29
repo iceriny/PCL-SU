@@ -73,7 +73,7 @@ jobs:
             if (-not $binaryText.Contains($env:PCL_MS_CLIENT_ID)) { throw 'Microsoft client ID was not embedded' }
           }
           $hash = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLowerInvariant()
-          Set-Content -LiteralPath "$asset.sha256" -Value "$hash  $assetName" -Encoding utf8NoBOM
+          Set-Content -LiteralPath "$asset.sha256" -Value ("$hash  $assetName" + [char]10) -Encoding utf8NoBOM -NoNewline
           "Asset: $assetName; SHA256: $hash" >> $env:GITHUB_STEP_SUMMARY
           "Microsoft login configured: $(-not [string]::IsNullOrWhiteSpace($env:PCL_MS_CLIENT_ID))" >> $env:GITHUB_STEP_SUMMARY
           "CurseForge official API configured: $(-not [string]::IsNullOrWhiteSpace($env:PCL_CURSEFORGE_API_KEY))" >> $env:GITHUB_STEP_SUMMARY
