@@ -3657,4 +3657,10 @@
     <sys:String x:Key="Launch.Account.Auth.OAuth.ProfileFetchFailed">Failed to fetch user information. Please try signing in again.</sys:String>
     <sys:String x:Key="Tools.Test.Dependency.Package.D3DMappingLayers">OpenGL compatibility pack</sys:String>
     <sys:String x:Key="Tools.Test.Dependency.Package.WebpImageExtension">WebP component</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Preparing">Checking mod dependencies…</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Scanning">Checking installed mods: {0}/{1}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Resolving">Resolving required dependencies: {0} checked, {1} discovered</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Cancel">Cancel download</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.CurrentOnly">Download current mod only</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Satisfied">All required dependencies are installed. You can download this mod.</sys:String>
 </ResourceDictionary>

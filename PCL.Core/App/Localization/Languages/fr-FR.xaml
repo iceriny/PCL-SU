@@ -450,4 +450,10 @@
     <sys:String x:Key="Setup.Update.DownloadFailed">La mise à jour a échoué. Réessayez.</sys:String>
     <sys:String x:Key="Setup.Update.Cancelled">Mise à jour annulée. Vous pouvez la télécharger à nouveau.</sys:String>
     <sys:String x:Key="Setup.Update.Retry">Réessayer</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Preparing">Vérification des dépendances du mod…</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Scanning">Vérification des mods installés : {0}/{1}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Resolving">Résolution des dépendances requises : {0} vérifiées, {1} découvertes</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Cancel">Annuler le téléchargement</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.CurrentOnly">Télécharger uniquement ce mod</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Satisfied">Toutes les dépendances requises sont installées. Vous pouvez télécharger ce mod.</sys:String>
 </ResourceDictionary>

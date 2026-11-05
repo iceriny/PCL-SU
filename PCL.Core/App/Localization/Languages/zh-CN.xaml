@@ -3657,4 +3657,10 @@
     <sys:String x:Key="Launch.Account.Auth.OAuth.ProfileFetchFailed">获取用户信息失败，请尝试重新登录</sys:String>
     <sys:String x:Key="Tools.Test.Dependency.Package.D3DMappingLayers">OpenGL 兼容包</sys:String>
     <sys:String x:Key="Tools.Test.Dependency.Package.WebpImageExtension">WebP 组件包</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Preparing">正在检查模组前置…</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Scanning">正在检查已安装模组：{0}/{1}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Resolving">正在解析必要前置：已检查 {0}，已发现 {1}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Cancel">取消下载</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.CurrentOnly">仅下载当前模组</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Satisfied">必要前置均已安装，可以下载当前模组。</sys:String>
 </ResourceDictionary>

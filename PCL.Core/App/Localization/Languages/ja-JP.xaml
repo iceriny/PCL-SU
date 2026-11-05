@@ -40,4 +40,10 @@
     <sys:String x:Key="Setup.Update.DownloadFailed">更新に失敗しました。再試行してください。</sys:String>
     <sys:String x:Key="Setup.Update.Cancelled">更新をキャンセルしました。再ダウンロードできます。</sys:String>
     <sys:String x:Key="Setup.Update.Retry">再試行</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Preparing">MOD の前提を確認しています…</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Scanning">インストール済み MOD を確認中：{0}/{1}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Resolving">必須の前提を解決中：{0} 件確認済み、{1} 件検出</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Cancel">ダウンロードをキャンセル</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.CurrentOnly">この MOD のみダウンロード</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Satisfied">必要な前提 MOD はすべてインストール済みです。この MOD をダウンロードできます。</sys:String>
 </ResourceDictionary>

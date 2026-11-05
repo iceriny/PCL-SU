@@ -3563,4 +3563,10 @@
     <sys:String x:Key="Setup.Update.DownloadFailed">The update failed. Try again.</sys:String>
     <sys:String x:Key="Setup.Update.Cancelled">Update cancelled. You can download it again.</sys:String>
     <sys:String x:Key="Setup.Update.Retry">Retry</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Preparing">Checking mod dependencies…</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Scanning">Checking installed mods: {0}/{1}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Resolving">Resolving required dependencies: {0} checked, {1} discovered</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Cancel">Cancel download</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.CurrentOnly">Download current mod only</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Satisfied">All required dependencies are installed. You can download this mod.</sys:String>
 </ResourceDictionary>

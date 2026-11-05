@@ -24,6 +24,8 @@ $previousWriteSecret = [Environment]::GetEnvironmentVariable('PCL_WRITE_SECRET')
 $exitCode = 1
 $filter = @(
     'FullyQualifiedName~ResourceDownloadMetadataTest'
+    'FullyQualifiedName~ModDependencyResolverTest'
+    'FullyQualifiedName~ModCompDependencyTest'
     'FullyQualifiedName~FileDownloadRecoveryTest'
     'FullyQualifiedName~MinecraftServiceExceptionTest'
     'FullyQualifiedName~HostConnectionHandlerTest'
@@ -38,6 +40,7 @@ $filter = @(
     'FullyQualifiedName~LocalizationTest.SupportedLanguagesShouldHaveValidCultureAndResourceDictionary'
 ) -join '|'
 $trxPath = Join-Path $ResultsDirectory 'PCLSU-Regression.trx'
+$dialogTrxPath = Join-Path $ResultsDirectory 'PCLSU-DependencyDialog.trx'
 
 try {
     New-Item -ItemType Directory -Path $ResultsDirectory -Force | Out-Null
@@ -46,6 +49,7 @@ try {
     # Regression tests use isolated configuration and do not embed service credentials.
     [Environment]::SetEnvironmentVariable('PCL_WRITE_SECRET', $null)
     if (Test-Path -LiteralPath $trxPath) { Remove-Item -LiteralPath $trxPath }
+    if (Test-Path -LiteralPath $dialogTrxPath) { Remove-Item -LiteralPath $dialogTrxPath }
 
     $testArguments = @(
         'test', (Join-Path $repositoryRoot 'PCL.Core.Test/PCL.Core.Test.csproj'),
@@ -75,6 +79,28 @@ try {
         $counters = $report.TestRun.ResultSummary.Counters
         if ([int]$counters.passed -lt 79 -or [int]$counters.failed -gt 0 -or [int]$counters.notExecuted -gt 0) {
             throw "Expected at least 79 passing regressions with no failed or skipped cases; passed=$($counters.passed), failed=$($counters.failed), skipped=$($counters.notExecuted)."
+        }
+
+        # WPF Application can only be created once per process; keep the dialog tests isolated.
+        $dialogTestArguments = @(
+            'test', (Join-Path $repositoryRoot 'PCL.Core.Test/PCL.Core.Test.csproj'),
+            '--configuration', 'Release',
+            '-p:Platform=x64',
+            '-p:UseSharedCompilation=false',
+            '--no-build',
+            '--filter', 'FullyQualifiedName~ModDependencyDialogTest',
+            '--results-directory', $ResultsDirectory,
+            '--logger', 'trx;LogFileName=PCLSU-DependencyDialog.trx',
+            '--logger', 'console;verbosity=normal',
+            '--verbosity', 'quiet',
+            '-clp:ErrorsOnly;Summary'
+        )
+        Push-Location -LiteralPath $repositoryRoot
+        try {
+            & $DotNetPath @dialogTestArguments
+            $exitCode = $LASTEXITCODE
+        } finally {
+            Pop-Location
         }
     }
 } catch {

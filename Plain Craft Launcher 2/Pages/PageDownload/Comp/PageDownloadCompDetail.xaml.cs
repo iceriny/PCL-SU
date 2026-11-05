@@ -407,11 +407,10 @@ public partial class PageDownloadCompDetail
                     }
 
                     if (file.Type == ModComp.CompType.Mod && Config.Download.Comp.AutoInstallDependencies &&
-                        file.Dependencies.Any())
+                        (file.RawDependencies.Any() || file.Dependencies.Any()))
                     {
-                        try
+                        var selection = MyMsgCompDependency.Show(async (cancellationToken, progress) =>
                         {
-                            McInstance? targetInstance = null;
                             var knownInstances = new List<McInstance>();
                             if (ModInstanceList.McMcInstanceSelected is not null)
                             {
@@ -420,7 +419,7 @@ public partial class PageDownloadCompDetail
 
                             knownInstances.AddRange(ModInstanceList.mcInstanceList.Values.SelectMany(list => list)
                                 .Where(instance => instance is not null));
-                            targetInstance = knownInstances
+                            var targetInstance = knownInstances
                                 .Distinct()
                                 .FirstOrDefault(instance =>
                                     targetDir.StartsWith(instance.PathIndie, StringComparison.OrdinalIgnoreCase));
@@ -452,89 +451,34 @@ public partial class PageDownloadCompDetail
                                 targetLoaders = allowedLoaders.ToList();
                             }
 
-                            ModBase.Log($"[CompDeps] 开始解析必需前置: {file.Dependencies.Count} 个依赖");
+                            cancellationToken.ThrowIfCancellationRequested();
+                            ModBase.Log("[CompDeps] 开始解析必需前置");
                             var request = ModCompDependency.BuildRequest(file, _project, mcVersion, targetLoaders,
-                                targetDir);
-                            var resolver = new ModDependencyResolver();
-                            var result = resolver.Resolve(request);
-
-                            void DownloadDependencies()
-                            {    
-                                if (!result.ToInstall.Any())
-                                {
-                                    ModBase.Log("[CompDeps] 所有前置均无法解析，仅下载 Mod 本体");
-                                    return;
-                                }
-                                
-                                ModBase.Log($"[CompDeps] 准备下载: {result.ToInstall.Count} 个前置");
-                                var depDownloads = ModCompDependency.BuildDependencyDownloads(result, targetDir);
-                                foreach (var (depFilename, downloadFile) in depDownloads)
-                                {
-                                    var depLoaderName = Lang.Text("Download.Comp.Detail.DownloadResource", desc,
-                                        ModBase.GetFileNameWithoutExtentionFromPath(depFilename));
-                                    var depLoaders = new List<ModLoader.LoaderBase>
-                                    {
-                                        new LoaderDownload(Lang.Text("Download.Comp.Detail.DownloadFile"),
-                                            new List<DownloadFile> { downloadFile })
-                                        {
-                                            ProgressWeight = 6,
-                                            block = true
-                                        }
-                                    };
-
-                                    // 启动加载器
-                                    var depLoader = new ModLoader.LoaderCombo<int>(depLoaderName, depLoaders);
-                                    depLoader.OnStateChanged = ModDownloadLib.LoaderStateChangedHintOnly;
-                                    depLoader.Start(1);
-                                    ModLoader.LoaderTaskbarAdd(depLoader);
-                                }
-                            }
-                            
-                            if (result.Unresolved.Any() || result.ToInstall.Any())
-                            {
-                                var installChoice = ModCompDependency.ConfirmDependencyInstall(result);
-
-                                switch (installChoice)
-                                {
-                                    case ModComp.CompDepsInstallTypes.Unresolved:
-                                        ModBase.Log("[CompDeps] 发现无法解析的前置");
-                                        DownloadDependencies();
-                                        break;
-
-                                    case ModComp.CompDepsInstallTypes.WithDeps:
-                                        DownloadDependencies();
-                                        break;
-
-                                    case ModComp.CompDepsInstallTypes.WithoutDeps:
-                                        ModBase.Log("[CompDeps] 用户选择仅下载 Mod 本体，跳过前置下载");
-                                        break;
-
-                                    case ModComp.CompDepsInstallTypes.Cancel:
-                                        ModBase.Log("[CompDeps] 用户取消安装");
-                                        return;
-
-                                    default:
-                                        ModBase.Log($"[CompDeps] 未知返回值: {installChoice} ，终止下载");
-                                        return;
-                                }
-                            }
-                            else
-                            {
-                                ModBase.Log("[CompDeps] 已满足: 所有必需前置已安装");
-                            }
-                        }
-                        catch (Exception depEx)
+                                targetDir, cancellationToken, progress);
+                            return await new ModDependencyResolver().ResolveAsync(request, cancellationToken, progress);
+                        });
+                        if (selection.Choice == ModComp.CompDepsInstallTypes.Cancel) return;
+                        if (selection.Choice == ModComp.CompDepsInstallTypes.WithDeps)
                         {
-                            ModBase.Log(depEx, "[CompDeps] 依赖解析失败，跳过前置安装");
-                            var message = ExceptionDetails.Compose(
-                                Lang.Text("Download.Comp.Dependency.ResolveFailed.Message"),
-                                depEx);
-                            ModMain.MyMsgBox(
-                                message,
-                                Lang.Text("Download.Comp.Dependency.ResolveFailed.Title"),
-                                Lang.Text("Download.Comp.Dependency.ResolveFailed.Continue"),
-                                isWarn: true,
-                                forceWait: true);
+                            var depDownloads = ModCompDependency.BuildDependencyDownloads(selection.Resolution!, targetDir);
+                            foreach (var (depFilename, downloadFile) in depDownloads)
+                            {
+                                var depLoaderName = Lang.Text("Download.Comp.Detail.DownloadResource", desc,
+                                    ModBase.GetFileNameWithoutExtentionFromPath(depFilename));
+                                var depLoaders = new List<ModLoader.LoaderBase>
+                                {
+                                    new LoaderDownload(Lang.Text("Download.Comp.Detail.DownloadFile"),
+                                        new List<DownloadFile> { downloadFile })
+                                    {
+                                        ProgressWeight = 6,
+                                        block = true
+                                    }
+                                };
+                                var depLoader = new ModLoader.LoaderCombo<int>(depLoaderName, depLoaders);
+                                depLoader.OnStateChanged = ModDownloadLib.LoaderStateChangedHintOnly;
+                                depLoader.Start(1);
+                                ModLoader.LoaderTaskbarAdd(depLoader);
+                            }
                         }
                     }
 

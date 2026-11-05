@@ -3343,8 +3343,10 @@ public static class ModComp
     ///     获取某个工程下的全部文件列表。
     ///     必须在工作线程执行，失败会抛出异常。
     /// </summary>
-    public static List<CompFile> CompFilesGet(string projectId, bool fromCurseForge)
+    public static List<CompFile> CompFilesGet(string projectId, bool fromCurseForge, bool loadDependencies = true,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         // 1. 获取工程对象（使用 TryGetValue 提高效率并防止并发异常）
         CompProject targetProject = null;
         if (!compProjectCache.TryGetValue(projectId, out targetProject))
@@ -3365,6 +3367,7 @@ public static class ModComp
         }
 
         // 2. 获取并缓存文件列表
+        cancellationToken.ThrowIfCancellationRequested();
         if (!compFilesCache.ContainsKey(projectId))
         {
             ModBase.Log("[Comp] 开始获取文件列表：" + projectId);
@@ -3390,6 +3393,8 @@ public static class ModComp
         }
 
         var currentFiles = compFilesCache[projectId];
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!loadDependencies) return currentFiles;
 
         // 3. 提取所有需要获取信息的前置 ID（合并必要和可选）
         var allRawDeps = currentFiles.SelectMany(f => f.RawDependencies.Concat(f.RawOptionalDependencies)).Distinct()

@@ -3563,4 +3563,10 @@
     <sys:String x:Key="Setup.Update.DownloadFailed">更新失敗，請重試</sys:String>
     <sys:String x:Key="Setup.Update.Cancelled">更新已取消，可重新下載</sys:String>
     <sys:String x:Key="Setup.Update.Retry">重試下載</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Preparing">正在檢查模組前置…</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Scanning">正在檢查已安裝模組：{0}/{1}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Resolving">正在解析必要前置：已檢查 {0}，已發現 {1}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Cancel">取消下載</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.CurrentOnly">僅下載目前模組</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Satisfied">必要前置均已安裝，可以下載目前模組。</sys:String>
 </ResourceDictionary>

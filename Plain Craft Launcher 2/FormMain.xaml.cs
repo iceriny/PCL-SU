@@ -702,6 +702,7 @@ public partial class FormMain
                     MyMsgText text => () => text.Btn1_Click(sender, null),
                     MyMsgMarkdown markdown => () => markdown.Btn1_Click(sender, null),
                     MyMsgLogin login => () => login.Btn1_Click(sender, null),
+                    MyMsgCompDependency dependency => dependency.Confirm,
                     _ => null
                 };
                 enterAction?.Invoke();
@@ -732,6 +733,7 @@ public partial class FormMain
                     MyMsgLogin login => login.Btn3.Visibility == Visibility.Visible
                         ? () => login.Btn3_Click(sender, null)
                         : () => login.Btn1_Click(sender, null),
+                    MyMsgCompDependency dependency => dependency.Cancel,
                     _ => null
                 };
                 escapeAction?.Invoke();

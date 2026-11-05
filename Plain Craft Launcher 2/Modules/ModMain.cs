@@ -15,6 +15,7 @@ using PCL.Core.App;
 using PCL.Core.App.Configuration;
 using PCL.Core.App.Localization;
 using PCL.Core.Minecraft.IdentityModel.OAuth;
+using PCL.Core.Minecraft.ResourceProject;
 using PCL.Core.UI;
 using PCL.Core.Utils;
 using PCL.Core.Utils.OS;
@@ -270,6 +271,8 @@ public static class ModMain
 
         public Action<object>? CompletionHandler;
 
+        public Func<CancellationToken, IProgress<ModDependencyProgress>, Task<ModDependencyResolutionResult>>? DependencyResolver;
+
         public bool ForceWait;
 
         /// <summary>
@@ -323,7 +326,8 @@ public static class ModMain
         Input,
         AuthServer,
         Login,
-        Markdown
+        Markdown,
+        CompDependency
     }
 
     private static string GetDefaultDialogTitle() => Lang.Text("Common.Dialog.Title");
@@ -711,6 +715,11 @@ public static class ModMain
                     case MyMsgBoxType.Markdown:
                     {
                         frmMain.PanMsg.Children.Add(new MyMsgMarkdown(WaitingMyMsgBox[0]));
+                        break;
+                    }
+                    case MyMsgBoxType.CompDependency:
+                    {
+                        frmMain.PanMsg.Children.Add(new MyMsgCompDependency(WaitingMyMsgBox[0]));
                         break;
                     }
                 }
