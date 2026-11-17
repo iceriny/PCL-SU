@@ -34,17 +34,21 @@ dotnet publish "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj" --configur
 ./scripts/Invoke-RegressionTests.ps1
 ```
 
-发布稳定版时，同步修改 `metadata.json` 中的版本与递增代码、主项目的程序集版本，并添加 `release-notes/<版本>.md`。将提交推送到 `dev` 后运行：
+在 `metadata.json` 维护主版本与先行版本，更新 `release-notes/current.md`。将提交推送到 `dev` 后运行：
 
 ```powershell
-gh workflow run release-publish.yml --ref dev -f version=2.15.3
+gh workflow run release-publish.yml --ref dev
 ```
 
-发布工作流校验版本、提交与现有标签，执行回归并构建两个架构。校验和、Sigstore 签名及全部产物准备完成后，才创建或更新同一提交的草稿 Release 并公开发布。发布资产使用 `PCL_SU_Release_x64.exe`、`PCL_SU_Release_ARM64.exe` 及对应 `.sha256`、`.sigstore.json`，启动器可通过自身更新入口获取。
+发布准备阶段按上海日期和既有 Release 自动分配构建号，回归与两个架构共用同一个版本。完整格式为 `X.Y.Z[-alpha.P|-beta.P|-rc.P]+yyyyMMddN`，例如 `2.15.9+202611172`、`2.15.9-rc.1+202611172`；`N` 是当日构建次数，支持多位。主版本和先行版本相同时，启动器继续比较构建日期与次数。
+
+本地直接构建时，编号由 `artifacts/build/local-state.json` 自动维护。程序集版本、文件版本、程序展示版本由构建工具从元数据生成。
+
+工作流执行回归并构建两个架构。校验和、Sigstore 签名及全部产物准备完成后，才创建或更新同一提交的草稿 Release 并公开发布。稳定版资产使用 `PCL_SU_Release_x64.exe`、`PCL_SU_Release_ARM64.exe`，先行版使用 `PCL_SU_Beta_x64.exe`、`PCL_SU_Beta_ARM64.exe`，同时提供对应 `.sha256`、`.sigstore.json`。
 
 ### 更新日志格式
 
-`release-notes/<版本>.md` 使用 UTF-8 Markdown，发布时原样作为 GitHub Release 正文。启动器更新页读取其中唯一一组 `<summary>...</summary>` 之间的文字作为摘要，“查看详情”显示整篇 Markdown。标签必须使用以下小写写法；摘要写成一行纯文本，用一两句话概括本次更新对玩家的主要作用。
+`release-notes/current.md` 使用 UTF-8 Markdown，构建时自动生成以完整版本命名的日志，发布时原样作为 GitHub Release 正文，无需手工改写构建号或日志文件名。发布准备阶段合并已有 Release 与仓库历史，冻结最近 5 份日志供测试和两个架构共同使用；EXE 启动时读取对应日志，离线与手动替换 EXE 均可显示。更新页读取唯一一组 `<summary>...</summary>` 之间的文字作为摘要，“查看详情”显示整篇 Markdown。摘要写成一行纯文本，用一两句话概括本次更新对玩家的主要作用。
 
 ```markdown
 <summary>CurseForge 资源搜索与下载现已可用。</summary>

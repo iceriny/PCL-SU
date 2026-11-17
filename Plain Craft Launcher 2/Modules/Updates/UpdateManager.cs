@@ -57,7 +57,7 @@ public static class UpdateManager
 
     internal static void DownloadAutomatically(VersionDataModel? version)
     {
-        if (version is null || SemVer.Parse(version.VersionName) <= SemVer.Parse(ModBase.versionBaseName)) return;
+        if (version is null || LauncherVersionComparer.Compare(version.VersionName, ModBase.versionBaseName) <= 0) return;
         var mode = Config.Update.UpdateMode;
         if (mode is not (LauncherAutoUpdateBehavior.DownloadAndInstall or LauncherAutoUpdateBehavior.DownloadAndAnnounce)) return;
         // Failed or cancelled downloads remain available for an explicit retry.
@@ -96,9 +96,8 @@ public static class UpdateManager
 
                 if (version is null)
                     return;
-                ModBase.WriteFile($"{ModBase.pathTemp}SUUpdateLog.md", version.Changelog);
                 ModBase.Log($"[Update] 远程最新版本: {version.VersionName}, 当前版本: {ModBase.versionBaseName}");
-                if (!(SemVer.Parse(version.VersionName) > SemVer.Parse(ModBase.versionBaseName)))
+                if (LauncherVersionComparer.Compare(version.VersionName, ModBase.versionBaseName) <= 0)
                 {
                     Volatile.Write(ref _activeUpdateVersion, null);
                     return;

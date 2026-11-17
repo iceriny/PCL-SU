@@ -14,7 +14,8 @@ public sealed record LauncherVersionModel(
     [property: JsonPropertyName("base")] string BaseVersion,
     [property: JsonPropertyName("suffix")] string Suffix,
     [property: JsonPropertyName("code")] int Code,
-    [property: JsonPropertyName("upstream")] string UpstreamVersion
+    [property: JsonPropertyName("upstream")] string UpstreamVersion,
+    [property: JsonPropertyName("build")] string BuildMetadata = ""
 ) {
     private static readonly (string Name, int Code) _CompilationBranchInfo =
 #if DEBUG
@@ -31,6 +32,10 @@ public sealed record LauncherVersionModel(
     /// 基本版本名, 若 <see cref="Suffix"/> 存在实际值会附加后缀, 否则与 <see cref="BaseVersion"/> 相同
     /// </summary>
     public string BaseName { get; } = BaseVersion + (string.IsNullOrWhiteSpace(Suffix) ? "" : "-" + Suffix);
+
+    public string FullName => BaseName + (string.IsNullOrWhiteSpace(BuildMetadata) ? "" : "+" + BuildMetadata);
+
+    public bool IsPrerelease => !string.IsNullOrWhiteSpace(Suffix);
     
     /// <summary>
     /// 发行分支名
@@ -59,7 +64,7 @@ public sealed record LauncherVersionModel(
 
     public override string ToString()
     {
-        return $"{BranchName} {BaseName} ({Code}, {CommitDigest})";
+        return $"{BranchName} {FullName} ({Code}, {CommitDigest})";
     }
 }
 

@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PCL.Core.Test.Network;
+using PCL.Core.Utils;
 
 namespace PCL.Core.Test.Updates;
 
@@ -97,6 +98,60 @@ public sealed class UpdateSourceTest
     }
 
     private const string BinaryUrl = "https://github.com/iceriny/PCL-SU/releases/download/v2.15.99/PCL_SU_Release_x64.exe";
+
+    [TestMethod]
+    public void SameVersionRebuildsAreOrderedByDateAndNumericSequence()
+    {
+        var releases = new JsonArray(
+            Release("2.15.9+202611172"), Release("2.15.9+2026111710"),
+            Release("2.15.9+202611179"), Release("2.15.9"));
+        var source = new global::PCL.UpdatesGitHubModel(() => releases,
+            _ => throw new InvalidOperationException("All releases have digests."));
+
+        var latest = source.GetLatestVersion(global::PCL.UpdateChannel.stable, global::PCL.UpdateArch.x64);
+        Assert.AreEqual("2.15.9+2026111710", latest.VersionName);
+        Assert.IsFalse(source.IsLatest(global::PCL.UpdateChannel.stable, global::PCL.UpdateArch.x64,
+            SemVer.Parse("2.15.9"), 532));
+        Assert.IsFalse(source.IsLatest(global::PCL.UpdateChannel.stable, global::PCL.UpdateArch.x64,
+            SemVer.Parse("2.15.9+202611179"), 533));
+        Assert.IsTrue(source.IsLatest(global::PCL.UpdateChannel.stable, global::PCL.UpdateArch.x64,
+            SemVer.Parse("2.15.9+2026111710"), 534));
+        Assert.IsTrue(source.IsLatest(global::PCL.UpdateChannel.stable, global::PCL.UpdateArch.x64,
+            SemVer.Parse("2.15.10"), 535));
+    }
+
+    [TestMethod]
+    public void BetaChannelRecognizesAlphaBetaAndRcWhileStableSkipsThem()
+    {
+        var releases = new JsonArray(
+            Release("2.15.9-alpha.1+2026111710", true),
+            Release("2.15.9-rc.1+202611172", true),
+            Release("2.15.9-beta.2+202611179", true),
+            Release("2.15.8+202611171"));
+        var source = new global::PCL.UpdatesGitHubModel(() => releases,
+            _ => throw new InvalidOperationException("All releases have digests."));
+
+        Assert.AreEqual("2.15.9-rc.1+202611172",
+            source.GetLatestVersion(global::PCL.UpdateChannel.beta, global::PCL.UpdateArch.x64).VersionName);
+        Assert.AreEqual("2.15.8+202611171",
+            source.GetLatestVersion(global::PCL.UpdateChannel.stable, global::PCL.UpdateArch.x64).VersionName);
+    }
+
+    private static JsonObject Release(string version, bool prerelease = false)
+    {
+        var name = $"PCL_SU_{(prerelease ? "Beta" : "Release")}_x64.exe";
+        var url = $"https://github.com/iceriny/PCL-SU/releases/download/v{version}/{name}";
+        return new JsonObject
+        {
+            ["tag_name"] = "v" + version,
+            ["prerelease"] = prerelease,
+            ["body"] = version,
+            ["assets"] = new JsonArray(new JsonObject
+            {
+                ["name"] = name, ["browser_download_url"] = url, ["digest"] = "sha256:" + Hash
+            })
+        };
+    }
 
     private static JsonArray Releases(string? digest) => new(new JsonObject
     {

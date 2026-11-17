@@ -1,0 +1,38 @@
+<Project>
+  <Target Name="PclPrepareReleaseResources"
+          BeforeTargets="AssignTargetPaths;GetAssemblyVersion"
+          DependsOnTargets="ResolveProjectReferences"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(NoBuild)' != 'true' and '$(MSBuildProjectName)' == 'Plain Craft Launcher 2'">
+    <PropertyGroup>
+      <PclRepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</PclRepositoryRoot>
+      <PclReleaseOutputDir>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)release', '$(MSBuildProjectDirectory)'))</PclReleaseOutputDir>
+      <PclReleaseNotesPath Condition="'$(PclReleaseNotesPath)' == ''">$(PclRepositoryRoot)/release-notes</PclReleaseNotesPath>
+      <PclReleaseNotesPath>$([System.IO.Path]::GetFullPath('$(PclReleaseNotesPath)', '$(PclRepositoryRoot)'))</PclReleaseNotesPath>
+      <PclReleaseHistoryPath Condition="'$(PclReleaseHistoryPath)' == '' and Exists('$(PclRepositoryRoot)/artifacts/build/release-history.json')">$(PclRepositoryRoot)/artifacts/build/release-history.json</PclReleaseHistoryPath>
+      <PclDotNetHost Condition="'$(DotNetHostPath)' != ''">$(DotNetHostPath)</PclDotNetHost>
+      <PclDotNetHost Condition="'$(PclDotNetHost)' == ''">dotnet</PclDotNetHost>
+      <PclBuildOption Condition="'$(PclBuildMetadata)' != ''">--build &quot;$(PclBuildMetadata)&quot;</PclBuildOption>
+      <PclHistoryOption Condition="'$(PclReleaseHistoryPath)' != ''">--history &quot;$(PclReleaseHistoryPath)&quot;</PclHistoryOption>
+    </PropertyGroup>
+    <Error Condition="'@(PclBuildTool)' == ''" Text="PCL.Build output was not resolved." />
+    <Exec Command="&quot;$(PclDotNetHost)&quot; &quot;@(PclBuildTool)&quot; prepare --metadata &quot;$(MSBuildProjectDirectory)/metadata.json&quot; --notes &quot;$(PclReleaseNotesPath)&quot; --output &quot;$(PclReleaseOutputDir)&quot; --state &quot;$(PclRepositoryRoot)/artifacts/build/local-state.json&quot; $(PclBuildOption) $(PclHistoryOption)" />
+    <ReadLinesFromFile File="$(PclReleaseOutputDir)/version.txt">
+      <Output TaskParameter="Lines" PropertyName="InformationalVersion" />
+    </ReadLinesFromFile>
+    <ReadLinesFromFile File="$(PclReleaseOutputDir)/file-version.txt">
+      <Output TaskParameter="Lines" PropertyName="FileVersion" />
+    </ReadLinesFromFile>
+    <ReadLinesFromFile File="$(PclReleaseOutputDir)/assembly-version.txt">
+      <Output TaskParameter="Lines" PropertyName="AssemblyVersion" />
+    </ReadLinesFromFile>
+    <PropertyGroup>
+      <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    </PropertyGroup>
+    <ItemGroup>
+      <EmbeddedResource Include="$(PclReleaseOutputDir)/metadata.json" LogicalName="PCL.metadata.json" />
+      <PclReleaseNote Include="$(PclReleaseOutputDir)/notes/*.md" />
+      <EmbeddedResource Include="@(PclReleaseNote)" LogicalName="PCL.ReleaseNotes.%(PclReleaseNote.Filename)%(PclReleaseNote.Extension)" />
+      <FileWrites Include="$(PclReleaseOutputDir)/metadata.json;$(PclReleaseOutputDir)/version.txt;$(PclReleaseOutputDir)/build.txt;$(PclReleaseOutputDir)/assembly-version.txt;$(PclReleaseOutputDir)/file-version.txt;$(PclReleaseOutputDir)/notes/*.md" />
+    </ItemGroup>
+  </Target>
+</Project>

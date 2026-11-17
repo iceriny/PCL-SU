@@ -27,7 +27,7 @@ public static class Basics
     /// <summary>
     /// 版本名称。
     /// </summary>
-    public static string VersionName => Metadata.Version.BaseName;
+    public static string VersionName => Metadata.Version.FullName;
 
     /// <summary>
     /// 版本内部代号。

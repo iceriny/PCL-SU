@@ -3,13 +3,18 @@
 param(
     [string]$DotNetPath = 'dotnet',
     [string]$ResultsDirectory = (Join-Path $PSScriptRoot '../artifacts/test-results'),
-    [string]$TestRoot = ''
+    [string]$TestRoot = '',
+    [string]$BuildMetadata = '',
+    [string]$ReleaseNotesPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $ResultsDirectory = [System.IO.Path]::GetFullPath($ResultsDirectory, $repositoryRoot)
+if (-not [string]::IsNullOrWhiteSpace($ReleaseNotesPath)) {
+    $ReleaseNotesPath = [System.IO.Path]::GetFullPath($ReleaseNotesPath, $repositoryRoot)
+}
 if ([string]::IsNullOrWhiteSpace($TestRoot)) {
     $temporaryRoot = if ([string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
         [System.IO.Path]::GetTempPath()
@@ -40,6 +45,10 @@ $filter = @(
     'FullyQualifiedName~AnimationDispatchTest'
     'FullyQualifiedName~FileConfigStorageTest'
     'FullyQualifiedName~LoggerTest'
+    'FullyQualifiedName~LauncherVersionComparerTest'
+    'FullyQualifiedName~BuildPackagingTest'
+    'FullyQualifiedName~EmbeddedReleaseNotesTest'
+    'FullyQualifiedName~LauncherMetadataTest'
     'FullyQualifiedName~LocalizationTest.LanguageDictionariesShouldNotContainDuplicateKeys'
     'FullyQualifiedName~LocalizationTest.LanguageKeysShouldUseDotNaming'
     'FullyQualifiedName~LocalizationTest.SupportedLanguagesShouldHaveValidCultureAndResourceDictionary'
@@ -75,6 +84,12 @@ try {
         '--verbosity', 'quiet',
         '-clp:ErrorsOnly;Summary'
     )
+    if (-not [string]::IsNullOrWhiteSpace($BuildMetadata)) {
+        $testArguments += "-p:PclBuildMetadata=$BuildMetadata"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ReleaseNotesPath)) {
+        $testArguments += "-p:PclReleaseNotesPath=$ReleaseNotesPath"
+    }
     Push-Location -LiteralPath $repositoryRoot
     try {
         & $DotNetPath @testArguments
@@ -89,8 +104,8 @@ try {
         }
         [xml]$report = Get-Content -LiteralPath $trxPath -Raw
         $counters = $report.TestRun.ResultSummary.Counters
-        if ([int]$counters.passed -lt 132 -or [int]$counters.failed -gt 0 -or [int]$counters.notExecuted -gt 0) {
-            throw "Expected at least 132 passing regressions with no failed or skipped cases; passed=$($counters.passed), failed=$($counters.failed), skipped=$($counters.notExecuted)."
+        if ([int]$counters.passed -lt 184 -or [int]$counters.failed -gt 0 -or [int]$counters.notExecuted -gt 0) {
+            throw "Expected at least 184 passing regressions with no failed or skipped cases; passed=$($counters.passed), failed=$($counters.failed), skipped=$($counters.notExecuted)."
         }
 
         # WPF Application can only be created once per process; keep the dialog tests isolated.
@@ -108,6 +123,12 @@ try {
                 '--verbosity', 'quiet',
                 '-clp:ErrorsOnly;Summary'
             )
+            if (-not [string]::IsNullOrWhiteSpace($BuildMetadata)) {
+                $dialogTestArguments += "-p:PclBuildMetadata=$BuildMetadata"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($ReleaseNotesPath)) {
+                $dialogTestArguments += "-p:PclReleaseNotesPath=$ReleaseNotesPath"
+            }
             Push-Location -LiteralPath $repositoryRoot
             try {
                 & $DotNetPath @dialogTestArguments

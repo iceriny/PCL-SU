@@ -9,6 +9,15 @@ on:
       architecture:
         required: true
         type: string
+      build-metadata:
+        type: string
+        default: ''
+      expected-version:
+        type: string
+        default: ''
+      release-metadata-artifact:
+        type: string
+        default: ''
       require-ms-client-id:
         type: boolean
         default: false
@@ -30,6 +39,9 @@ jobs:
     env:
       BUILD_CONFIGURATION: ${{ inputs.configuration }}
       BUILD_ARCHITECTURE: ${{ inputs.architecture }}
+      BUILD_METADATA: ${{ inputs.build-metadata }}
+      EXPECTED_VERSION: ${{ inputs.expected-version }}
+      RELEASE_METADATA_ARTIFACT: ${{ inputs.release-metadata-artifact }}
 
     steps:
       - name: Checkout
@@ -41,6 +53,13 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.403
+
+      - name: Download prepared release metadata
+        if: ${{ inputs.release-metadata-artifact != '' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.release-metadata-artifact }}
+          path: artifacts/build/release-metadata
 
       - name: Build and package
         env:
@@ -68,13 +87,30 @@ jobs:
           if ($env:REQUIRE_CURSEFORGE_KEY -eq 'true' -and [string]::IsNullOrWhiteSpace($env:PCL_CURSEFORGE_API_KEY)) {
             throw 'Set the CURSEFORGE_API_KEY repository secret before publishing a release.'
           }
-          dotnet publish 'Plain Craft Launcher 2/Plain Craft Launcher 2.csproj' -c $env:BUILD_CONFIGURATION -p:Platform=$env:BUILD_ARCHITECTURE -p:UseSharedCompilation=false --no-self-contained --output ./publish
+          $publishDirectory = Join-Path 'artifacts/publish' $env:BUILD_ARCHITECTURE
+          $publishArguments = @(
+            'publish', 'Plain Craft Launcher 2/Plain Craft Launcher 2.csproj',
+            '--configuration', $env:BUILD_CONFIGURATION,
+            "-p:Platform=$env:BUILD_ARCHITECTURE", '-p:UseSharedCompilation=false',
+            '--no-self-contained', '--output', $publishDirectory
+          )
+          if (-not [string]::IsNullOrWhiteSpace($env:BUILD_METADATA)) {
+            $publishArguments += "-p:PclBuildMetadata=$env:BUILD_METADATA"
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_METADATA_ARTIFACT)) {
+            $releaseNotesPath = Join-Path (Get-Location) 'artifacts/build/release-metadata/notes'
+            $publishArguments += "-p:PclReleaseNotesPath=$releaseNotesPath"
+          }
+          dotnet @publishArguments
           if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
 
-          New-Item -ItemType Directory -Path artifact | Out-Null
           $assetName = "PCL_SU_$($env:BUILD_CONFIGURATION)_$($env:BUILD_ARCHITECTURE).exe"
-          $asset = Join-Path artifact $assetName
-          Copy-Item -LiteralPath 'publish/Plain Craft Launcher 2.exe' -Destination $asset
+          $asset = Join-Path 'artifacts' $assetName
+          Copy-Item -LiteralPath (Join-Path $publishDirectory 'Plain Craft Launcher 2.exe') -Destination $asset
+          if (-not [string]::IsNullOrWhiteSpace($env:EXPECTED_VERSION) -and
+              [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path -LiteralPath $asset)).ProductVersion -ne $env:EXPECTED_VERSION) {
+            throw 'Published binary informational version does not match the prepared release'
+          }
           $binaryBytes = [IO.File]::ReadAllBytes($asset)
           $binaryText = [Text.Encoding]::Unicode.GetString($binaryBytes)
           $binaryTextOdd = [Text.Encoding]::Unicode.GetString($binaryBytes, 1, $binaryBytes.Length - 1)
@@ -93,6 +129,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: PCL_SU_${{ inputs.configuration }}_${{ inputs.architecture }}
-          path: artifact/*
+          path: artifacts/PCL_SU_*
           if-no-files-found: error
           retention-days: 14

@@ -138,7 +138,7 @@ public partial class PageSetupUpdate
                 return UpdateManager.remoteServer.GetLatestVersion(channel, architecture);
             });
             if (!CanApplyCheck(generation)) return;
-            var latest = version is null || SemVer.Parse(version.VersionName) <= SemVer.Parse(ModBase.versionBaseName);
+            var latest = version is null || LauncherVersionComparer.Compare(version.VersionName, ModBase.versionBaseName) <= 0;
             SetTargetVersion(latest ? null : version);
             _checkStatus = latest ? UpdateStatus.Latest : UpdateStatus.Available;
             _hasCheckResult = true;
@@ -384,12 +384,7 @@ public partial class PageSetupUpdate
 
     public string VersionNameFormat(string str)
     {
-        str = str.TrimStart('v', 'V');
-        if (!str.Contains("-"))
-            return str;
-        var add = str.AfterLast("-");
-        str = str.BeforeLast("-");
-        return $"{str} {add.Replace(".", " ").Replace("beta", "Beta").Replace("rc", "RC")}";
+        return str.TrimStart('v', 'V');
     }
 
     private void BtnCheckAgain_OnClick(object sender, MouseButtonEventArgs e)

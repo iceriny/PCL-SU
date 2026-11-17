@@ -85,7 +85,7 @@ public partial class Application
             _ = Config.Preference.Font;
             var updateBranchCfg = Config.Update.UpdateChannelConfig;
             if (updateBranchCfg.IsDefault())
-                updateBranchCfg.SetValue(ModBase.versionBaseName.Contains("beta")
+                updateBranchCfg.SetValue(Basics.Metadata.Version.IsPrerelease
                     ? Core.App.UpdateChannel.Beta
                     : Core.App.UpdateChannel.Release);
 

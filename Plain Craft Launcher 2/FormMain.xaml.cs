@@ -40,12 +40,7 @@ public partial class FormMain
     {
         ModBase.RunInNewThread(() =>
         {
-            var changelogFile = $"{ModBase.pathTemp}SUUpdateLog.md";
-            string changelog;
-            if (File.Exists(changelogFile))
-                changelog = ModBase.ReadFile(changelogFile);
-            else
-                changelog = Lang.Text("Main.UpdateLog.Empty");
+            var changelog = EmbeddedReleaseNotes.ReadCurrent() ?? Lang.Text("Main.UpdateLog.Empty");
             if (ModMain.MyMsgBoxMarkdown(changelog,
                     Lang.Text("Main.UpdateLog.Title", ModBase.versionBranchName, ModBase.versionBaseName), Lang.Text("Common.Action.Confirm"), Lang.Text("Main.UpdateLog.FullChangelog")) ==
                 2) ModBase.OpenWebsite("https://github.com/iceriny/PCL-SU/releases");
@@ -70,7 +65,9 @@ public partial class FormMain
         ModMain.frmLaunchRight = new PageLaunchRight();
         // 版本号改变
         var lastVersion = States.System.LastVersion;
-        if (lastVersion < ModBase.versionCode)
+        var namedChange = EmbeddedReleaseNotes.CompareStartupVersion(States.System.LastVersionName,
+            ModBase.versionBaseName);
+        if (lastVersion < ModBase.versionCode || (lastVersion == ModBase.versionCode && namedChange > 0))
         {
             // 重新询问是否启用遥测数据收集
             if (lastVersion <= 511)
@@ -82,11 +79,13 @@ public partial class FormMain
                 }
             }
             // 触发升级
-            UpgradeSub(lastVersion);
+            UpgradeSub(lastVersion, namedChange > 0);
         }
-        else if (lastVersion > ModBase.versionCode)
+        else if (lastVersion > ModBase.versionCode || (lastVersion == ModBase.versionCode && namedChange < 0))
             // 触发降级
             DowngradeSub(lastVersion);
+
+        States.System.LastVersionName = ModBase.versionBaseName;
 
         _ = Config.Preference.Theme.ThemeSelected;
         // 注册拖拽事件（不能直接加 Handles，否则没用；#6340）
@@ -314,7 +313,7 @@ public partial class FormMain
     }
 
     // 升级与降级事件
-    private void UpgradeSub(int lastVersionCode)
+    private void UpgradeSub(int lastVersionCode, bool namedUpgrade = false)
     {
         ModBase.Log("[Start] 版本号从 " + lastVersionCode + " 升高到 " + ModBase.versionCode);
         States.System.LastVersion = ModBase.versionCode;
@@ -342,7 +341,7 @@ public partial class FormMain
         // 输出更新日志
         if (lastVersionCode <= 0)
             return;
-        if (lowerVersionCode >= ModBase.versionCode)
+        if (lowerVersionCode >= ModBase.versionCode && !namedUpgrade)
             return;
         ShowUpdateLog();
         

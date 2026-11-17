@@ -28,8 +28,6 @@
         <Description>Minecraft 启动器 PCL SU (基于龙腾猫跃与 PCL Community 的开源项目)</Description>
         <Product>Plain Craft Launcher SU</Product>
         <Copyright>Copyright © 龙腾猫跃 2016. All Rights Reserved.</Copyright>
-        <AssemblyVersion>2.15.9.0</AssemblyVersion>
-        <FileVersion>2.15.9.0</FileVersion>
         <NoWarn>
             41999;42016;42017;42018;42019;42020;42021;42022;42032;42036;42314;
             VSTHRD002;VSTHRD003;VSTHRD110;VSTHRD200
@@ -79,6 +77,8 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\PCL.Core\PCL.Core.csproj" />
+        <ProjectReference Include="..\PCL.Build\PCL.Build.csproj" ReferenceOutputAssembly="false" OutputItemType="PclBuildTool"
+                          GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained;PublishSingleFile" />
         <InternalsVisibleTo Include="PCL.Core.Test" />
     </ItemGroup>
     <ItemGroup>
@@ -115,9 +115,9 @@
         <Page Include="**\*.xaml" Exclude="bin\**;obj\**;@(ApplicationDefinition)" />
         <Resource Include="Images\**" />
         <Resource Include="Resources\**" />
-        <EmbeddedResource Include="metadata.json" />
     </ItemGroup>
     <ItemGroup>
         <Content Include="LICENCE" />
     </ItemGroup>
+    <Import Project="..\build\Pcl.Release.targets" />
 </Project>

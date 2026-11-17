@@ -59,7 +59,7 @@ public sealed class UpdatesGitHubModel : IUpdateSource
     public bool IsLatest(UpdateChannel channel, UpdateArch arch, SemVer currentVersion, int currentVersionCode)
     {
         var release = GetRelease(channel, arch);
-        return release is null || currentVersion >= release.Version;
+        return release is null || LauncherVersionComparer.Compare(currentVersion, release.Version) >= 0;
     }
 
     public VersionAnnouncementDataModel GetAnnouncementList() => new() { Content = [] };
@@ -101,7 +101,7 @@ public sealed class UpdatesGitHubModel : IUpdateSource
                 continue;
             if (channel == UpdateChannel.stable && !string.IsNullOrEmpty(version.Prerelease))
                 continue;
-            if (latest is not null && version <= latest.Version)
+            if (latest is not null && LauncherVersionComparer.Compare(version, latest.Version) <= 0)
                 continue;
 
             var assetName = $"PCL_SU_{(prerelease ? "Beta" : "Release")}_{(arch == UpdateArch.arm64 ? "ARM64" : "x64")}.exe";

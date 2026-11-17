@@ -1,12 +1,12 @@
 name: Release publish
-run-name: PCL SU ${{ inputs.version }}
+run-name: PCL SU ${{ inputs.version || 'automatic build' }}
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Stable version matching metadata.json (for example 2.15.3)'
-        required: true
+        description: 'Optional version core or full version; defaults to metadata.json with an automatic build number'
+        required: false
         type: string
 
 permissions:
@@ -20,35 +20,60 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      build-metadata: ${{ steps.release.outputs.build-metadata }}
+      configuration: ${{ steps.release.outputs.configuration }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Validate release target
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.403
+
+      - name: Prepare release version
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_VERSION: ${{ inputs.version }}
+          REQUESTED_VERSION: ${{ inputs.version }}
           RELEASE_SHA: ${{ github.sha }}
           RELEASE_REF: ${{ github.ref }}
+          DOTNET_NOLOGO: 'true'
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
         run: |
           set -euo pipefail
           [[ "$RELEASE_REF" == "refs/heads/dev" ]]
-          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          test "$RELEASE_VERSION" = "$(jq -r '.version.base' 'Plain Craft Launcher 2/metadata.json')"
-          test -z "$(jq -r '.version.suffix' 'Plain Craft Launcher 2/metadata.json')"
-          grep -Fq "<AssemblyVersion>$RELEASE_VERSION.0</AssemblyVersion>" 'Plain Craft Launcher 2/Plain Craft Launcher 2.csproj'
-          grep -Fq "<FileVersion>$RELEASE_VERSION.0</FileVersion>" 'Plain Craft Launcher 2/Plain Craft Launcher 2.csproj'
-          test -s "release-notes/$RELEASE_VERSION.md"
-          python - "$RELEASE_VERSION" <<'PY'
-          import pathlib, re, sys
-          text = pathlib.Path(f"release-notes/{sys.argv[1]}.md").read_text(encoding="utf-8-sig")
+          gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" > "$RUNNER_TEMP/release-history.json"
+          dotnet build PCL.Build/PCL.Build.csproj --configuration Release --nologo --verbosity quiet
+          tool="PCL.Build/bin/Release/net10.0/PCL.Build.dll"
+          build="$(dotnet "$tool" allocate --history "$RUNNER_TEMP/release-history.json")"
+          prepared="$RUNNER_TEMP/release-prepared"
+          test -s release-notes/current.md
+          dotnet "$tool" prepare --metadata 'Plain Craft Launcher 2/metadata.json' --notes release-notes --output "$prepared" --state "$RUNNER_TEMP/release-build-state" --build "$build" --history "$RUNNER_TEMP/release-history.json"
+          RELEASE_VERSION="$(tr -d '\r\n' < "$prepared/version.txt")"
+          PREPARED_DIRECTORY="$prepared"
+          export RELEASE_VERSION PREPARED_DIRECTORY
+          python - <<'PY'
+          import os, pathlib, re
+          version = os.environ["RELEASE_VERSION"]
+          core, build = version.split("+", 1)
+          assert re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:alpha|beta|rc)\.(?:0|[1-9][0-9]*))?", core), "Unsupported release version"
+          requested = os.environ.get("REQUESTED_VERSION", "").strip()
+          assert requested in ("", core, version), f"Requested {requested!r}, automatic version is {version}"
+          text = (pathlib.Path(os.environ["PREPARED_DIRECTORY"]) / "notes" / f"{version}.md").read_text(encoding="utf-8-sig")
           summaries = re.findall(r"<summary>(.*?)</summary>", text, re.S)
           assert text.count("<summary>") == text.count("</summary>") == 1, "Expected exactly one summary"
           assert len(summaries) == 1 and summaries[0].strip(), "Missing update summary"
           assert not re.search(r"[<>\r\n]", summaries[0]), "Summary must be one line of plain text"
           assert text.split("</summary>", 1)[1].strip(), "Missing player-facing release details"
+          prerelease = "-" in core
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"version={version}\nbuild-metadata={build}\nconfiguration={'Beta' if prerelease else 'Release'}\nprerelease={str(prerelease).lower()}\n")
           PY
           tag="v$RELEASE_VERSION"
           if existing_sha=$(gh api "repos/$GH_REPO/commits/$tag" --jq '.sha' 2>/dev/null); then
@@ -58,9 +83,20 @@ jobs:
             test "$draft" = "true"
           fi
 
+      - name: Upload prepared release metadata
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: PCL_SU_Build_Metadata
+          path: ${{ runner.temp }}/release-prepared/
+          if-no-files-found: error
+          retention-days: 14
+
   test:
     needs: validate
     uses: ./.github/workflows/reusable-test.yml
+    with:
+      build-metadata: ${{ needs.validate.outputs.build-metadata }}
+      release-metadata-artifact: PCL_SU_Build_Metadata
 
   build:
     needs: [validate, test]
@@ -70,8 +106,11 @@ jobs:
         architecture: [x64, ARM64]
     uses: ./.github/workflows/reusable-build.yml
     with:
-      configuration: Release
+      configuration: ${{ needs.validate.outputs.configuration }}
       architecture: ${{ matrix.architecture }}
+      build-metadata: ${{ needs.validate.outputs.build-metadata }}
+      expected-version: ${{ needs.validate.outputs.version }}
+      release-metadata-artifact: PCL_SU_Build_Metadata
       require-ms-client-id: true
       require-curseforge-key: true
     secrets: inherit
@@ -85,30 +124,39 @@ jobs:
       actions: read
       id-token: write
     steps:
-      - name: Checkout release notes
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      - name: Download prepared release metadata
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: PCL_SU_Build_Metadata
+          path: release-metadata
+
       - name: Download binaries
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: PCL_SU_Release_*
+          pattern: PCL_SU_${{ needs.validate.outputs.configuration }}_*
           merge-multiple: true
           path: dist
 
       - name: Verify packages
         working-directory: dist
+        env:
+          BUILD_CONFIGURATION: ${{ needs.validate.outputs.configuration }}
         run: |
           set -euo pipefail
-          test -s PCL_SU_Release_x64.exe
-          test -s PCL_SU_Release_ARM64.exe
-          sha256sum --check PCL_SU_Release_x64.exe.sha256 PCL_SU_Release_ARM64.exe.sha256
+          for arch in x64 ARM64; do
+            test -s "PCL_SU_${BUILD_CONFIGURATION}_$arch.exe"
+            sha256sum --check "PCL_SU_${BUILD_CONFIGURATION}_$arch.exe.sha256"
+          done
 
       - name: Sign and verify binaries
         uses: sigstore/gh-action-sigstore-python@790bc6befb9d733738f18d8f895854b453640ec9 # v3.5.0
         with:
-          inputs: dist/PCL_SU_Release_x64.exe dist/PCL_SU_Release_ARM64.exe
+          inputs: dist/PCL_SU_${{ needs.validate.outputs.configuration }}_x64.exe dist/PCL_SU_${{ needs.validate.outputs.configuration }}_ARM64.exe
           verify: true
           verify-cert-identity: https://github.com/${{ github.workflow_ref }}
           verify-oidc-issuer: https://token.actions.githubusercontent.com
@@ -118,13 +166,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          RELEASE_CONFIGURATION: ${{ needs.validate.outputs.configuration }}
+          RELEASE_PRERELEASE: ${{ needs.validate.outputs.prerelease }}
           RELEASE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           tag="v$RELEASE_VERSION"
           for arch in x64 ARM64; do
-            test -s "dist/PCL_SU_Release_$arch.exe.sigstore.json"
+            test -s "dist/PCL_SU_${RELEASE_CONFIGURATION}_$arch.exe.sigstore.json"
           done
           if existing_sha=$(gh api "repos/$GH_REPO/commits/$tag" --jq '.sha' 2>/dev/null); then
             test "$existing_sha" = "$RELEASE_SHA"
@@ -133,11 +183,15 @@ jobs:
           fi
           if draft=$(gh release view "$tag" --json isDraft --jq '.isDraft' 2>/dev/null); then
             test "$draft" = "true"
-            gh release edit "$tag" --title "PCL SU $RELEASE_VERSION" --notes-file "release-notes/$RELEASE_VERSION.md"
+            gh release edit "$tag" --title "PCL SU $RELEASE_VERSION" --notes-file "release-metadata/notes/$RELEASE_VERSION.md"
           else
-            gh release create "$tag" --verify-tag --draft --title "PCL SU $RELEASE_VERSION" --notes-file "release-notes/$RELEASE_VERSION.md"
+            gh release create "$tag" --verify-tag --draft --title "PCL SU $RELEASE_VERSION" --notes-file "release-metadata/notes/$RELEASE_VERSION.md"
           fi
           gh release upload "$tag" dist/*.exe dist/*.sha256 dist/*.sigstore.json --clobber
           test "$(gh release view "$tag" --json assets --jq '.assets | length')" -eq 6
-          gh release edit "$tag" --draft=false --prerelease=false --latest
+          if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
+            gh release edit "$tag" --draft=false --prerelease=true --latest=false
+          else
+            gh release edit "$tag" --draft=false --prerelease=false --latest
+          fi
           echo "Published: https://github.com/$GH_REPO/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
