@@ -19,7 +19,7 @@ PCL SU（Plain Craft Launcher SU）是基于 [PCL CE](https://github.com/PCL-Com
 
 ```powershell
 dotnet build "Plain Craft Launcher 2.slnx" --configuration Release -p:Platform=x64
-dotnet publish "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj" --configuration Release -p:Platform=x64 --no-self-contained --output "Plain Craft Launcher 2/bin/Release/publish"
+dotnet publish "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj" --configuration Release -p:Platform=x64 --no-self-contained --output "artifacts/publish/x64"
 ```
 
 微软登录需要为此分支配置可用于 Minecraft 身份验证的客户端 ID；CurseForge 官方 API 需要 API Key。发布流程通过仓库的 Actions Secrets 注入这些服务配置。
