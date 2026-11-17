@@ -2194,6 +2194,7 @@ public partial class PageInstanceCompResource : IRefreshable
             modList = modList.ToList(); // 防止刷新影响迭代器
             var fileList = new List<DownloadFile>();
             var fileCopyList = new Dictionary<string, string>();
+            var tempFolder = ModMain.RequestTaskTempFolder();
             foreach (var Entry in modList)
             {
                 var file = Entry.UpdateFile;
@@ -2236,8 +2237,8 @@ public partial class PageInstanceCompResource : IRefreshable
                 }
 
                 // 添加到下载列表
-                var tempAddress = ModBase.pathTemp + @"DownloadedComp\" +
-                                  Entry.FileName.Replace(currentReplaceName, newestReplaceName);
+                var tempAddress = Path.Combine(tempFolder, fileList.Count.ToString(),
+                    Entry.FileName.Replace(currentReplaceName, newestReplaceName));
                 var realAddress = ModBase.GetPathFromFullPath(Entry.path) +
                                   Entry.FileName.Replace(currentReplaceName, newestReplaceName);
                 fileList.Add(file.ToNetFile(tempAddress, ModComp.DownloadReason.Update));
@@ -2347,9 +2348,8 @@ public partial class PageInstanceCompResource : IRefreshable
                 {
                     try
                     {
-                        foreach (var TempFile in fileCopyList.Keys)
-                            if (File.Exists(TempFile))
-                                File.Delete(TempFile);
+                        if (Directory.Exists(tempFolder))
+                            Directory.Delete(tempFolder, true);
                     }
                     catch (Exception ex)
                     {

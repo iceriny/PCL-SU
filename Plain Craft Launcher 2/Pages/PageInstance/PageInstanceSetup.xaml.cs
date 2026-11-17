@@ -986,7 +986,7 @@ public partial class PageInstanceSetup
 
     private void ComboArgumentIndieV2_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ModAnimation.AniExitsAnyControl())
+        if (ModAnimation.AniExitsAnyControl() || !ComboArgumentIndieV2.IsUserSelectionChange)
             return;
         if (isReverting)
             return;
@@ -1030,7 +1030,7 @@ public partial class PageInstanceSetup
 
     private void ComboAdvanceRenderer_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ModAnimation.AniExitsAnyControl())
+        if (ModAnimation.AniExitsAnyControl() || !ComboAdvanceRenderer.IsUserSelectionChange)
             return;
 
         var args = e; // 转换事件参数

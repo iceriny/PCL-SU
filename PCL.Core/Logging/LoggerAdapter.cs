@@ -1,7 +1,5 @@
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Threading;
 
@@ -16,122 +14,86 @@ public class LoggerAdapter(Logger logger, string categoryName) : ILogger
     private readonly Logger _innerLogger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly string _categoryName = categoryName ?? throw new ArgumentNullException(nameof(categoryName));
 
-    private static readonly AsyncLocal<Stack<object>> _ScopeStack = new();
+    private sealed class ScopeNode(string text, ScopeNode? parent)
+    {
+        public string Text { get; } = text;
+        public ScopeNode? Parent { get; } = parent;
+    }
+
+    // 链表节点随异步上下文传递；子任务不会修改父任务共享的可变 Stack。
+    private static readonly AsyncLocal<ScopeNode?> _Scope = new();
 
     IDisposable ILogger.BeginScope<TState>(TState state)
     {
-        _ScopeStack.Value ??= new Stack<object>();
-        _ScopeStack.Value.Push(state);
-        return new ScopeDisposable(state);
+        var node = new ScopeNode(state?.ToString() ?? string.Empty, _Scope.Value);
+        _Scope.Value = node;
+        return new ScopeDisposable(node);
     }
 
-#pragma warning disable CS9113 // 参数未读。
-    private class ScopeDisposable(object state) : IDisposable
+    private sealed class ScopeDisposable(ScopeNode node) : IDisposable
     {
-        private bool _disposed;
-
         public void Dispose()
         {
-            if (_disposed)
-                return;
-
-            if (_ScopeStack.Value is { Count: > 0 })
-            {
-#if DEBUG
-                var popped = _ScopeStack.Value.Pop();
-                if (!ReferenceEquals(popped, state))
-                {
-                    throw new InvalidOperationException("Scope disposal order mismatch.");
-                }
-#else
-                _ = _ScopeStack.Value.Pop();
-#endif
-            }
-
-            _disposed = true;
+            if (ReferenceEquals(_Scope.Value, node)) _Scope.Value = node.Parent;
         }
     }
 
-    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel level) => true;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel level)
+        => _ToPclLevel(level) is { } pclLevel && _innerLogger.IsEnabled(pclLevel);
 
     public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
-        if (!IsEnabled(logLevel))
+        if (_ToPclLevel(logLevel) is not { } pclLevel || !_innerLogger.IsEnabled(pclLevel))
             return;
 
         ArgumentNullException.ThrowIfNull(formatter);
 
-        var originalMessage = formatter(state, exception);
-        var sb = new StringBuilder();
-
-        // 类别名称
-        if (!string.IsNullOrEmpty(_categoryName))
+        var message = formatter(state, exception);
+        var scope = _BuildScopeContext();
+        if (eventId.Id != 0 || !string.IsNullOrEmpty(eventId.Name) || scope is not null)
         {
-            sb.Append('[').Append(_categoryName).Append("] ");
-        }
-
-        // 事件 ID
-        if (eventId.Id != 0 || !string.IsNullOrEmpty(eventId.Name))
-        {
-            sb.Append("[EventId:");
-            if (!string.IsNullOrEmpty(eventId.Name))
+            var builder = new StringBuilder(message.Length + 48);
+            if (eventId.Id != 0 || !string.IsNullOrEmpty(eventId.Name))
             {
-                sb.Append(eventId.Id).Append(':').Append(eventId.Name);
+                builder.Append("[EventId:").Append(eventId.Id);
+                if (!string.IsNullOrEmpty(eventId.Name)) builder.Append(':').Append(eventId.Name);
+                builder.Append("] ");
             }
-            else
-            {
-                sb.Append(eventId.Id);
-            }
-            sb.Append("] ");
+            if (scope is not null) builder.Append('[').Append(scope).Append("] ");
+            builder.Append(message);
+            message = builder.ToString();
         }
 
-        // 上下文信息
-        var scopeContext = _BuildScopeContext();
-        if (!string.IsNullOrEmpty(scopeContext))
-        {
-            sb.Append('[').Append(_categoryName).Append("] ");
-        }
-
-        sb.Append(originalMessage);
-        var finalMessage = sb.ToString();
-
-        // 日志级别
-        switch (logLevel)
-        {
-            case Microsoft.Extensions.Logging.LogLevel.Trace:
-                _innerLogger.Trace(finalMessage);
-                break;
-            case Microsoft.Extensions.Logging.LogLevel.Debug:
-                _innerLogger.Debug(finalMessage);
-                break;
-            case Microsoft.Extensions.Logging.LogLevel.Information:
-                _innerLogger.Info(finalMessage);
-                break;
-            case Microsoft.Extensions.Logging.LogLevel.Warning:
-                _innerLogger.Warn(finalMessage);
-                break;
-            case Microsoft.Extensions.Logging.LogLevel.Error:
-                _innerLogger.Error(finalMessage);
-                break;
-            case Microsoft.Extensions.Logging.LogLevel.Critical:
-                _innerLogger.Fatal(finalMessage);
-                break;
-        }
-
-        if (exception is not null)
-        {
-            var exceptionMessage = $"Exception: {exception}";
-            _innerLogger.Log($"[{_categoryName}] {exceptionMessage}");
-        }
+        _innerLogger.Log(pclLevel, message, _categoryName, exception);
     }
 
-    private string _BuildScopeContext()
+    private static string? _BuildScopeContext()
     {
-        var stack = _ScopeStack.Value;
-        if (stack is null || stack.Count == 0)
-            return string.Empty;
-
-        var scopes = stack.AsEnumerable().Reverse();
-        return string.Join(" => ", scopes.Select(s => s.ToString()));
+        var scope = _Scope.Value;
+        if (scope is null) return null;
+        var builder = new StringBuilder();
+        _AppendScope(builder, scope);
+        return builder.ToString();
     }
+
+    private static void _AppendScope(StringBuilder builder, ScopeNode scope)
+    {
+        if (scope.Parent is not null)
+        {
+            _AppendScope(builder, scope.Parent);
+            builder.Append(" => ");
+        }
+        builder.Append(scope.Text);
+    }
+
+    private static LogLevel? _ToPclLevel(Microsoft.Extensions.Logging.LogLevel level) => level switch
+    {
+        Microsoft.Extensions.Logging.LogLevel.Trace => LogLevel.Trace,
+        Microsoft.Extensions.Logging.LogLevel.Debug => LogLevel.Debug,
+        Microsoft.Extensions.Logging.LogLevel.Information => LogLevel.Info,
+        Microsoft.Extensions.Logging.LogLevel.Warning => LogLevel.Warning,
+        Microsoft.Extensions.Logging.LogLevel.Error => LogLevel.Error,
+        Microsoft.Extensions.Logging.LogLevel.Critical => LogLevel.Fatal,
+        _ => null
+    };
 }

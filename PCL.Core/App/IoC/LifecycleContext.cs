@@ -32,11 +32,14 @@ partial class Lifecycle
         service: self,
         onLog: item =>
         {
+            ILifecycleLogService? logService;
             lock (_PendingLogs)
             {
-                if (_logService is null) _PendingLogs.Add(item);
-                else _PushLog(item, _logService);
+                logService = _logService;
+                if (logService is null) _PendingLogs.Add(item);
             }
+            // 日志服务可能等待 UI 弹窗，不在缓冲区锁内转发。
+            if (logService is not null) _PushLog(item, logService);
             if (item.ActionLevel == ActionLevel.MsgBoxFatal) _FatalExit();
         },
         onRequestExit: statusCode =>

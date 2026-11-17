@@ -206,7 +206,8 @@ public partial class PageInstanceSaves : IRefreshable
                         Title = GetFolderNameFromPath(curFolder),
                         Info =
                             Lang.Text("Instance.Saves.CreationTime", Lang.Date(Directory.GetCreationTime(curFolder), "d"), Lang.Date(Directory.GetLastWriteTime(curFolder), "d")),
-                        Type = MyListItem.CheckType.Clickable
+                        Type = MyListItem.CheckType.Clickable,
+                        LogoCornerRadius = new CornerRadius(6)
                     };
                     worldItem.Click += (_, _) => ModMain.frmMain.PageChange(new FormMain.PageStackData
                         { page = FormMain.PageType.VersionSaves, additional = (null, null, null, ModComp.CompLoaderType.Any, ModComp.CompType.Any, tmpCurFolder) });

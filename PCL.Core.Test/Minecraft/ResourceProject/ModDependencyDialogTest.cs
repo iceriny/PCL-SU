@@ -173,11 +173,13 @@ public sealed class ModDependencyDialogTest
 
     private static void AdvanceResultAnimation()
     {
+        var frameTick = 0L;
+        foreach (var group in global::PCL.ModAnimation.aniGroups.Values)
+            frameTick = Math.Max(frameTick, group.startTick);
         for (var index = 0; index < 20; index++)
         {
-            global::PCL.ModAnimation.AniStart(Array.Empty<global::PCL.ModAnimation.AniData>(),
-                "CompDependency Test Clock", refreshTime: true);
-            global::PCL.ModAnimation.AniTimer(40);
+            frameTick += 40;
+            global::PCL.ModAnimation.AniTimer(40, frameTick);
         }
     }
 

@@ -35,12 +35,21 @@ $filter = @(
     'FullyQualifiedName~UpdateInstallTest'
     'FullyQualifiedName~UpdateSourceTest'
     'FullyQualifiedName~EncryptHelperKeyTest'
+    'FullyQualifiedName~ResourceSearchTextTest'
+    'FullyQualifiedName~LaunchLanguageTest'
+    'FullyQualifiedName~AnimationDispatchTest'
+    'FullyQualifiedName~FileConfigStorageTest'
+    'FullyQualifiedName~LoggerTest'
     'FullyQualifiedName~LocalizationTest.LanguageDictionariesShouldNotContainDuplicateKeys'
     'FullyQualifiedName~LocalizationTest.LanguageKeysShouldUseDotNaming'
     'FullyQualifiedName~LocalizationTest.SupportedLanguagesShouldHaveValidCultureAndResourceDictionary'
 ) -join '|'
 $trxPath = Join-Path $ResultsDirectory 'PCLSU-Regression.trx'
-$dialogTrxPath = Join-Path $ResultsDirectory 'PCLSU-DependencyDialog.trx'
+$isolatedTests = @(
+    @{ Filter = 'ModDependencyDialogTest'; Report = 'PCLSU-DependencyDialog.trx' }
+    @{ Filter = 'ControlInputRegressionTest'; Report = 'PCLSU-ControlInput.trx' }
+    @{ Filter = 'AnimationClockTest'; Report = 'PCLSU-AnimationClock.trx' }
+)
 
 try {
     New-Item -ItemType Directory -Path $ResultsDirectory -Force | Out-Null
@@ -49,7 +58,10 @@ try {
     # Regression tests use isolated configuration and do not embed service credentials.
     [Environment]::SetEnvironmentVariable('PCL_WRITE_SECRET', $null)
     if (Test-Path -LiteralPath $trxPath) { Remove-Item -LiteralPath $trxPath }
-    if (Test-Path -LiteralPath $dialogTrxPath) { Remove-Item -LiteralPath $dialogTrxPath }
+    foreach ($isolated in $isolatedTests) {
+        $reportPath = Join-Path $ResultsDirectory $isolated.Report
+        if (Test-Path -LiteralPath $reportPath) { Remove-Item -LiteralPath $reportPath }
+    }
 
     $testArguments = @(
         'test', (Join-Path $repositoryRoot 'PCL.Core.Test/PCL.Core.Test.csproj'),
@@ -77,30 +89,38 @@ try {
         }
         [xml]$report = Get-Content -LiteralPath $trxPath -Raw
         $counters = $report.TestRun.ResultSummary.Counters
-        if ([int]$counters.passed -lt 79 -or [int]$counters.failed -gt 0 -or [int]$counters.notExecuted -gt 0) {
-            throw "Expected at least 79 passing regressions with no failed or skipped cases; passed=$($counters.passed), failed=$($counters.failed), skipped=$($counters.notExecuted)."
+        if ([int]$counters.passed -lt 132 -or [int]$counters.failed -gt 0 -or [int]$counters.notExecuted -gt 0) {
+            throw "Expected at least 132 passing regressions with no failed or skipped cases; passed=$($counters.passed), failed=$($counters.failed), skipped=$($counters.notExecuted)."
         }
 
         # WPF Application can only be created once per process; keep the dialog tests isolated.
-        $dialogTestArguments = @(
-            'test', (Join-Path $repositoryRoot 'PCL.Core.Test/PCL.Core.Test.csproj'),
-            '--configuration', 'Release',
-            '-p:Platform=x64',
-            '-p:UseSharedCompilation=false',
-            '--no-build',
-            '--filter', 'FullyQualifiedName~ModDependencyDialogTest',
-            '--results-directory', $ResultsDirectory,
-            '--logger', 'trx;LogFileName=PCLSU-DependencyDialog.trx',
-            '--logger', 'console;verbosity=normal',
-            '--verbosity', 'quiet',
-            '-clp:ErrorsOnly;Summary'
-        )
-        Push-Location -LiteralPath $repositoryRoot
-        try {
-            & $DotNetPath @dialogTestArguments
-            $exitCode = $LASTEXITCODE
-        } finally {
-            Pop-Location
+        foreach ($isolated in $isolatedTests) {
+            $dialogTestArguments = @(
+                'test', (Join-Path $repositoryRoot 'PCL.Core.Test/PCL.Core.Test.csproj'),
+                '--configuration', 'Release',
+                '-p:Platform=x64',
+                '-p:UseSharedCompilation=false',
+                '--no-build',
+                '--filter', "FullyQualifiedName~$($isolated.Filter)",
+                '--results-directory', $ResultsDirectory,
+                '--logger', "trx;LogFileName=$($isolated.Report)",
+                '--logger', 'console;verbosity=normal',
+                '--verbosity', 'quiet',
+                '-clp:ErrorsOnly;Summary'
+            )
+            Push-Location -LiteralPath $repositoryRoot
+            try {
+                & $DotNetPath @dialogTestArguments
+                $exitCode = $LASTEXITCODE
+            } finally {
+                Pop-Location
+            }
+            if ($exitCode -ne 0) { break }
+            [xml]$isolatedReport = Get-Content -LiteralPath (Join-Path $ResultsDirectory $isolated.Report) -Raw
+            $isolatedCounters = $isolatedReport.TestRun.ResultSummary.Counters
+            if ([int]$isolatedCounters.passed -lt 1 -or [int]$isolatedCounters.failed -gt 0 -or [int]$isolatedCounters.notExecuted -gt 0) {
+                throw "Isolated regression $($isolated.Filter) did not pass every case."
+            }
         }
     }
 } catch {

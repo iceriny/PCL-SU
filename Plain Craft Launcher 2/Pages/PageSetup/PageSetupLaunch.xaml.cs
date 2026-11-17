@@ -568,7 +568,7 @@ public partial class PageSetupLaunch
     private void ComboArgumentVisibie_SelectionChanged(object sender, SelectionChangedEventArgs sizeChangedEventArgs)
     {
         ComboChange(sender, sizeChangedEventArgs);
-        if (ModAnimation.AniExitsAnyControl())
+        if (ModAnimation.AniExitsAnyControl() || !ComboArgumentVisibie.IsUserSelectionChange)
             return;
         if (ComboArgumentVisibie.SelectedIndex == 0)
             if (ModMain.MyMsgBox(
@@ -582,7 +582,7 @@ public partial class PageSetupLaunch
     // 实例隔离提示
     private void ComboArgumentIndie_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ModAnimation.AniExitsAnyControl())
+        if (ModAnimation.AniExitsAnyControl() || sender is not MyComboBox { IsUserSelectionChange: true })
             return;
         ModMain.MyMsgBox(Lang.Text("Setup.Launch.Options.InstanceIsolation.DefaultPolicyHint"));
     }
@@ -614,7 +614,7 @@ public partial class PageSetupLaunch
 
     private void ComboAdvanceRenderer_SelectionChanged(MyComboBox sender, object e)
     {
-        if (ModAnimation.AniExitsAnyControl())
+        if (ModAnimation.AniExitsAnyControl() || !sender.IsUserSelectionChange)
             return;
         if (!States.Hint.Renderer && ComboAdvanceRenderer.SelectedIndex != 0)
         {

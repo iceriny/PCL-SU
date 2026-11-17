@@ -48,7 +48,6 @@ public partial class PageSetupLauncherMisc
         // 系统设置
         ComboSystemActivity.SelectedIndex = States.System.AnnounceSolution;
         CheckSystemDisableHardwareAcceleration.Checked = Config.System.DisableHardwareAcceleration;
-        SliderAniFPS.Value = Config.System.AnimationFpsLimit;
         SliderMaxLog.Value = Config.System.MaxGameLog;
         CheckSystemTelemetry.Checked = Config.System.Telemetry;
         if (!TelemetryService.IsConfigured || TelemetryService.IsBuildUntrusted)
@@ -146,7 +145,6 @@ public partial class PageSetupLauncherMisc
             (int)v > 29
                 ? Lang.Text("Common.Action.Close")
                 : Lang.Number(Math.Round(Convert.ToDouble(v) / 10 + 0.1d, 1), "N1") + "x");
-        SliderAniFPS.getHintText = new Func<object, string>(v => Lang.Number(Convert.ToInt32(v) + 1, "N0") + " FPS");
         // y = 10x + 50 (0 <= x <= 5, 50 <= y <= 100)
         // y = 50x - 150 (5 < x <= 13, 100 < y <= 500)
         // y = 100x - 800 (13 < x <= 28, 500 < y <= 2000)
@@ -179,7 +177,7 @@ public partial class PageSetupLauncherMisc
     // 自动更新
     private void ComboSystemActivity_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ModAnimation.AniExitsAnyControl())
+        if (ModAnimation.AniExitsAnyControl() || !ComboSystemActivity.IsUserSelectionChange)
             return;
         if (ComboSystemActivity.SelectedIndex != 2)
             return;

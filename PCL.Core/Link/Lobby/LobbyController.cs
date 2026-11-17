@@ -33,7 +33,7 @@ public sealed class LobbyController
     /// <summary>
     /// Demonstrate the current lobby is host or joiner.
     /// </summary>
-    public bool IsHost = false;
+    public bool IsHost => ScfServerEntity is not null;
 
     /// <summary>
     /// Scaffolding client entity.
@@ -154,7 +154,6 @@ public sealed class LobbyController
         {
             var scfEntity = ScaffoldingFactory.CreateServer(port, username);
             ScfServerEntity = scfEntity;
-            IsHost = true;
 
             LogWrapper.Info("LobbyController", "Successfully to launch Scaffolding Server.");
 

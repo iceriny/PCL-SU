@@ -28,6 +28,13 @@ public class MyComboBoxItem : ComboBoxItem
         MouseLeftButtonUp += MyComboBoxItem_MouseLeftButtonUp;
     }
 
+    protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.Property == IsHighlightedProperty)
+            RefreshColor();
+    }
+
     private void RefreshColor()
     {
         // 判断当前颜色
@@ -40,7 +47,7 @@ public class MyComboBoxItem : ComboBoxItem
             newFontOpacity = 1d;
             time = animationTimeIn;
         }
-        else if (IsMouseOver)
+        else if (IsHighlighted)
         {
             newBackColorName = "ColorBrush8";
             newFontOpacity = 1d;

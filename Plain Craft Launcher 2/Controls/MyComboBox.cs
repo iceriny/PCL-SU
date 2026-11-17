@@ -46,6 +46,8 @@ public class MyComboBox : ComboBox
         DropDownOpened += MyComboBox_DropDownOpened;
         DropDownClosed += MyComboBox_DropDownClosed;
         TextChanged += MyComboBox_TextChanged;
+        AddHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler((_, e) => BeginMouseWheelInput(e)), true);
+        AddHandler(MouseWheelEvent, new MouseWheelEventHandler((_, e) => EndMouseWheelInput(e)), true);
     }
 
     public string HintText
@@ -83,6 +85,51 @@ public class MyComboBox : ComboBox
     }
 
     public bool DropDownWidthSync { get; set; } = true;
+
+    private int _selectionInputDepth;
+    private readonly List<MouseWheelEventArgs> _wheelSelectionInputs = [];
+
+    internal bool IsUserSelectionChange => IsDropDownOpen || _selectionInputDepth > 0;
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        _selectionInputDepth++;
+        try { base.OnKeyDown(e); }
+        finally { _selectionInputDepth--; }
+    }
+
+    protected override void OnTextInput(TextCompositionEventArgs e)
+    {
+        _selectionInputDepth++;
+        try { base.OnTextInput(e); }
+        finally { _selectionInputDepth--; }
+    }
+
+    private void BeginMouseWheelInput(MouseWheelEventArgs e)
+    {
+        // ComboBox selects in a class handler before OnMouseWheel is invoked.
+        if (_wheelSelectionInputs.Contains(e)) return;
+        _wheelSelectionInputs.Add(e);
+        _selectionInputDepth++;
+        // A handled preview event may never reach the bubbling handler.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
+            new Action(() => ReleaseMouseWheelInput(e)));
+    }
+
+    private void EndMouseWheelInput(MouseWheelEventArgs e)
+    {
+        // MouseDevice creates a separate bubbling event with the same input data.
+        var index = _wheelSelectionInputs.FindLastIndex(preview =>
+            ReferenceEquals(preview.MouseDevice, e.MouseDevice) && preview.Timestamp == e.Timestamp && preview.Delta == e.Delta);
+        if (index >= 0)
+            ReleaseMouseWheelInput(_wheelSelectionInputs[index]);
+    }
+
+    private void ReleaseMouseWheelInput(MouseWheelEventArgs e)
+    {
+        if (_wheelSelectionInputs.Remove(e))
+            _selectionInputDepth--;
+    }
 
     public ContentPresenter ContentPresenter => (ContentPresenter)Template.FindName("PART_Content", this);
     public event TextChangedEventHandler? TextChanged;

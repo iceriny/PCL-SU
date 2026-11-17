@@ -1,9 +1,11 @@
 ﻿using System.Collections;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using PCL.Core.App;
 using PCL.Core.Utils;
 using PCL.Network;
@@ -16,6 +18,8 @@ public static partial class ModAnimation
     private static int aniCount;
     private static int aniFPSCounter;
     private static long aniFPSTimer;
+    private static bool aniInFrame;
+    private static DispatcherTimer? aniFallbackTimer;
 
     /// <summary>
     ///     当前的动画 FPS。
@@ -27,95 +31,104 @@ public static partial class ModAnimation
     /// </summary>
     public static void AniStart()
     {
-        // 初始化计时器
-        aniLastTick = TimeUtils.GetTimeTick();
-        aniFPSTimer = aniLastTick;
-        aniRunning = true; // 标记动画执行开始
-
-        var minFrameGap = 1000d / (Config.System.AnimationFpsLimit + 1) / 2;
-
-
-        ModBase.RunInNewThread(() =>
+        ModBase.RunInUi(() =>
         {
-            try
+            AniStopLoop();
+            aniLastTick = AniNow();
+            aniFPSTimer = aniLastTick;
+            aniFPSCounter = 0;
+            aniRunning = true;
+            CompositionTarget.Rendering += AniOnRendering;
+            // 最小化、隐藏或无渲染时，业务回调仍需推进；与渲染帧共用时间线。
+            aniFallbackTimer = new DispatcherTimer(DispatcherPriority.Background)
             {
-                ModBase.Log("[Animation] 动画线程开始");
-                while (true)
+                Interval = TimeSpan.FromMilliseconds(100)
+            };
+            aniFallbackTimer.Tick += AniOnFallback;
+            aniFallbackTimer.Start();
+            Application.Current.Exit += AniOnExit;
+        });
+    }
+
+    private static long AniNow() => (long)(Stopwatch.GetTimestamp() * (1000d / Stopwatch.Frequency));
+
+    private static void AniOnRendering(object? sender, EventArgs e) => AniAdvance(AniNow());
+
+    private static void AniOnFallback(object? sender, EventArgs e)
+    {
+        var now = AniNow();
+        if (now - aniLastTick >= 100) AniAdvance(now);
+    }
+
+    private static void AniOnExit(object sender, ExitEventArgs e) => AniStopLoop();
+
+    internal static void AniStopLoop()
+    {
+        CompositionTarget.Rendering -= AniOnRendering;
+        if (aniFallbackTimer is not null)
+        {
+            aniFallbackTimer.Stop();
+            aniFallbackTimer.Tick -= AniOnFallback;
+            aniFallbackTimer = null;
+        }
+        if (Application.Current is { } application) application.Exit -= AniOnExit;
+        aniRunning = false;
+    }
+
+    private static void AniAdvance(long now)
+    {
+        if (!aniRunning || aniInFrame) return;
+        var elapsed = ModBase.MathClamp(now - aniLastTick, 0, 100000);
+        if (elapsed < 1) return;
+        aniInFrame = true;
+        try
+        {
+            aniLastTick = now;
+            if (ModBase.modeDebug)
+            {
+                var reportElapsed = now - aniFPSTimer;
+                if (reportElapsed >= 500)
                 {
-                    // 两帧之间的间隔时间
-                    var deltaTime =
-                        (long)Math.Round(ModBase.MathClamp(TimeUtils.GetTimeTick() - aniLastTick, 0, 100000));
-                    if (deltaTime < minFrameGap)
-                    {
-                        // 限制 FPS
-                        Thread.Sleep(1);
-                        continue;
-                    }
-
-                    aniLastTick = TimeUtils.GetTimeTick();
-                    // 记录 FPS
-                    if (ModBase.modeDebug)
-                    {
-                        if (ModBase.MathClamp(aniLastTick - aniFPSTimer, 0d, 100000d) >= 500d)
-                        {
-                            aniFPS = aniFPSCounter;
-                            aniFPSCounter = 0;
-                            aniFPSTimer = aniLastTick;
-                        }
-
-                        aniFPSCounter += 2;
-                    }
-
-                    // 执行动画
-                    ModBase.RunInUiWait(() =>
-                    {
-                        aniCount = 0;
-                        AniTimer((int)Math.Round(deltaTime * aniSpeed));
-                        // #If DEBUG Then
-                        // FrmMain.Title = "F " & AniFPS & ", A " & AniCount & ", R " & NetManage.FileRemain
-                        // #Else
-                        // If ModeDebug Then FrmMain.Title = "FPS " & AniFPS & ", 动画 " & AniCount & ", 下载中 " & NetManage.FileRemain
-                        // #End If
-                        if (RandomUtils.NextInt(0, 64 * (ModBase.modeDebug ? 5 : 30)) == 0 &&
-                            ((aniFPS < 62 && aniFPS > 0) || aniCount > 4 || ModNet.NetManager.FileRemain != 0))
-                            ModBase.Log("[Report] FPS " + aniFPS + ", 动画 " + aniCount + ", 下载中 " +
-                                        ModNet.NetManager.FileRemain + "（" +
-                                        ModBase.GetString(ModNet.NetManager.Speed) + "/s）");
-                    });
+                    aniFPS = (int)Math.Round(aniFPSCounter * 1000d / reportElapsed);
+                    aniFPSCounter = 0;
+                    aniFPSTimer = now;
                 }
+                aniFPSCounter++;
             }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                ModBase.Log(
-                    ex,
-                    "动画帧执行失败",
-                    ModBase.LogLevel.Critical,
-                    userSummary: Lang.Text("Application.Animation.Error.OperationFailed"));
-            }
-        }, "Animation", ThreadPriority.AboveNormal);
+            aniCount = 0;
+            AniTimer((int)Math.Round(elapsed * aniSpeed));
+        }
+        catch (Exception ex)
+        {
+            ModBase.Log(ex, "动画帧执行失败", ModBase.LogLevel.Critical,
+                userSummary: Lang.Text("Application.Animation.Error.OperationFailed"));
+        }
+        finally { aniInFrame = false; }
     }
 
     /// <summary>
     ///     动画定时器事件。
     /// </summary>
     public static void AniTimer(int deltaTick)
+        => AniTimer(deltaTick, aniLastTick);
+
+    internal static void AniTimer(int deltaTick, long frameTick)
     {
         try
         {
             if (deltaTick / aniSpeed > 100d)
                 ModBase.Log("[Animation] 两个动画帧间隔 " + deltaTick + " ms", ModBase.LogLevel.Developer);
-            var i = -1;
             // 循环每个动画组
-            while (i + 1 < aniGroups.Count)
+            foreach (var group in aniGroups.ToArray())
             {
-                i += 1;
                 // 初始化
-                var entry = aniGroups.Values.ElementAtOrDefault(i);
-                if (entry.startTick > aniLastTick)
+                var entry = group.Value;
+                if (!aniGroups.TryGetValue(group.Key, out var currentEntry) || !ReferenceEquals(entry, currentEntry))
+                    continue;
+                if (entry.startTick > frameTick)
                     continue; // 跳过本刻之后开始的动画
+                var groupDeltaTick = (int)Math.Min(deltaTick, Math.Round((frameTick - entry.startTick) * aniSpeed));
+                if (groupDeltaTick <= 0) continue;
                 var canRemoveAfter = true; // 是否应该去除“之后”标记
                 var ii = 0;
 
@@ -128,7 +141,7 @@ public static partial class ModAnimation
                     {
                         canRemoveAfter = false; // 取消“之后”标记 
                         // 增加执行时间
-                        anim.timeFinished += deltaTick;
+                        anim.timeFinished += groupDeltaTick;
                         // 执行动画
                         if (anim.timeFinished > 0)
                         {
@@ -173,16 +186,8 @@ public static partial class ModAnimation
                 // 如果当前动画组都执行完毕则删除
                 if (!entry.data.Any())
                 {
-                    // 为了避免新添加的动画影响顺序，不能 RemoveAt(i)
-                    // 为了允许动画在执行中添加同名动画组，不能按名字移除
-                    for (int current = 0, loopTo = aniGroups.Count - 1; current <= loopTo; current++)
-                        if (aniGroups.ElementAt(current).Value.Uuid == entry.Uuid)
-                        {
-                            aniGroups.Remove(aniGroups.ElementAt(current).Key, out _);
-                            break;
-                        }
-
-                    i -= 1;
+                    // 仅移除本帧处理的实例，保留回调中新建的同名动画组。
+                    ((ICollection<KeyValuePair<string, AniGroupEntry>>)aniGroups).Remove(group);
                 }
             }
         }
@@ -1497,10 +1502,10 @@ public static partial class ModAnimation
     public static void AniStart(IList aniGroup, string name = "", bool refreshTime = false)
     {
         if (refreshTime)
-            aniLastTick = TimeUtils.GetTimeTick(); // 避免处理动画时已经造成了极大的延迟，导致动画突然结束
+            aniLastTick = AniNow(); // 避免处理动画时已经造成了极大的延迟，导致动画突然结束
         // 添加到正在执行的动画组
         var newEntry = new AniGroupEntry
-            { data = ModBase.GetFullList<AniData>(aniGroup), startTick = TimeUtils.GetTimeTick() };
+            { data = ModBase.GetFullList<AniData>(aniGroup), startTick = AniNow() };
         if (string.IsNullOrEmpty(name))
             name = newEntry.Uuid.ToString();
         else

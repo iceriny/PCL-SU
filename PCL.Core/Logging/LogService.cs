@@ -1,9 +1,9 @@
 using System;
 using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using PCL.Core.App;
+using PCL.Core.App.Configuration;
 using PCL.Core.App.Essentials;
 using PCL.Core.App.IoC;
 using PCL.Core.App.Localization;
@@ -31,11 +31,21 @@ public class LogService : ILifecycleLogService
     public string Name => "日志服务";
     public bool SupportAsync => false;
 
+    [RegisterConfigEvent]
+    public static ConfigEventRegistry DebugLoggingChanged => new(
+        Config.Debug.EnabledConfig,
+        handler: e =>
+        {
+            if (_logger is not null)
+                _logger.MinimumLogLevel = e.NewValue is true ? LogLevel.Debug : _logger.Configuration.MinLogLevel;
+        });
+
     public Task StartAsync()
     {
         Context.Trace("正在初始化 Logger 实例");
         var config = new LoggerConfiguration(Path.Combine(Basics.ExecutableDirectory, "PCL", "Log"));
         _logger = new Logger(config);
+        if (ConfigService.IsInitialized && Config.Debug.Enabled) _logger.MinimumLogLevel = LogLevel.Debug;
         Context.Trace("正在注册日志事件");
         LogWrapper.OnLog += _OnWrapperLog;
         _wrapperRegistered = true;
@@ -50,26 +60,18 @@ public class LogService : ILifecycleLogService
             await _logger.DisposeAsync().ConfigureAwait(false);
     }
 
-    public void OnLog(LifecycleLogItem item)
-    {
-        _LogAction(item.Level, item.ActionLevel, item.ComposeMessage(), item.Message, item.Exception);
-    }
+    public void OnLog(LifecycleLogItem item) => _LogAction(item.ToLogEntry(), item.ActionLevel);
 
-    private static void _LogAction(
-        LogLevel level,
-        ActionLevel actionLevel,
-        string formatted,
-        string plain,
-        Exception? ex)
+    private static void _LogAction(in LogEntry entry, ActionLevel actionLevel)
     {
+        var level = entry.Level;
+        var plain = entry.Message;
+        var ex = entry.Exception;
         if (ex is not null)
             TelemetryService.ReportException(ex, plain, level);
 
-        // log
-#if !TRACE
-    if (actionLevel != ActionLevel.TraceLog)
-#endif
-        Logger.Log(formatted);
+        // 文件过滤与队列溢出策略独立于下方 UI 提示、弹窗及上方遥测。
+        _logger?.Enqueue(entry);
 
         switch (actionLevel)
         {
@@ -139,16 +141,6 @@ public class LogService : ILifecycleLogService
         string? module,
         Exception? ex)
     {
-        var thread = Thread.CurrentThread.Name ?? $"#{Environment.CurrentManagedThreadId}";
-        if (module is not null) module = $"[{module}] ";
-        var result = $"[{DateTime.Now:HH:mm:ss.fff}] [{level.PrintName()}] [{thread}] {module}{msg}";
-        _LogAction(
-            level,
-            level.DefaultActionLevel(),
-            ex is null
-                ? result
-                : $"{result}\n{ex}",
-            msg,
-            ex);
+        _LogAction(LogEntry.Create(level, msg, module, ex), level.DefaultActionLevel());
     }
 }

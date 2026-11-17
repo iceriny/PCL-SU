@@ -2321,9 +2321,24 @@ public static class ModComp
     /// <summary>
     ///     根据搜索请求获取一系列的工程列表。需要基于加载器运行。
     /// </summary>
+    internal static string NormalizeSearchText(string? text)
+    {
+        var query = (text ?? string.Empty).Trim();
+        var parts = query.Split('|', '｜');
+        if (parts.Length != 2 || parts.Any(string.IsNullOrWhiteSpace)) return query;
+
+        var leftHasChinese = RegexPatterns.HasChineseChar.IsMatch(parts[0]);
+        var rightHasChinese = RegexPatterns.HasChineseChar.IsMatch(parts[1]);
+        if (leftHasChinese == rightHasChinese) return query;
+
+        var name = (leftHasChinese ? parts[1] : parts[0]).Trim();
+        return name.Any(char.IsAsciiLetter) ? name : query;
+    }
+
     public static void CompProjectsGet(ModLoader.LoaderTask<CompProjectRequest, int> task)
     {
         var request = task.input;
+        request.searchText = NormalizeSearchText(request.searchText);
         var storage = request.storage;
 
         // === Issue #2942: 搜索框单条资源链接识别 ===

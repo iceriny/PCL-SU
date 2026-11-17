@@ -68,7 +68,7 @@ public partial class PageSetupAbout
         }
         catch (Exception ex)
         {
-            ModBase.Log(ex, Lang.Text("Setup.About.Error.LoadContributorsFailed"));
+            ModBase.Log(ex, Lang.Text("Setup.About.Error.LoadContributorsFailed"), ModBase.LogLevel.Hint);
         }
     }
 

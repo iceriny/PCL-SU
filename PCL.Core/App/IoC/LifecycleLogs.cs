@@ -28,7 +28,9 @@ partial class Lifecycle
 
     private static void _SavePendingLogs()
     {
-        if (_PendingLogs.Count == 0)
+        LifecycleLogItem[] pending;
+        lock (_PendingLogs) pending = _PendingLogs.ToArray();
+        if (pending.Length == 0)
         {
             Console.WriteLine("[Lifecycle] No pending logs");
             return;
@@ -41,14 +43,14 @@ partial class Lifecycle
             Directory.CreateDirectory(Basics.GetParentPathOrDefault(path));
             using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
             using var writer = new StreamWriter(stream, Encoding.UTF8);
-            foreach (var item in _PendingLogs) writer.WriteLine(item.ComposeMessage());
+            foreach (var item in pending) writer.WriteLine(item.ComposeMessage());
             Console.WriteLine($"[Lifecycle] Pending logs saved to {path}");
         }
         catch (Exception ex)
         {
             Console.WriteLine(ex);
             Console.WriteLine("[Lifecycle] Error saving pending logs, writing to stdout...");
-            foreach (var item in _PendingLogs) Console.WriteLine(item.ComposeMessage());
+            foreach (var item in pending) Console.WriteLine(item.ComposeMessage());
         }
     }
 }
@@ -76,10 +78,26 @@ public readonly record struct LifecycleLogItem(
     /// <summary>
     /// 创建该日志项的 Task ID 或线程名
     /// </summary>
-    public string ContextName { get; } =
-        (Task.CurrentId is { } id ? $"TSK#{id}" : null)
-        ?? Thread.CurrentThread.Name
-        ?? $"#{Environment.CurrentManagedThreadId}";
+    public int TaskId { get; } = Task.CurrentId ?? 0;
+    public string? ThreadName { get; } = Thread.CurrentThread.Name;
+    public int ThreadId { get; } = Environment.CurrentManagedThreadId;
+    public string ContextName =>
+        (TaskId != 0 ? $"TSK#{TaskId}" : null)
+        ?? ThreadName
+        ?? $"#{ThreadId}";
+
+    internal LogEntry ToLogEntry() => new()
+    {
+        Level = Level,
+        Message = Message,
+        Time = Time,
+        SourceName = Source?.Name,
+        SourceId = Source?.Identifier,
+        ThreadName = ThreadName,
+        ThreadId = ThreadId,
+        TaskId = TaskId,
+        Exception = Exception
+    };
 
     public override string ToString()
     {
@@ -90,10 +108,7 @@ public readonly record struct LifecycleLogItem(
 
     public string ComposeMessage()
     {
-        var source = (Source is null) ? "" : $" [{Source.Name}|{Source.Identifier}]";
-        var result = $"[{Time:HH:mm:ss.fff}] [{Level.RealLevel().PrintName()}] [{ContextName}]{source} {Message}";
-        if (Exception is not null) result += $"\n{Exception}";
-        return result;
+        return LogEntryFormatter.Format(ToLogEntry());
     }
 }
 

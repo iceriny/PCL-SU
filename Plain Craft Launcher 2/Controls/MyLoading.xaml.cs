@@ -37,8 +37,8 @@ public partial class MyLoading
     public MyLoading()
     {
         InitializeComponent();
-        SetCurrentValue(TextProperty, Lang.Text("Application.Control.Loading.Default"));
-        SetCurrentValue(TextErrorProperty, Lang.Text("Application.Control.Loading.Failed"));
+        SetResourceReference(TextProperty, "Application.Control.Loading.Default");
+        SetResourceReference(TextErrorProperty, "Application.Control.Loading.Failed");
         SetResourceReference(ForegroundProperty, "ColorBrush3");
         IsErrorChanged += (_, _) => RefreshText();
         Loaded += (_, _) => RefreshText();

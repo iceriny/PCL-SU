@@ -299,7 +299,7 @@ public partial class PageSetupUpdate
 
     private void ComboSystemUpdateBranch_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_syncingSettings || ModAnimation.AniExitsAnyControl())
+        if (_syncingSettings || ModAnimation.AniExitsAnyControl() || !ComboSystemUpdateChannel.IsUserSelectionChange)
             return;
         if (SharedUpdateIsBusy)
         {

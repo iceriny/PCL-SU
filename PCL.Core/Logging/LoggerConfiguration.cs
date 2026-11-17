@@ -6,5 +6,11 @@ public record LoggerConfiguration(
     string? FileNameFormat = null,
     bool AutoDeleteOldFile = true,
     int MaxKeepOldFile = 16,
-    LogLevel MinLogLevel = LogLevel.Info
+#if DEBUG
+    LogLevel MinLogLevel = LogLevel.Debug,
+#else
+    LogLevel MinLogLevel = LogLevel.Info,
+#endif
+    int QueueCapacity = 2048,
+    int ImportantLogWriteTimeoutMilliseconds = 250
 );

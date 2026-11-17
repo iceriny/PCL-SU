@@ -61,8 +61,8 @@ public class FileConfigStorage : ConfigStorage
                 while (reader.TryRead(out var pendingItem))
                     writeActionMap[pendingItem.Item1] = pendingItem.Item2;
                 // 结束时执行一次同步
-                Sync();
-                _writeStopEvent.Set();
+                try { Sync(); }
+                finally { _writeStopEvent.Set(); }
             }
             void Sync()
             {
@@ -74,13 +74,18 @@ public class FileConfigStorage : ConfigStorage
                 }
                 catch (Exception ex)
                 {
-                    LogWrapper.Error(ex, "Config", "配置文件保存失败");
-                    var summary = Lang.Text("Config.Error.SaveFailed.Message", File.FilePath);
-                    var message = ExceptionDetails.Compose(summary, ex);
-                    MsgBoxWrapper.Show(
-                        message,
-                        Lang.Text("Config.Error.SaveFailed.Title"),
-                        MsgBoxTheme.Error);
+                    void ReportError()
+                    {
+                        LogWrapper.Error(ex, "Config", "配置文件保存失败");
+                        var summary = Lang.Text("Config.Error.SaveFailed.Message", File.FilePath);
+                        MsgBoxWrapper.Show(ExceptionDetails.Compose(summary, ex),
+                            Lang.Text("Config.Error.SaveFailed.Title"), MsgBoxTheme.Error);
+                    }
+                    // Stop 可能由 UI 等待；报告错误不能反过来等待同一条 UI 线程。
+                    if (System.Windows.Application.Current is { } application)
+                        application.Dispatcher.BeginInvoke((Action)ReportError);
+                    else
+                        ReportError();
                 }
             }
         });

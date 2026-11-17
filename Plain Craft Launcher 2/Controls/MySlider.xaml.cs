@@ -152,6 +152,7 @@ public partial class MySlider
         ModMain.dragControl = this;
         RefreshColor();
         ModMain.frmMain.DragDoing();
+        if (!ReferenceEquals(ModMain.dragControl, this)) return;
         ModAnimation.AniStart(
             ModAnimation.AaScaleTransform(ShapeDot, 1.3d - ((ScaleTransform)ShapeDot.RenderTransform).ScaleX, 40,
                 ease: new ModAnimation.AniEaseOutFluent()), "MySlider Scale " + Uuid);
@@ -161,11 +162,18 @@ public partial class MySlider
 
     public void DragDoing()
     {
+        if (ModMain.frmMain.PanMsg.Children.Count > 0 || ModMain.WaitingMyMsgBox.Any())
+        {
+            ModMain.frmMain.DragStop();
+            return;
+        }
+
         var percent =
             ModBase.MathClamp((Mouse.GetPosition(PanMain).X - ShapeDot.Width / 2d) / (ActualWidth - ShapeDot.Width), 0d,
                 1d);
         var newValue = (int)Math.Round(percent * MaxValue);
         if (newValue != Value) Value = newValue;
+        if (!ReferenceEquals(ModMain.dragControl, this)) return;
         RefreshPopup();
     }
     
@@ -176,6 +184,8 @@ public partial class MySlider
     
     public void DragStop()
     {
+        if (ReferenceEquals(ModMain.dragControl, this))
+            ModMain.dragControl = null;
         MouseMove -= OnDragMouseMove;
         if (IsMouseCaptured) ReleaseMouseCapture();
         RefreshColor();

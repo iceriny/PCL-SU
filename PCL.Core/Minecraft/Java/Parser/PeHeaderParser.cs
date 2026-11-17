@@ -36,7 +36,12 @@ public class PeHeaderParser : IJavaParser
             LogWrapper.Info("Java", $"解析 {javaExePath} 的 Java 程序信息");
 
             var versionInfo = FileVersionInfo.GetVersionInfo(javaExePath);
-            var fileVersion = Version.Parse(versionInfo.FileVersion ?? "0.0.0.0");
+            if (!Version.TryParse(versionInfo.FileVersion ?? "0.0.0.0", out var fileVersion))
+            {
+                // 厂商自定义的版本文本可能包含更多段，PE 数值字段始终提供四段版本。
+                fileVersion = new Version(versionInfo.FileMajorPart, versionInfo.FileMinorPart,
+                    versionInfo.FileBuildPart, versionInfo.FilePrivatePart);
+            }
             var companyName = _NormalizeCompanyName(versionInfo);
             var brand = _DetermineBrand(companyName);
 

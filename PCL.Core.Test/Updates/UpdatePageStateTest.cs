@@ -141,7 +141,13 @@ public sealed class UpdatePageStateTest
             page = new global::PCL.PageSetupUpdate();
             page.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
             PumpUntil(() => source.CheckStarted.IsSet, TimeSpan.FromSeconds(5));
-            page.ComboSystemUpdateChannel.SelectedIndex = (int)PCL.Core.App.UpdateChannel.Release;
+            typeof(global::PCL.MyComboBox).GetMethod("OnKeyDown", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(page.ComboSystemUpdateChannel, [new KeyEventArgs(Keyboard.PrimaryDevice,
+                    new HeadlessPresentationSource(page.ComboSystemUpdateChannel), 0, Key.Home)
+                {
+                    RoutedEvent = Keyboard.KeyDownEvent
+                }]);
+            Assert.AreEqual(PCL.Core.App.UpdateChannel.Release, PCL.Core.App.Config.Update.UpdateChannel);
             page.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
             source.AllowCheckCompletion.Set();
             PumpUntil(() => !PageField<bool>(page, "_checkInFlight"), TimeSpan.FromSeconds(5));

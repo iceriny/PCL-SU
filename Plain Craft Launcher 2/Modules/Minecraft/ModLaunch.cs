@@ -2306,7 +2306,8 @@ public static class ModLaunch
                 var hasExistingSaves = Directory.Exists(Path.Combine(ModInstanceList.McMcInstanceSelected.PathIndie, "saves"));
                 var shouldUseDefault = isLanguageUnconfigured || !hasExistingSaves;
                 var requiredLang = _ResolveMinecraftLanguage(currentLang, shouldUseDefault,
-                    ModInstanceList.McMcInstanceSelected.releaseTime);
+                    ModInstanceList.McMcInstanceSelected.releaseTime,
+                    ModInstanceList.McMcInstanceSelected.Info.VanillaName);
 
                 if (currentLang == requiredLang)
                 {
@@ -2358,10 +2359,16 @@ public static class ModLaunch
         }
     }
 
-    private static string _ResolveMinecraftLanguage(string? currentLanguage, bool shouldUseLauncherLanguage,
-        DateTime? mcReleaseTime)
+    internal static string _ResolveMinecraftLanguage(string? currentLanguage, bool shouldUseLauncherLanguage,
+        DateTime? mcReleaseTime, string? vanillaName)
     {
         if (_IsMinecraftVersionUnder1Dot1(mcReleaseTime)) return "none";
+
+        // 这段快照仅提供 en_US.lang，选择其他语言会使游戏崩溃。
+        if (vanillaName is { Length: 6 } && vanillaName.StartsWith("13w", StringComparison.OrdinalIgnoreCase)
+            && McVersionComparer.CompareVersionGe(vanillaName, "13w16a")
+            && McVersionComparer.CompareVersionGe("13w23b", vanillaName))
+            return "en_US";
 
         var useLegacyRegionCase = _ShouldUseLegacyMinecraftLanguageCode(mcReleaseTime);
         var languageCode = shouldUseLauncherLanguage
