@@ -46,14 +46,40 @@ public static class Ini
 
             var directory = Path.GetDirectoryName(fileName);
             if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-            File.WriteAllLines(
-                fileName,
-                content.Select(pair => $"{pair.Key}:{pair.Value}"),
-                Encoding.UTF8);
+            File.WriteAllLines(fileName, content.Select(pair => $"{pair.Key}:{pair.Value}"));
         }
         catch
         {
             // 写入失败不应阻断调用方流程。
+        }
+    }
+
+    public static bool RemoveUtf8Bom(string fileName)
+    {
+        if (!File.Exists(fileName)) return false;
+
+        fileName = File.ResolveLinkTarget(fileName, returnFinalTarget: true)?.FullName ?? fileName;
+        var staging = $"{fileName}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            using (var source = File.OpenRead(fileName))
+            {
+                var bom = Encoding.UTF8.Preamble;
+                Span<byte> header = stackalloc byte[bom.Length];
+                if (source.ReadAtLeast(header, header.Length, false) != header.Length ||
+                    !header.SequenceEqual(bom))
+                    return false;
+
+                using var output = File.Open(staging, FileMode.CreateNew, FileAccess.Write);
+                source.CopyTo(output);
+            }
+
+            File.Move(staging, fileName, overwrite: true);
+            return true;
+        }
+        finally
+        {
+            File.Delete(staging);
         }
     }
 }

@@ -26,6 +26,17 @@ public static partial class GameLaunch
         if (Config.Tool.AutoChangeLanguage)
             setupFileAddress = _UpdateMinecraftLanguageOptions(setupFileAddress);
         _ApplyGameWindowMode(setupFileAddress);
+
+        // Minecraft reads the BOM as part of the first option key.
+        try
+        {
+            if (Ini.RemoveUtf8Bom(setupFileAddress))
+                McLaunchLog("已移除 options.txt 文件头的 UTF-8 BOM");
+        }
+        catch (Exception ex)
+        {
+            LauncherCommon.Log(ex, "修复 options.txt 编码失败");
+        }
     }
 
     private static void _SetJavaGpuPreference(string javaExePath)
@@ -222,22 +233,12 @@ public static partial class GameLaunch
 
     private static void _ApplyGameWindowMode(string setupFileAddress)
     {
-        switch (Config.Launch.GameWindowMode)
-        {
-            case GameWindowSizeMode.Fullscreen:
-                Ini.Write(setupFileAddress, "fullscreen", "true");
-                break;
+        var mode = Config.Launch.GameWindowMode;
+        if (mode == GameWindowSizeMode.Default) return;
 
-            case GameWindowSizeMode.Default:
-                break;
-
-            case GameWindowSizeMode.Launcher:
-            case GameWindowSizeMode.Custom:
-            case GameWindowSizeMode.Maximized:
-            default:
-                Ini.Write(setupFileAddress, "fullscreen", "false");
-                break;
-        }
+        var fullscreen = mode == GameWindowSizeMode.Fullscreen ? "true" : "false";
+        if (Ini.Read(setupFileAddress, "fullscreen") != fullscreen)
+            Ini.Write(setupFileAddress, "fullscreen", fullscreen);
     }
 
     private static string _ResolveMinecraftLanguage(

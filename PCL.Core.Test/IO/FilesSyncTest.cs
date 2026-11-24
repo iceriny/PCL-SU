@@ -112,6 +112,32 @@ public sealed class FilesSyncTest
     }
 
     [TestMethod]
+    public void IniWriteKeepsMinecraftVersionKeyFreeOfBom()
+    {
+        var path = Path.Combine(_root, "options.txt");
+        File.WriteAllText(path, "version:3955\nfullscreen:true\nkey_key.jump:key.keyboard.unknown\n", new UTF8Encoding(true));
+
+        Ini.Write(path, "fullscreen", "false");
+
+        var rawText = Encoding.UTF8.GetString(File.ReadAllBytes(path));
+        StringAssert.StartsWith(rawText, "version:3955");
+        Assert.AreEqual("false", Ini.Read(path, "fullscreen"));
+        Assert.AreEqual("key.keyboard.unknown", Ini.Read(path, "key_key.jump"));
+    }
+
+    [TestMethod]
+    public void IniRemoveUtf8BomPreservesExistingOptionsBytes()
+    {
+        var path = Path.Combine(_root, "options.txt");
+        var content = "version:3955\r\nonboardAccessibility:false\r\nresourcePacks:[\"星轨\"]"u8.ToArray();
+        File.WriteAllBytes(path, [.. Encoding.UTF8.Preamble, .. content]);
+
+        Assert.IsTrue(Ini.RemoveUtf8Bom(path));
+        CollectionAssert.AreEqual(content, File.ReadAllBytes(path));
+        Assert.IsFalse(Ini.RemoveUtf8Bom(path));
+    }
+
+    [TestMethod]
     public void CopyFileCreatesTargetDirectory()
     {
         var source = Path.Combine(_root, "source.bin");
