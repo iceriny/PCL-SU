@@ -74,7 +74,7 @@
                         Height="27"
                         HorizontalAlignment="Left"
                         VerticalAlignment="Center"
-                        CornerRadius="13.5"
+                        CornerRadius="{x:Static controls:CornerRadii.Standard}"
                         Background="White"
                         IsHitTestVisible="False"
                         ZIndex="0">

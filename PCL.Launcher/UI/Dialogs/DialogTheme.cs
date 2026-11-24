@@ -15,9 +15,6 @@ internal static class DialogTheme
     /// <summary>正文行高。</summary>
     public const double BodyLineHeight = 20d;
 
-    /// <summary>卡片圆角。</summary>
-    public const double CardCornerRadius = 7d;
-
     /// <summary>把属性绑定到主题资源，主题切换时自动刷新。</summary>
     public static void BindBrush(AvaloniaObject target, AvaloniaProperty property, string key)
     {

@@ -127,9 +127,9 @@ public abstract class MyMsgDialogBase : UserControl
 
         var card = new SuperellipseBorder
         {
-            CornerRadius = new CornerRadius(DialogTheme.CardCornerRadius),
+            CornerRadius = CornerRadii.Standard,
             BorderThickness = new Thickness(0d),
-            BoxShadow = BoxShadows.Parse("0 2 20 0 #CC3C3C3C"),
+            Elevation = 7d,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Child = main
         };

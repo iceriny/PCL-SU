@@ -113,15 +113,15 @@
         <Setter Property="BorderThickness"
                 Value="0" />
         <Setter Property="CornerRadius"
-                Value="5" />
-        <Setter Property="BoxShadow"
-                Value="0 0 3 0 #12000000" />
+                Value="{x:Static ui:CornerRadii.Standard}" />
+        <Setter Property="Elevation"
+                Value="0.85" />
     </Style>
     <Style Selector="ui|SuperellipseBorder.PageListItem">
         <Setter Property="Background"
                 Value="Transparent" />
         <Setter Property="CornerRadius"
-                Value="6" />
+                Value="{x:Static ui:CornerRadii.Standard}" />
         <Setter Property="Padding"
                 Value="8,6" />
         <Setter Property="Margin"
@@ -140,7 +140,7 @@
         <Setter Property="Padding"
                 Value="14,6" />
         <Setter Property="CornerRadius"
-                Value="4" />
+                Value="{x:Static ui:CornerRadii.Standard}" />
         <Setter Property="Background"
                 Value="{DynamicResource ColorBrush3}" />
         <Setter Property="Foreground"
@@ -214,7 +214,7 @@
         <Setter Property="BorderThickness"
                 Value="2" />
         <Setter Property="CornerRadius"
-                Value="4" />
+                Value="{x:Static ui:CornerRadii.Standard}" />
     </Style>
     <Style Selector="ui|MyButton:focus-visible ui|SuperellipseBorder#FocusRing,
                      ui|MyIconButton:focus-visible ui|SuperellipseBorder#FocusRing,
@@ -234,16 +234,5 @@
                      ui|MyExtraButton:focus-visible ui|SuperellipseBorder#FocusRing">
         <Setter Property="CornerRadius"
                 Value="1000" />
-    </Style>
-    <Style Selector="ui|MyButton:focus-visible ui|SuperellipseBorder#FocusRing,
-                     ui|MyTextButton:focus-visible ui|SuperellipseBorder#FocusRing,
-                     ui|MyListItem:focus-visible ui|SuperellipseBorder.FocusRing">
-        <Setter Property="CornerRadius"
-                Value="3" />
-    </Style>
-    <Style Selector="ui|MyIconTextButton:focus-visible ui|SuperellipseBorder#FocusRing,
-                     ui|MyRadioButton:focus-visible ui|SuperellipseBorder#FocusRing">
-        <Setter Property="CornerRadius"
-                Value="13.5" />
     </Style>
 </Styles>

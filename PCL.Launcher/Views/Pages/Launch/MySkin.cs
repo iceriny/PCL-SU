@@ -16,8 +16,8 @@ namespace PCL.Views.Pages.Launch;
 /// </summary>
 public sealed class MySkin : Grid
 {
-    private const double ShadowIdleOpacity = 0.2d;
-    private const double ShadowHoverOpacity = 0.8d;
+    private const double IdleElevation = 1d;
+    private const double HoverElevation = 3d;
 
     private readonly Image _imgBack = new()
     {
@@ -37,13 +37,8 @@ public sealed class MySkin : Grid
         VerticalAlignment = VerticalAlignment.Center
     };
 
-    private readonly DropShadowEffect _shadow = new()
-    {
-        BlurRadius = 10d,
-        OffsetX = 0d,
-        OffsetY = 0d,
-        Opacity = ShadowIdleOpacity
-    };
+    private readonly DropShadowEffect _shadow = SurfaceShadow.CreateSilhouette(IdleElevation);
+    private double _shadowElevation = IdleElevation;
 
     private bool _isMouseDown;
 
@@ -65,9 +60,6 @@ public sealed class MySkin : Grid
             });
 
         Effect = _shadow;
-        ApplyShadowColor();
-        AttachedToVisualTree += (_, _) => ApplyShadowColor();
-        ActualThemeVariantChanged += (_, _) => ApplyShadowColor();
 
         RenderOptions.SetBitmapInterpolationMode(_imgBack, BitmapInterpolationMode.None);
         RenderOptions.SetBitmapInterpolationMode(_imgFore, BitmapInterpolationMode.None);
@@ -84,8 +76,8 @@ public sealed class MySkin : Grid
         {
             AnimationService.Run(
                 new DoubleAnimation(
-                    delta => _shadow.Opacity += delta,
-                    ShadowHoverOpacity - _shadow.Opacity,
+                    MoveShadow,
+                    HoverElevation - _shadowElevation,
                     200,
                     100),
                 "Skin Shadow");
@@ -94,8 +86,8 @@ public sealed class MySkin : Grid
         {
             AnimationService.Run(
                 new DoubleAnimation(
-                    delta => _shadow.Opacity += delta,
-                    ShadowIdleOpacity - _shadow.Opacity,
+                    MoveShadow,
+                    IdleElevation - _shadowElevation,
                     200),
                 "Skin Shadow");
             _isMouseDown = false;
@@ -223,10 +215,10 @@ public sealed class MySkin : Grid
         };
     }
 
-    private void ApplyShadowColor()
+    private void MoveShadow(double delta)
     {
-        if (this.TryFindResource("ColorObject2", out var value) && value is Color color)
-            _shadow.Color = color;
+        _shadowElevation += delta;
+        SurfaceShadow.UpdateSilhouette(_shadow, _shadowElevation);
     }
 
     private ScaleTransform GetScale()

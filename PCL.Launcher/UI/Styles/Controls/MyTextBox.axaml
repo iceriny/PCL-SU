@@ -13,7 +13,7 @@
             <Setter Property="BorderThickness"
                     Value="1" />
             <Setter Property="CornerRadius"
-                    Value="3" />
+                    Value="{x:Static ui:CornerRadii.Standard}" />
             <Setter Property="CaretBrush"
                     Value="{DynamicResource ColorBrush1}" />
             <Setter Property="SelectionBrush"

@@ -13,17 +13,17 @@ using Path = Avalonia.Controls.Shapes.Path;
 namespace PCL.UI.Controls;
 
 /// <summary>
-/// 卡片容器：阴影层 + 圆角背景层 + 标题/折叠箭头层，用户内容直接加入 <see cref="Panel.Children" />。
+/// 卡片容器：圆角背景与投影、标题和折叠箭头，用户内容直接加入 <see cref="Panel.Children" />。
 /// 悬停阴影与标题变色、主题配色过渡、内容高度变化与折叠箭头旋转由 新动画引擎 驱动； 高度动画带 <see cref="UseAnimation" /> 与
 /// <c>_isHeightAnimating</c> 双重守卫，避免尺寸回调自激。
 /// </summary>
 public class MyCard : Grid
 {
-    private const double DropShadowIdleOpacity = 0.07d;
-    private const double DropShadowHoverOpacity = 0.4d;
+    private const double IdleElevation = 0.85d;
+    private const double HoverElevation = 3d;
 
     private const int TitleColorTime = 90;
-    private const int ShadowColorTime = 90;
+    private const int ElevationTime = 120;
     private const int ThemeColorTime = 300;
 
     /// <summary>展开距离超过该值时直接完成布局，不再逐帧播放高度动画。</summary>
@@ -35,7 +35,7 @@ public class MyCard : Grid
     public static readonly StyledProperty<CornerRadius> CornerRadiusProperty =
         AvaloniaProperty.Register<MyCard, CornerRadius>(
             nameof(CornerRadius),
-            new CornerRadius(5d));
+            CornerRadii.Standard);
 
     public static readonly StyledProperty<bool> IsSwappedProperty =
         AvaloniaProperty.Register<MyCard, bool>(nameof(IsSwapped));
@@ -68,21 +68,13 @@ public class MyCard : Grid
 
     public MyCard()
     {
-        MainChrome = new CardShadow
-        {
-            CornerRadius = new CornerRadius(5d),
-            ShadowBlur = 3d,
-            Opacity = DropShadowIdleOpacity,
-            IsHitTestVisible = false
-        };
-        ContainerTheme.BindDynamic(MainChrome, CardShadow.ColorProperty, "ColorObject1");
-        Children.Insert(0, MainChrome);
         _mainBorder = new SuperellipseBorder
         {
-            CornerRadius = new CornerRadius(5d),
+            CornerRadius = CornerRadii.Standard,
+            Elevation = IdleElevation,
             IsHitTestVisible = true
         };
-        Children.Insert(1, _mainBorder);
+        Children.Add(_mainBorder);
         _mainGrid = new Grid();
         Children.Add(_mainGrid);
 
@@ -93,8 +85,6 @@ public class MyCard : Grid
         PointerPressed += _OnPointerPressed;
         PointerReleased += _OnPointerReleased;
     }
-
-    public CardShadow MainChrome { get; }
 
     public Control? BorderChild
     {
@@ -176,8 +166,8 @@ public class MyCard : Grid
 
         if (CanSwap || SwapControl is not null)
         {
-            if (SwapControl is null && Children.Count > 3)
-                SwapControl = Children[3];
+            if (SwapControl is null && Children.Count > 2)
+                SwapControl = Children[2];
 
             if (_mainSwap is null && SwapControl is not null)
             {
@@ -453,7 +443,6 @@ public class MyCard : Grid
 
     private void _ApplyCornerRadius(CornerRadius value)
     {
-        MainChrome.CornerRadius = value;
         _mainBorder.CornerRadius = value;
     }
 
@@ -824,30 +813,20 @@ public class MyCard : Grid
 
     private void AnimateShadow(bool hover)
     {
-        var colorKey = hover ? "ColorObject4" : "ColorObject1";
-        var targetOpacity = hover ? DropShadowHoverOpacity : DropShadowIdleOpacity;
+        var elevation = hover ? HoverElevation : IdleElevation;
 
-        if (!ContainerAnimation.CanAnimate(this) || !this.TryFindResource(colorKey, out _))
+        if (!ContainerAnimation.CanAnimate(this))
         {
             AnimationService.CancelAnimationByName(MouseAnimationKey);
-            ContainerTheme.BindDynamic(MainChrome, CardShadow.ColorProperty, colorKey);
-            MainChrome.Opacity = targetOpacity;
+            _mainBorder.Elevation = elevation;
             return;
         }
 
         AnimationService.Run(
-            new List<IAnimation>
-            {
-                new ColorAnimation(
-                    MainChrome,
-                    CardShadow.ColorProperty,
-                    colorKey,
-                    ShadowColorTime),
-                new OpacityAnimation(
-                    MainChrome,
-                    targetOpacity - MainChrome.Opacity,
-                    ShadowColorTime)
-            },
+            new DoubleAnimation(
+                delta => _mainBorder.Elevation += delta,
+                elevation - _mainBorder.Elevation,
+                ElevationTime),
             MouseAnimationKey);
     }
 

@@ -3,7 +3,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using PCL.Core.App.IoC;
@@ -11,6 +10,7 @@ using PCL.Core.App.Localization;
 using PCL.Core.Logging;
 using PCL.Navigation;
 using PCL.UI;
+using PCL.UI.Controls;
 using PCL.UI.SystemIntegration;
 using PCL.Views.Shell;
 
@@ -34,6 +34,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        PanBack.Margin = new Thickness(SurfaceShadow.GetPadding(ShadowHost.Elevation));
         ApplyWindowIcon();
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
         Opacity = 0d;
@@ -75,8 +76,8 @@ public partial class MainWindow : Window
                 Focus();
             },
             DispatcherPriority.Loaded);
-        Opened += (_, _) => TaskbarProgress.SetThumbnailClip(new Thickness(10d));
-        SizeChanged += (_, _) => TaskbarProgress.SetThumbnailClip(new Thickness(10d));
+        Opened += (_, _) => TaskbarProgress.SetThumbnailClip(PanBack.Margin);
+        SizeChanged += (_, _) => TaskbarProgress.SetThumbnailClip(PanBack.Margin);
         Opened += (_, _) => UpdateLauncherDpi();
         ScalingChanged += (_, _) => UpdateLauncherDpi();
 
@@ -209,8 +210,7 @@ public partial class MainWindow : Window
         WindowDecorations = WindowDecorations.Full;
         CanMaximize = false;
 
-        ShadowHost.ShadowRadius = 0d;
-        ShadowHost.Color = Colors.Transparent;
+        ShadowHost.Elevation = 0d;
         PanBack.Margin = default;
         PanBack.CornerRadius = default;
         Cursor = null;
@@ -265,7 +265,7 @@ public partial class MainWindow : Window
 
     private WindowEdge? GetResizeEdge(Point point)
     {
-        const double band = 8d;
+        var band = Math.Max(0, PanBack.Margin.Left - 2);
         var width = Bounds.Width;
         var height = Bounds.Height;
         var left = point.X <= band;

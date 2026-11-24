@@ -13,7 +13,7 @@
             <Setter Property="BorderThickness"
                     Value="1" />
             <Setter Property="CornerRadius"
-                    Value="3" />
+                    Value="{x:Static ui:CornerRadii.Standard}" />
             <Setter Property="FontSize"
                     Value="13" />
             <Setter Property="FontFamily"
@@ -108,14 +108,14 @@
                                    InheritsTransform="True">
                                 <Grid x:Name="PanPopup">
                                     <ui:SuperellipseBorder Background="{DynamicResource ColorBrushWhite}"
-                                            CornerRadius="3" />
+                                            CornerRadius="{x:Static ui:CornerRadii.Standard}" />
                                     <ui:SuperellipseBorder x:Name="dropDownBorder"
                                             Width="{Binding Width, RelativeSource={RelativeSource TemplatedParent}}"
                                             MaxHeight="{TemplateBinding MaxDropDownHeight}"
                                             Background="Transparent"
                                             BorderBrush="{TemplateBinding Foreground}"
                                             BorderThickness="1"
-                                            CornerRadius="3">
+                                            CornerRadius="{x:Static ui:CornerRadii.Standard}">
                                         <ui:MyScrollViewer HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
                                                       IsScrollChainingEnabled="False"
                                                       VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"

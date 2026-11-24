@@ -9,7 +9,7 @@
         <Setter Property="Background"
                 Value="Transparent" />
         <Setter Property="CornerRadius"
-                Value="13.5" />
+                Value="{x:Static ui:CornerRadii.Standard}" />
         <Setter Property="MinHeight"
                 Value="27" />
         <Setter Property="MaxHeight"

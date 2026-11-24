@@ -21,13 +21,10 @@
     <Grid x:Name="PanRoot"
           Background="Transparent">
         <ui:MyDropShadow x:Name="ShadowHost"
-                         Color="#21000000"
-                         ShadowRadius="10"
-                         CenterTransparent="True"
+                         Elevation="8"
                          CornerRadius="{Binding CornerRadius, ElementName=PanBack}">
             <ui:SuperellipseBorder x:Name="PanBack"
-                    Margin="10"
-                    CornerRadius="12"
+                    CornerRadius="{x:Static ui:CornerRadii.Window}"
                     ClipToBounds="True">
                 <Grid x:Name="PanForm"
                       RowDefinitions="Auto,*">
@@ -48,7 +45,7 @@
                             HorizontalAlignment="Left"
                             Background="{DynamicResource ColorBrushTransparentBackground}"
                             IsHitTestVisible="False"
-                            BoxShadow="4 0 6 0 #0A000000" />
+                            Elevation="0.55" />
                     <Grid x:Name="PanMain"
                           Grid.Row="1"
                           ColumnDefinitions="Auto,*">
@@ -62,6 +59,7 @@
                     <Grid x:Name="PanHintAnchor"
                           Grid.RowSpan="2"
                           ZIndex="1"
+                          Margin="0,0,0,10"
                           HorizontalAlignment="Right"
                           VerticalAlignment="Bottom">
                         <StackPanel x:Name="PanHint"

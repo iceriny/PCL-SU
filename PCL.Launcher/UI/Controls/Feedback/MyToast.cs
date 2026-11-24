@@ -71,15 +71,9 @@ public class MyToast : SuperellipseBorder
     {
         Hint = hint;
         HorizontalAlignment = HorizontalAlignment.Right;
-        CornerRadius = new CornerRadius(8d);
+        CornerRadius = CornerRadii.Standard;
         BorderThickness = new Thickness(0d);
-        BoxShadow = new BoxShadows(
-            new BoxShadow
-            {
-                Blur = 16d,
-                OffsetY = 4d,
-                Color = Color.FromArgb(51, 0, 0, 0)
-            });
+        Elevation = 5d;
 
         _toastIcon = new SvgIconControl
         {

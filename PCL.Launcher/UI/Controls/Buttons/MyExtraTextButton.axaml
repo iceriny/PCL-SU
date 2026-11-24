@@ -23,7 +23,7 @@
             <ScaleTransform />
         </Grid.RenderTransform>
         <shape:SuperellipseBorder x:Name="PanColor"
-                BoxShadow="0 0 10 0 #33000000" />
+                Elevation="3" />
         <StackPanel Orientation="Horizontal"
                     Margin="20,0">
             <Grid x:Name="IconHost"

@@ -30,7 +30,7 @@
                 BorderBrush="{DynamicResource ColorBrush6}"
                 BorderThickness="1"
                 Classes="ListItemBack"
-                CornerRadius="6"
+                CornerRadius="{x:Static shape:CornerRadii.Standard}"
                 IsHitTestVisible="False"
                 Opacity="0" />
 
@@ -85,6 +85,7 @@
     <shape:SuperellipseBorder x:Name="FocusRingElement"
             Margin="-2"
             Classes="FocusRing"
+            CornerRadius="{Binding CornerRadius, ElementName=RectBackElement}"
             IsHitTestVisible="False"
             ZIndex="1000" />
 </Grid>

@@ -42,6 +42,7 @@ public partial class PageLaunchLeft : MyPageLeft, IShellShortcutTarget
     public PageLaunchLeft()
     {
         InitializeComponent();
+        PanLaunchingStatus.Effect = SurfaceShadow.CreateSilhouette(0.75d);
         Current = this;
         DataContext = ViewModel;
 

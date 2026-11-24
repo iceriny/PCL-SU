@@ -43,7 +43,6 @@
                    Margin="0,8,0,2"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Top"
-                   CornerRadius="5"
                    Opacity="0">
             <StackPanel Margin="10,3,9,3"
                         Orientation="Horizontal">

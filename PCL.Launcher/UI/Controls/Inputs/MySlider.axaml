@@ -44,8 +44,8 @@
                     Margin="0,0,4,4"
                     Padding="7,5"
                     BorderThickness="1.5"
-                    CornerRadius="3"
-                    BoxShadow="0 4 4 0 #66000000">
+                    CornerRadius="{x:Static shape:CornerRadii.Standard}"
+                    Elevation="2.5">
                 <TextBlock x:Name="TextHintElement"
                            FontSize="12"
                            TextWrapping="Wrap" />

@@ -45,7 +45,7 @@ public class MyHint : SuperellipseBorder
     {
         using var controlScope = AnimationService.SuspendControl();
 
-        CornerRadius = new CornerRadius(2d);
+        CornerRadius = CornerRadii.Compact;
         BorderThickness = new Thickness(3d, 0d, 0d, 0d);
         HorizontalAlignment = HorizontalAlignment.Stretch;
 

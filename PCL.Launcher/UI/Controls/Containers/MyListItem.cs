@@ -701,8 +701,7 @@ public partial class MyListItem : Grid, IMyRadio
 
     private void UpdateBackChrome()
     {
-        var radius = IsScaleAnimationEnabled || EffectiveHeight > 40d ? 6d : 0d;
-        RectBackElement.CornerRadius = new CornerRadius(radius);
+        RectBackElement.CornerRadius = IsScaleAnimationEnabled || EffectiveHeight > 40d ? CornerRadii.Standard : default;
         RectBackElement.RenderTransformOrigin = RelativePoint.Center;
         PanBackElement.RenderTransformOrigin = RelativePoint.Center;
 

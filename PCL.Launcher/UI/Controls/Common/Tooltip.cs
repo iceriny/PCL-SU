@@ -23,7 +23,7 @@ public sealed class Tooltip
     private const string Module = "UI.Tooltip";
 
     private const double ScaleClosed = 0.97d;
-    private const double ShadowBlur = 18d;
+    private const double ShadowElevation = 4d;
     private const int MaxContentWidth = 676;
     private const double TipFontSize = 12.5d;
     private const double TipLineHeight = 17d;
@@ -288,18 +288,18 @@ public sealed class Tooltip
         _shell = new SuperellipseBorder
         {
             BorderThickness = new Thickness(0d),
-            CornerRadius = new CornerRadius(8d),
+            CornerRadius = CornerRadii.Standard,
             MaxWidth = 700d,
             UseLayoutRounding = true,
             RenderTransform = _scaler,
             RenderTransformOrigin = new RelativePoint(0d, 0d, RelativeUnit.Relative),
-            BoxShadow = BoxShadows.Parse("0 0 18 0 #26000000"),
+            Elevation = ShadowElevation,
             IsHitTestVisible = false
         };
 
         var wrap = new Grid
         {
-            Margin = new Thickness(ShadowBlur + 1d),
+            Margin = new Thickness(SurfaceShadow.GetPadding(ShadowElevation)),
             Background = Brushes.Transparent
         };
         wrap.Children.Add(_shell);

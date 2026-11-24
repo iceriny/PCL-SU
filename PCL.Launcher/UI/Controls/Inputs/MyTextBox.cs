@@ -74,7 +74,7 @@ public class MyTextBox : TextBox
             BorderThickness = new Thickness(1d);
             FontSize = 13d;
             MinHeight = 28d;
-            CornerRadius = new CornerRadius(3d);
+            CornerRadius = CornerRadii.Standard;
             VerticalContentAlignment = VerticalAlignment.Center;
             ContainerTheme.BindDynamic(this, SelectionBrushProperty, "ColorBrushSelection");
         }

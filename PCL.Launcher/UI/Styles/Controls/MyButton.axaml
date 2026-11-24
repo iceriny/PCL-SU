@@ -13,7 +13,7 @@
     </Style>
     <Style Selector="ui|MyButton ui|SuperellipseBorder#PanFore">
         <Setter Property="CornerRadius"
-                Value="3" />
+                Value="{x:Static ui:CornerRadii.Standard}" />
         <Setter Property="BorderThickness"
                 Value="1" />
         <Setter Property="BorderBrush"

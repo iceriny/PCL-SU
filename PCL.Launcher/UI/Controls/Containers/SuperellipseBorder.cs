@@ -18,19 +18,19 @@ public class SuperellipseBorder : Decorator
         Border.CornerRadiusProperty.AddOwner<SuperellipseBorder>();
     public static readonly StyledProperty<BackgroundSizing> BackgroundSizingProperty =
         Border.BackgroundSizingProperty.AddOwner<SuperellipseBorder>();
-    public static readonly StyledProperty<BoxShadows> BoxShadowProperty =
-        Border.BoxShadowProperty.AddOwner<SuperellipseBorder>();
+    public static readonly StyledProperty<double> ElevationProperty =
+        AvaloniaProperty.Register<SuperellipseBorder, double>(nameof(Elevation), validate: SurfaceShadow.IsValidElevation);
 
     private Geometry? _contentClip;
     private (Size Size, CornerRadius Corners, Thickness Stroke, BackgroundSizing Sizing)? _shapeKey;
     private Geometry? _fill;
     private Geometry? _stroke;
-    private readonly SuperellipseShadow _shadow = new();
+    private readonly SurfaceShadow _shadow = new();
 
     static SuperellipseBorder()
     {
         AffectsRender<SuperellipseBorder>(BackgroundProperty, BorderBrushProperty, BorderThicknessProperty,
-            CornerRadiusProperty, BackgroundSizingProperty, BoxShadowProperty);
+            CornerRadiusProperty, BackgroundSizingProperty, ElevationProperty);
         AffectsMeasure<SuperellipseBorder>(BorderThicknessProperty);
     }
 
@@ -64,10 +64,10 @@ public class SuperellipseBorder : Decorator
         set => SetValue(BackgroundSizingProperty, value);
     }
 
-    public BoxShadows BoxShadow
+    public double Elevation
     {
-        get => GetValue(BoxShadowProperty);
-        set => SetValue(BoxShadowProperty, value);
+        get => GetValue(ElevationProperty);
+        set => SetValue(ElevationProperty, value);
     }
 
     protected override Size MeasureOverride(Size availableSize) =>
@@ -101,13 +101,14 @@ public class SuperellipseBorder : Decorator
             thickness = LayoutHelper.RoundLayoutThickness(thickness, LayoutHelper.GetLayoutScale(this));
 
         var corners = SuperellipseGeometry.Fit(CornerRadius, rect.Size);
+        _shadow.Draw(context, rect, corners, Elevation);
         if (!SuperellipseGeometry.HasCorners(corners) && thickness.IsUniform &&
             BackgroundSizing == BackgroundSizing.CenterBorder)
         {
             var width = Math.Min(Math.Min(rect.Width, rect.Height), thickness.Left);
             var bounds = rect.Deflate(width / 2);
             var pen = BorderBrush is not null && width > 0 ? new Pen(BorderBrush, width) : null;
-            context.DrawRectangle(Background, pen, bounds, boxShadows: BoxShadow);
+            context.DrawRectangle(Background, pen, bounds);
             return;
         }
 
@@ -127,9 +128,7 @@ public class SuperellipseBorder : Decorator
             };
         }
 
-        _shadow.Draw(context, rect, corners, BoxShadow);
         if (Background is not null) context.DrawGeometry(Background, null, _fill!);
-        _shadow.Draw(context, rect, corners, BoxShadow, inset: true);
         if (BorderBrush is not null && _stroke is not null) context.DrawGeometry(BorderBrush, null, _stroke);
     }
 }

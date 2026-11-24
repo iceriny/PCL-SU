@@ -13,7 +13,7 @@ internal static class SuperellipseGeometry
 
     public static Geometry Create(Rect rect, double radiusX, double radiusY)
     {
-        var radius = new Vector(Math.Clamp(radiusX, 0, rect.Width / 2), Math.Clamp(radiusY, 0, rect.Height / 2));
+        var radius = new Vector(FitRadius(radiusX, rect.Width / 2), FitRadius(radiusY, rect.Height / 2));
         return Build(rect.Left, rect.Top, rect.Right, rect.Bottom, radius, radius, radius, radius);
     }
 
@@ -24,10 +24,22 @@ internal static class SuperellipseGeometry
     {
         var limit = Math.Max(0, Math.Min(size.Width, size.Height) / 2);
         return new CornerRadius(
-            Math.Clamp(corners.TopLeft, 0, limit),
-            Math.Clamp(corners.TopRight, 0, limit),
-            Math.Clamp(corners.BottomRight, 0, limit),
-            Math.Clamp(corners.BottomLeft, 0, limit));
+            FitRadius(corners.TopLeft, limit),
+            FitRadius(corners.TopRight, limit),
+            FitRadius(corners.BottomRight, limit),
+            FitRadius(corners.BottomLeft, limit));
+    }
+
+    private static double FitRadius(double radius, double limit) =>
+        radius > 0 ? Math.Clamp(radius, 0, limit) : 0;
+
+    public static Point[] GetOutline(Rect rect, CornerRadius fittedCorners)
+    {
+        var points = new List<Point>(4 * Quarter.Length + 1) { new(rect.Left + fittedCorners.TopLeft, rect.Top) };
+        WriteOutline(rect.Left, rect.Top, rect.Right, rect.Bottom,
+            Radii(fittedCorners.TopLeft, 0, 0), Radii(fittedCorners.TopRight, 0, 0),
+            Radii(fittedCorners.BottomRight, 0, 0), Radii(fittedCorners.BottomLeft, 0, 0), points.Add);
+        return points.ToArray();
     }
 
     // The inset is applied after the outside radii have been fitted, so even
@@ -54,34 +66,40 @@ internal static class SuperellipseGeometry
         var geometry = new StreamGeometry();
         using var path = geometry.Open();
         path.BeginFigure(new Point(left + topLeft.X, top), true);
-        path.LineTo(new Point(right - topRight.X, top));
-        WriteCorner(path, new Point(right - topRight.X, top + topRight.Y), topRight.X, -topRight.Y, false);
-        path.LineTo(new Point(right, bottom - bottomRight.Y));
-        WriteCorner(path, new Point(right - bottomRight.X, bottom - bottomRight.Y), bottomRight.X, bottomRight.Y, true);
-        path.LineTo(new Point(left + bottomLeft.X, bottom));
-        WriteCorner(path, new Point(left + bottomLeft.X, bottom - bottomLeft.Y), -bottomLeft.X, bottomLeft.Y, false);
-        path.LineTo(new Point(left, top + topLeft.Y));
-        WriteCorner(path, new Point(left + topLeft.X, top + topLeft.Y), -topLeft.X, -topLeft.Y, true);
+        WriteOutline(left, top, right, bottom, topLeft, topRight, bottomRight, bottomLeft, point => path.LineTo(point));
         path.EndFigure(true);
         return geometry;
+    }
+
+    private static void WriteOutline(double left, double top, double right, double bottom,
+        Vector topLeft, Vector topRight, Vector bottomRight, Vector bottomLeft, Action<Point> add)
+    {
+        add(new Point(right - topRight.X, top));
+        WriteCorner(add, new Point(right - topRight.X, top + topRight.Y), topRight.X, -topRight.Y, false);
+        add(new Point(right, bottom - bottomRight.Y));
+        WriteCorner(add, new Point(right - bottomRight.X, bottom - bottomRight.Y), bottomRight.X, bottomRight.Y, true);
+        add(new Point(left + bottomLeft.X, bottom));
+        WriteCorner(add, new Point(left + bottomLeft.X, bottom - bottomLeft.Y), -bottomLeft.X, bottomLeft.Y, false);
+        add(new Point(left, top + topLeft.Y));
+        WriteCorner(add, new Point(left + topLeft.X, top + topLeft.Y), -topLeft.X, -topLeft.Y, true);
     }
 
     private static Vector Radii(double radius, double insetX, double insetY) =>
         new(Math.Max(0, radius - insetX), Math.Max(0, radius - insetY));
 
     private static void WriteCorner(
-        StreamGeometryContext path, Point center, double scaleX, double scaleY, bool reverse)
+        Action<Point> add, Point center, double scaleX, double scaleY, bool reverse)
     {
         if (scaleX == 0 || scaleY == 0)
         {
-            path.LineTo(center + (reverse ? new Vector(0, scaleY) : new Vector(scaleX, 0)));
+            add(center + (reverse ? new Vector(0, scaleY) : new Vector(scaleX, 0)));
             return;
         }
 
         for (var i = 1; i < Quarter.Length; i++)
         {
             var point = Quarter[reverse ? Quarter.Length - 1 - i : i];
-            path.LineTo(center + new Vector(point.X * scaleX, point.Y * scaleY));
+            add(center + new Vector(point.X * scaleX, point.Y * scaleY));
         }
     }
 

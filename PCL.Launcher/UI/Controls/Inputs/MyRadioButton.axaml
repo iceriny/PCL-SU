@@ -11,7 +11,7 @@
     <!-- 圆角药丸 + 可选图标（Path 或 SvgIcon）+ 文本；配色与缩放由代码驱动。 -->
     <Grid>
         <shape:SuperellipseBorder x:Name="PanBackElement"
-                CornerRadius="13.5"
+                CornerRadius="{x:Static shape:CornerRadii.Standard}"
                 MinHeight="27"
                 MaxHeight="27"
                 Background="Transparent">

@@ -21,7 +21,7 @@
                 Height="18"
                 Margin="1,0,0,0"
                 BorderThickness="1.1"
-                CornerRadius="3"
+                CornerRadius="{x:Static shape:CornerRadii.Compact}"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Center"
                 IsHitTestVisible="False" />
