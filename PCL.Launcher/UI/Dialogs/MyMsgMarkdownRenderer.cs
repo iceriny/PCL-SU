@@ -33,6 +33,11 @@ internal static class MyMsgMarkdownRenderer
 
     private static readonly Regex HeadingPattern = new(@"^(#{1,6})\s+(.*)$", RegexOptions.Compiled);
 
+    // Release notes use a standalone summary element containing one line of plain text.
+    private static readonly Regex SummaryPattern = new(
+        @"^\s*<summary>([^<>]*)</summary>\s*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     private static readonly Regex UnorderedPattern = new(
         @"^(\s*)[-*+]\s+(.*)$",
         RegexOptions.Compiled);
@@ -87,6 +92,16 @@ internal static class MyMsgMarkdownRenderer
                 continue;
             }
 
+            var summary = SummaryPattern.Match(line);
+            if (summary.Success)
+            {
+                var block = CreateTextBlock(DialogTheme.BodyFontSize, FontWeight.Normal);
+                block.Text = summary.Groups[1].Value.Trim();
+                panel.Children.Add(block);
+                index++;
+                continue;
+            }
+
             if (TryRenderHeading(line, out var heading))
             {
                 panel.Children.Add(heading);
@@ -129,6 +144,7 @@ internal static class MyMsgMarkdownRenderer
     {
         var line = lines[index];
         return HeadingPattern.IsMatch(line)
+            || SummaryPattern.IsMatch(line)
             || FencePattern.IsMatch(line)
             || RulePattern.IsMatch(line)
             || QuotePattern.IsMatch(line)
