@@ -213,6 +213,7 @@ public partial class MainWindow : Window
         ShadowHost.Elevation = SurfaceElevation.Base;
         PanBack.Margin = default;
         PanBack.CornerRadius = default;
+        PanForm.OpacityMask = null;
         Cursor = null;
 
         _titleBar.UseSystemCaptionButtons();

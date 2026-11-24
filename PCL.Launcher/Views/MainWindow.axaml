@@ -26,7 +26,9 @@
             <ui:SuperellipseBorder x:Name="PanBack"
                     CornerRadius="{x:Static ui:CornerRadii.Window}"
                     ClipToBounds="True">
+                <!-- 让标题栏、页面和弹窗先合成为一层，再由外框一次裁出抗锯齿边缘。 -->
                 <Grid x:Name="PanForm"
+                      OpacityMask="White"
                       RowDefinitions="Auto,*">
                     <Grid x:Name="ImgBack"
                           Grid.Row="1"
