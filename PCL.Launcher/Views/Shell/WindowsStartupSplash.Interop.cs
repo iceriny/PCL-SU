@@ -61,6 +61,9 @@ internal sealed partial class WindowsStartupSplash
     private static extern nint CreateWindowExW(uint extendedStyle, string className, string windowName,
         uint style, int x, int y, int width, int height, nint parent, nint menu, nint instance, nint parameter);
 
+    [DllImport("user32", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    private static extern nint FindWindowW(string? className, string windowName);
+
     [DllImport("user32")]
     private static extern bool DestroyWindow(nint window);
 

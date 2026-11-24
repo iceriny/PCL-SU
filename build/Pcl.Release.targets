@@ -31,9 +31,18 @@
     </PropertyGroup>
     <ItemGroup>
       <EmbeddedResource Include="$(PclReleaseOutputDir)/metadata.json" LogicalName="PCL.metadata.json" />
+      <EmbeddedResource Include="$(PclReleaseOutputDir)/StartupSplash.bgra.gz" LogicalName="PCL.Resources.StartupSplash.bgra.gz" />
+      <FileWrites Include="$(PclReleaseOutputDir)/StartupSplash.bgra.gz" />
       <PclReleaseNote Include="$(PclReleaseOutputDir)/notes/*.md" />
       <EmbeddedResource Include="@(PclReleaseNote)" LogicalName="PCL.ReleaseNotes.%(PclReleaseNote.Filename)%(PclReleaseNote.Extension)" />
       <FileWrites Include="$(PclReleaseOutputDir)/metadata.json;$(PclReleaseOutputDir)/version.txt;$(PclReleaseOutputDir)/build.txt;$(PclReleaseOutputDir)/assembly-version.txt;$(PclReleaseOutputDir)/file-version.txt;$(PclReleaseOutputDir)/notes/*.md" />
     </ItemGroup>
+  </Target>
+
+  <Target Name="PclRenderStartupFrame" BeforeTargets="AssignTargetPaths"
+          DependsOnTargets="PclPrepareReleaseResources" Inputs="@(PclBuildTool)"
+          Outputs="$(PclReleaseOutputDir)/StartupSplash.bgra.gz"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(NoBuild)' != 'true'">
+    <Exec Command="&quot;$(PclDotNetHost)&quot; &quot;@(PclBuildTool)&quot; render-splash --output &quot;$(PclReleaseOutputDir)/StartupSplash.bgra.gz&quot;" />
   </Target>
 </Project>

@@ -9,4 +9,10 @@
     <Platforms>AnyCPU;x64;ARM64</Platforms>
     <Configurations>Debug;Release;CI;Beta</Configurations>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="3.119.4" PrivateAssets="all" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" PrivateAssets="all" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Compile Include="../PCL.Launcher/Views/Shell/StartupSplashArtwork.cs" Link="StartupSplashArtwork.cs" />
+    <EmbeddedResource Include="../PCL.Launcher/Resources/StartupSplash.svg" LogicalName="PCL.Resources.StartupSplash.svg" />
+  </ItemGroup>
 </Project>

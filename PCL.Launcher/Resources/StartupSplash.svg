@@ -12,33 +12,62 @@
     <use href="#window" x="1" y="2" fill="#1D1B21" fill-opacity=".09" filter="url(#key)"/>
     <use href="#window" y=".5" fill="#1D1B21" fill-opacity=".09" filter="url(#contact)"/>
     <use href="#window" fill="#FBF9FA"/>
-    <path fill="#877980" fill-opacity=".15" filter="url(#ambient)" d="M57 112 C63 108 78 107 90 108 C105 109 115 112 109 116 C102 120 69 119 58 116 C54 115 54 114 57 112 Z"/>
+    <path fill="#877980" fill-opacity=".14" filter="url(#ambient)" d="M33 107 Q47 99 61 107 Q72 102 84 102 Q102 101 111 105 Q122 102 132 108 Q126 117 109 115 Q79 120 61 115 Q45 118 33 110 Z"/>
     <path fill="none" stroke="#5B4B57" stroke-width="2.75" d="M146 94 V69 H152 A7 7 0 0 1 152 83 H146 M182.5 71.5 A10 11.5 180 1 0 182.5 89.5 M191 67.5 V92 H204.5"/>
     <path fill="none" stroke="#86717F" stroke-width="2.45" stroke-linecap="round" stroke-linejoin="round" d="M221.4 76.8 C219.7 75.4 215.3 75.3 214.5 77.8 C213.5 81.1 221.5 80.2 221.5 83.9 C221.5 87.1 216.2 87.7 213.9 85.6 M226 76 V82.5 C226 88.1 234.2 88.1 234.2 82.5 V76"/>
   </g>
 
-  <g id="foundation">
-    <path fill="#A595A3" d="M52 93.6 L81 78.9 L110 93.6 V99.1 L81 114 L52 99.1 Z"/>
-    <path fill="#B9AAB7" d="M52 93.6 L81 108.4 V114 L52 99.1 Z"/>
-    <path fill="#E3DCE3" d="M52 93.6 L81 78.9 L110 93.6 L81 108.4 Z"/>
+  <g id="pedestal">
+    <path fill="#BBACB9" d="M60 90 L83 78 L106 90 V98 L83 110 L60 98 Z"/>
+    <path fill="#D2C5CF" d="M60 90 L83 102 V110 L60 98 Z"/>
   </g>
-  <g id="seam">
-    <animateTransform attributeName="transform" type="translate" values="0 0;0 -3.5;0 0" dur="2.4s" begin="-.62s" repeatCount="indefinite" calcMode="spline" keyTimes="0;.5;1" keySplines=".333333 0 .666667 1;.333333 0 .666667 1"/>
-    <path fill="#917F8E" d="M52 87.3 L81 72.5 L110 87.3 V92 L81 106.8 L52 92 Z"/>
-    <path fill="#B6A0AF" d="M52 87.3 L81 102 V106.8 L52 92 Z"/>
-    <path fill="#D8C6D0" d="M52 87.3 L81 72.5 L110 87.3 L81 102 Z"/>
+  <g id="high-step">
+    <animateTransform attributeName="transform" type="translate" values="0 0;0 0;0 4;0 -.8;0 0;0 0;0 -.9;0 0;0 0" keyTimes="0;.12;.144;.19;.218;.235;.266;.31;1" dur="2.8s" repeatCount="indefinite"/>
+    <path fill="#AFA0AF" d="M59 82 L83 69.5 L107 82 V92 L83 104.5 L59 92 Z"/>
+    <path fill="#C4B3BF" d="M59 82 L83 94.5 V104.5 L59 92 Z"/>
+    <path fill="#E3D7DF" d="M59 82 L83 69.5 L107 82 L83 94.5 Z"/>
+    <path fill="#EEE6EB" d="M63 82 L71 77.8 L74 79.3 L66 83.5 Z M68 84.6 L71 83 L73 84 L70 85.6 Z"/>
   </g>
-  <g id="cap">
-    <animateTransform attributeName="transform" type="translate" values="0 0;0 -9;0 0" dur="2.4s" begin="-.32s" repeatCount="indefinite" calcMode="spline" keyTimes="0;.5;1" keySplines=".333333 0 .666667 1;.333333 0 .666667 1"/>
-    <path fill="#806D7C" d="M52 67.8 L81 53 L110 67.8 V81.8 L81 96.6 L52 81.8 Z"/>
-    <path fill="#A18B9A" d="M52 67.8 L81 82.6 V96.6 L52 81.8 Z"/>
-    <path fill="#CFBCC8" d="M52 67.8 L81 53 L110 67.8 L81 82.6 Z"/>
-    <path fill="#DBCCD5" d="M60 66.8 L70 61.7 L76 64.8 L66 69.9 Z M69.5 71.7 L75.2 68.8 L80.2 71.4 L74.5 74.3 Z"/>
+  <g id="right-step">
+    <animateTransform attributeName="transform" type="translate" values="0 0;0 0;0 2.4;0 -.6;0 0;0 0" keyTimes="0;.49;.512;.552;.585;1" dur="2.8s" repeatCount="indefinite"/>
+    <path fill="#B9ACB9" d="M102 95 L118 86.7 L134 95 V101 L118 109.3 L102 101 Z"/>
+    <path fill="#CBBDCA" d="M102 95 L118 103.3 V109.3 L102 101 Z"/>
+    <path fill="#E3DBE2" d="M102 95 L118 86.7 L134 95 L118 103.3 Z"/>
   </g>
-  <g id="fragment">
-    <animateTransform attributeName="transform" type="translate" values="0 0;2 -5;0 0" dur="2.4s" begin="-.12s" repeatCount="indefinite" calcMode="spline" keyTimes="0;.5;1" keySplines=".333333 0 .666667 1;.333333 0 .666667 1"/>
-    <path fill="#AFA0AE" d="M103.5 51 L110.5 47.4 L117.5 51 V57.9 L110.5 61.5 L103.5 57.9 Z"/>
-    <path fill="#C8B9C5" d="M103.5 51 L110.5 54.6 V61.5 L103.5 57.9 Z"/>
-    <path fill="#E1D6DF" d="M103.5 51 L110.5 47.4 L117.5 51 L110.5 54.6 Z"/>
+  <g id="left-step">
+    <animateTransform attributeName="transform" type="translate" values="0 0;0 0;0 2.8;0 -.6;0 0;0 0" keyTimes="0;.835;.856;.885;.905;1" dur="2.8s" repeatCount="indefinite"/>
+    <path fill="#B8AAB7" d="M33 98 L49 89.7 L65 98 V104.5 L49 112.8 L33 104.5 Z"/>
+    <path fill="#CBBDCA" d="M33 98 L49 106.3 V112.8 L33 104.5 Z"/>
+    <path fill="#E5DDE4" d="M33 98 L49 89.7 L65 98 L49 106.3 Z"/>
+  </g>
+
+  <!-- A projected footprint tightens as the cube approaches each landing. -->
+  <g id="footprint" transform="translate(78 82) scale(1.2)" opacity=".12">
+    <animateTransform attributeName="transform" type="translate" values="78 82;83 82;83 86;83 81.2;83 82;83 82;87 82;115 95;118 95;118 97.4;118 94.4;118 95;115 95;52 98;49 98;49 100.8;49 97.4;49 98;52 98;76 82;78 82" keyTimes="0;.12;.144;.19;.218;.235;.325;.405;.49;.512;.552;.58;.65;.76;.835;.856;.885;.9;.946;.976;1" dur="2.8s" repeatCount="indefinite"/>
+    <animateTransform attributeName="transform" type="scale" additive="sum" values="1.2 1.2;.77 .77;.88 .88;1.25 1.25;.78 .78;.84 .84;1.35 1.35;.78 .78;.82 .82;1.2 1.2" keyTimes="0;.12;.235;.36;.49;.58;.70;.835;.9;1" dur="2.8s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values=".12;.34;.29;0;0;.32;.26;0;0;.32;.29;0;0;.12" keyTimes="0;.12;.235;.325;.405;.49;.58;.65;.76;.835;.9;.946;.976;1" dur="2.8s" repeatCount="indefinite"/>
+    <path fill="#796877" d="M-8.6 -.6 Q-5.4 -2.9 1.5 -2.7 Q8.2 -2.5 9 0 Q8.7 2.2 2 2.8 Q-5.4 3.2 -8.4 1.4 Q-9.6 .5 -8.6 -.6 Z"/>
+  </g>
+
+  <!-- Small chips fan out at impact. A short appearance and staggered fade keep the rhythm light. -->
+  <g id="chips" transform="translate(83 83)" opacity="0">
+    <animateTransform attributeName="transform" type="translate" values="83 83;83 83;118 96;118 96;49 99;49 99;83 83" keyTimes="0;.25;.3;.615;.67;.977;1" dur="2.8s" repeatCount="indefinite"/>
+    <animateTransform attributeName="transform" type="scale" additive="sum" values="1 1;.55 .55;1.35 1.65;1.35 1.65;.5 .5;1.12 1.5;1.12 1.5;.45 .45;1.15 1.55;1.15 1.55;1 1" keyTimes="0;.12;.225;.28;.49;.598;.64;.835;.95;.985;1" dur="2.8s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0;.9;.8;0;0;.8;.65;0;0;.8;.65;0;0" keyTimes="0;.12;.135;.17;.225;.49;.505;.54;.598;.835;.848;.89;.95;1" dur="2.8s" repeatCount="indefinite"/>
+    <path fill="#AA8F9E" d="M-14 -10.3 L-11.9 -11.4 L-9.9 -9 L-11.6 -8.2 Z M12.5 -7.7 L15.5 -10.1 L16.7 -8.9 L13.7 -6.5 Z"/>
+    <path fill="#BEA8B6" d="M-16.2 -4.7 L-13.5 -5.1 L-13.4 -3.8 L-16.1 -3.1 Z"/>
+  </g>
+
+  <g id="jumper" transform="translate(67 59) rotate(7)">
+    <!-- Separate planar travel from vertical acceleration to trace three different parabolas. -->
+    <animateTransform attributeName="transform" type="translate" values="67 0;83 0;83 0;118 0;118 0;49 0;49 0;67 0" keyTimes="0;.12;.235;.49;.58;.835;.9;1" dur="2.8s" repeatCount="indefinite"/>
+    <animateTransform attributeName="transform" type="translate" additive="sum" values="0 59;0 89;0 93;0 88.2;0 89;0 89;0 54;0 102;0 104.4;0 101.4;0 102;0 102;0 48;0 105;0 107.8;0 104.4;0 105;0 105;0 59" keyTimes="0;.12;.144;.19;.218;.235;.348;.49;.512;.552;.575;.58;.702;.835;.856;.885;.895;.9;1" calcMode="spline" keySplines=".333333 0 .666667 .333333;.333333 .6 .666667 1;.333333 .7 .666667 1;.333333 0 .666667 .75;.333333 0 .666667 1;.333333 .666667 .666667 1;.333333 0 .666667 .333333;.333333 .7 .666667 1;.333333 .7 .666667 1;.333333 0 .666667 .75;.333333 0 .666667 1;.333333 .666667 .666667 1;.333333 0 .666667 .333333;.333333 .7 .666667 1;.333333 .7 .666667 1;.333333 0 .666667 .75;.333333 0 .666667 1;.333333 .666667 .666667 1" dur="2.8s" repeatCount="indefinite"/>
+    <animateTransform attributeName="transform" type="rotate" additive="sum" values="7;-3;0;0;11;10;-6;0;0;-14;-11;7;0;0;12;7" keyTimes="0;.107;.144;.218;.261;.348;.474;.512;.553;.607;.702;.82;.856;.889;.925;1" dur="2.8s" repeatCount="indefinite"/>
+    <animateTransform attributeName="transform" type="scale" additive="sum" values="1 1;.93 1.12;1.22 .75;.96 1.07;1 1;1.13 .85;.9 1.15;1 1;.93 1.13;1.22 .76;.96 1.06;1.13 .85;.87 1.17;1 1;.92 1.13;1.23 .75;1.1 .88;.9 1.13;1 1" keyTimes="0;.115;.144;.18;.202;.235;.26;.348;.486;.512;.545;.58;.605;.702;.831;.856;.9;.925;1" dur="2.8s" repeatCount="indefinite"/>
+    <path fill="#7C697B" d="M0 -25.2 L13 -18.5 V-6.7 L0 0 L-13 -6.7 V-18.5 Z"/>
+    <path fill="#A58A9B" d="M-13 -18.5 L0 -11.8 V0 L-13 -6.7 Z"/>
+    <path fill="#D7C1CE" d="M-13 -18.5 L0 -25.2 L13 -18.5 L0 -11.8 Z"/>
+    <path fill="#E5D5DE" d="M-8 -19 L-3 -21.6 L.2 -20 L-4.8 -17.3 Z"/>
+    <path fill="#584957" d="M2.8 -10.5 L5 -11.6 V-8.6 L2.8 -7.5 Z M8.2 -13.2 L10.4 -14.3 V-11.3 L8.2 -10.2 Z"/>
   </g>
 </svg>

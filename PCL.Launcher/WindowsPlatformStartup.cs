@@ -1,5 +1,4 @@
 using Avalonia;
-using PCL.Core.App;
 using PCL.Core.Utils.OS;
 
 namespace PCL;
@@ -10,7 +9,7 @@ internal sealed class WindowsPlatformStartup : IPlatformStartup
 
     public void Initialize(string[] args)
     {
-        if (Basics.CommandLineArguments.Contains("--console"))
+        if (args.Contains("--console"))
             KernelInterop.AllocateConsole();
     }
 
