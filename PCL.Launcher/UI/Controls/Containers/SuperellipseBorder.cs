@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 
 namespace PCL.UI.Controls;
 
@@ -114,39 +115,34 @@ public class SuperellipseBorder : Decorator
             return;
         }
 
-        var usePen = thickness.IsUniform && thickness.Left > 0 && thickness.Left < shortSide;
         var key = (rect.Size, corners, thickness, BackgroundSizing);
         if (_shapeKey != key)
         {
-            _shapeKey = key;
-            var useRing = !usePen && thickness != default;
-            var outer = useRing || BackgroundSizing == BackgroundSizing.OuterBorderEdge
+            var uniformStroke = thickness.IsUniform && thickness.Left > 0 && thickness.Left < shortSide;
+            var useInsetEdges = !uniformStroke && thickness != default;
+            var outer = useInsetEdges || BackgroundSizing == BackgroundSizing.OuterBorderEdge
                 ? SuperellipseGeometry.Create(rect, corners, default) : null;
-            var inner = useRing || BackgroundSizing == BackgroundSizing.InnerBorderEdge
+            var inner = useInsetEdges || BackgroundSizing == BackgroundSizing.InnerBorderEdge
                 ? SuperellipseGeometry.Create(rect, corners, thickness) : null;
-            var centerline = usePen || BackgroundSizing is not (BackgroundSizing.InnerBorderEdge or BackgroundSizing.OuterBorderEdge)
+            var centerline = uniformStroke || BackgroundSizing is not (BackgroundSizing.InnerBorderEdge or BackgroundSizing.OuterBorderEdge)
                 ? SuperellipseGeometry.Create(rect, corners, new Thickness(
                     thickness.Left / 2, thickness.Top / 2, thickness.Right / 2, thickness.Bottom / 2)) : null;
-            // A single stroke keeps the width constant along the curve's normal.
-            _stroke = usePen ? centerline : useRing ? new CombinedGeometry(GeometryCombineMode.Exclude, outer!, inner!) : null;
+            // Rasterize the whole stroke as a filled area. At one physical pixel,
+            // hairline rendering loses coverage where short segments meet a straight edge.
+            if (uniformStroke)
+                _stroke = centerline!.GetWidenedGeometry(new ImmutablePen(Brushes.Black, thickness.Left));
+            else
+                _stroke = useInsetEdges ? new CombinedGeometry(GeometryCombineMode.Exclude, outer!, inner!) : null;
             _fill = BackgroundSizing switch
             {
                 BackgroundSizing.InnerBorderEdge => inner,
                 BackgroundSizing.OuterBorderEdge => outer,
                 _ => centerline
             };
-        }
-
-        var outline = usePen && BorderBrush is not null ? new Pen(BorderBrush, thickness.Left) : null;
-        if (usePen && ReferenceEquals(_stroke, _fill))
-        {
-            if (Background is not null || outline is not null)
-                context.DrawGeometry(Background, outline, _fill!);
-            return;
+            _shapeKey = key;
         }
 
         if (Background is not null) context.DrawGeometry(Background, null, _fill!);
-        if (BorderBrush is not null && _stroke is not null)
-            context.DrawGeometry(usePen ? null : BorderBrush, outline, _stroke);
+        if (BorderBrush is not null && _stroke is not null) context.DrawGeometry(BorderBrush, null, _stroke);
     }
 }
