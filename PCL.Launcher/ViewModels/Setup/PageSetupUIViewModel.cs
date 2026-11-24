@@ -63,6 +63,7 @@ public partial class PageSetupUIViewModel : ViewModelBase
     [ObservableProperty] private bool _musicVolumeVisible;
 
     private bool _reloading;
+    private ColorTheme[] _themeColors = [];
 
     public string BackgroundTitle =>
         _hasBackground
@@ -87,14 +88,14 @@ public partial class PageSetupUIViewModel : ViewModelBase
 
     partial void OnLightColorSelectedIndexChanged(int value)
     {
-        if (!_reloading && value >= 0)
-            Config.Preference.Theme.LightColor = (ColorTheme)value;
+        if (!_reloading && value >= 0 && value < _themeColors.Length)
+            Config.Preference.Theme.LightColor = _themeColors[value];
     }
 
     partial void OnDarkColorSelectedIndexChanged(int value)
     {
-        if (!_reloading && value >= 0)
-            Config.Preference.Theme.DarkColor = (ColorTheme)value;
+        if (!_reloading && value >= 0 && value < _themeColors.Length)
+            Config.Preference.Theme.DarkColor = _themeColors[value];
     }
 
     partial void OnBackgroundSuitSelectedIndexChanged(int value)
@@ -135,17 +136,17 @@ public partial class PageSetupUIViewModel : ViewModelBase
         if (!_reloading) Config.Preference.Music.Volume = value;
     }
 
-    public void Reload(int themeColorCount = 4)
+    public void Reload(ColorTheme[] themeColors)
     {
         _reloading = true;
         try
         {
             var theme = Config.Preference.Theme;
-            var colorMax = Math.Max(0, themeColorCount - 1);
+            _themeColors = themeColors;
             LauncherOpacity = theme.WindowOpacity;
             DarkModeSelectedIndex = Math.Clamp((int)theme.ColorMode, 0, 2);
-            LightColorSelectedIndex = Math.Clamp((int)theme.LightColor, 0, colorMax);
-            DarkColorSelectedIndex = Math.Clamp((int)theme.DarkColor, 0, colorMax);
+            LightColorSelectedIndex = Array.IndexOf(_themeColors, theme.LightColor);
+            DarkColorSelectedIndex = Array.IndexOf(_themeColors, theme.DarkColor);
 
             BackgroundOpacity = Config.Preference.Background.WallpaperOpacity;
             BackgroundBlur = Config.Preference.Background.WallpaperBlurRadius;

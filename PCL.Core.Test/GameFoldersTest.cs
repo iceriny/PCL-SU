@@ -14,11 +14,11 @@ public sealed class GameFoldersTest
         {
             GameFolders.ApplySelectedFolder("$.minecraft" + Path.DirectorySeparatorChar);
             Assert.AreEqual(
-                Path.Combine(LauncherPaths.ExecutableDirectory, ".minecraft")
+                Path.Combine(LauncherPaths.UserDataRoot, ".minecraft")
                 + Path.DirectorySeparatorChar,
                 GameFolders.mcFolderSelected);
 
-            var custom = Path.Combine(Path.GetTempPath(), "pcl-test-custom-folder")
+            var custom = Path.Combine(Path.GetTempPath(), "pcl-test-$-folder")
                 + Path.DirectorySeparatorChar;
             GameFolders.ApplySelectedFolder(custom);
             Assert.AreEqual(custom, GameFolders.mcFolderSelected);
@@ -30,5 +30,14 @@ public sealed class GameFoldersTest
         {
             GameFolders.mcFolderSelected = previous;
         }
+    }
+
+    [TestMethod]
+    public void LegacySelectedFolderRoundTripsWithTrailingSeparator()
+    {
+        var separator = Path.DirectorySeparatorChar;
+        var folder = Path.Combine(LauncherPaths.UserDataRoot, ".minecraft");
+        Assert.AreEqual(folder + separator, GameFolders.ExpandSelectedFolder("$.minecraft"));
+        Assert.AreEqual("$.minecraft" + separator, GameFolders.EncodeSelectedFolder(folder + separator));
     }
 }

@@ -8,7 +8,8 @@ namespace PCL;
 public static partial class CompDependency
 {
     public static async Task<Comp.CompDepsInstallTypes> ConfirmDependencyInstallAsync(
-        ModDependencyResolutionResult result)
+        ModDependencyResolutionResult result,
+        string targetFolder)
     {
         ArgumentNullException.ThrowIfNull(result);
 
@@ -22,18 +23,20 @@ public static partial class CompDependency
                     dep.Source,
                     dep.ProjectId,
                     dep.Reason)));
-            var message = Lang.Text("Download.Comp.Dependency.Unresolved.Message", dependencies);
+            var message = Lang.Text("Download.Comp.Dependency.Unresolved.Message", dependencies)
+                + Environment.NewLine + Environment.NewLine
+                + Lang.Text("Download.Comp.Dependency.Check.Target", targetFolder);
             var selectedButton = CompUi.Current is null
                 ? 0
                 : await CompUi.Current.ShowDialogAsync(
                     message,
                     Lang.Text("Download.Comp.Dependency.Unresolved.Title"),
-                    Lang.Text("Download.Comp.Dependency.Unresolved.ContinueWithoutDependencies"),
+                    Lang.Text("Download.Comp.Dependency.Install.WithoutDependencies"),
                     Lang.Text("Common.Action.Cancel"),
                     isWarn: true);
 
             return selectedButton == 1
-                ? Comp.CompDepsInstallTypes.Unresolved
+                ? Comp.CompDepsInstallTypes.WithoutDeps
                 : Comp.CompDepsInstallTypes.Cancel;
         }
 
@@ -47,7 +50,9 @@ public static partial class CompDependency
                     install.Source,
                     install.File.DisplayName,
                     install.File.Version)));
-            var message = Lang.Text("Download.Comp.Dependency.Install.Message", dependencies);
+            var message = Lang.Text("Download.Comp.Dependency.Install.Message", dependencies)
+                + Environment.NewLine + Environment.NewLine
+                + Lang.Text("Download.Comp.Dependency.Check.Target", targetFolder);
             var dialogResult = CompUi.Current is null
                 ? 0
                 : await CompUi.Current.ShowDialogAsync(

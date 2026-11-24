@@ -11,29 +11,6 @@
                     Grid.IsSharedSizeScope="True">
             <StackPanel x:Name="PanCustom" />
 
-            <ui:MyCard x:Name="PanHint"
-                       Margin="0,0,0,15"
-                       Title="{loc:Loc Launch.Right.CommunityHint.Title}">
-                <ui:MyIconButton x:Name="BtnHintClose"
-                                 Width="20"
-                                 Height="20"
-                                 Margin="10"
-                                 HorizontalAlignment="Right"
-                                 VerticalAlignment="Top"
-                                 LogoScale="1.1"
-                                 SvgIcon="lucide/x" />
-                <StackPanel Margin="25,38,23,15">
-                    <TextBlock x:Name="LabHint1"
-                               Margin="0,0,0,2"
-                               FontSize="13.5"
-                               TextWrapping="Wrap" />
-                    <TextBlock x:Name="LabHint2"
-                               Margin="0,0,0,2"
-                               FontSize="13.5"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-            </ui:MyCard>
-
             <ui:MyCard x:Name="PanLog"
                        Margin="0,0,0,15"
                        IsVisible="False"

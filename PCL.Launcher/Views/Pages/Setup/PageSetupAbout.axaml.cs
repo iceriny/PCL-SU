@@ -26,7 +26,7 @@ public partial class PageSetupAbout : MyPageRight
         BtnSponsorOriginalAuthor.Click += (_, _) => Basics.OpenPath("https://ifdian.net/a/LTCat");
         BtnGitHubHome.Click += (_, _) => Basics.OpenPath("https://github.com/PCL-Community");
         BtnSourceCode.Click +=
-            (_, _) => Basics.OpenPath("https://github.com/PCL-Community/PCL2-CE");
+            (_, _) => Basics.OpenPath("https://github.com/iceriny/PCL-SU");
         BtnContributors.Click += (_, _) =>
             Basics.OpenPath("https://github.com/PCL-Community/PCL2-CE/graphs/contributors");
         BtnCommunitySource.Click +=

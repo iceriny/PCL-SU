@@ -306,7 +306,7 @@ public sealed class ExtraButtonsPanel : StackPanel
 
     private static void UpdateRestart()
     {
-        UpdateManager.UpdateRestart(true);
+        _ = Task.Run(() => UpdateManager.UpdateRestart(true));
     }
 
     private static void AprilGiveUp()

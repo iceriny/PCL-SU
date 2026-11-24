@@ -17,6 +17,8 @@ public class LoaderDownload : Loading.LoaderBase
 
     public int FailCount { get; set; }
 
+    public bool PreserveExistingFiles { get; init; }
+
     public override double Progress
     {
         get =>
@@ -130,10 +132,12 @@ public class LoaderDownload : Loading.LoaderBase
 
         if (State >= LoadState.Finished)
             return;
-        Directory.CreateDirectory(
-            Path.GetDirectoryName(file.LocalPath) ?? throw new IOException("下载路径无效"));
+        var targetDir = Path.GetDirectoryName(file.LocalPath) ?? throw new IOException("下载路径无效");
+        Directory.CreateDirectory(targetDir);
         var checker = file.Check;
-        if (checker?.canUseExistsFile == true && File.Exists(file.LocalPath))
+        if (checker?.canUseExistsFile == true
+            && (!PreserveExistingFiles || !string.IsNullOrEmpty(checker.hash))
+            && File.Exists(file.LocalPath))
         {
             var checkResult = string.IsNullOrEmpty(checker.hash)
                 ? checker.Check(file.LocalPath)
@@ -166,16 +170,36 @@ public class LoaderDownload : Loading.LoaderBase
         var expectedSize = file.Check?.actualSize ?? -1;
         var enableParallelChunks = files.Count <= 1
             || expectedSize >= AdaptiveRangeDownloader.SmallFileThreshold;
-        await FileDownloader
-            .DownloadAsync(
-                file.Urls,
-                file.LocalPath,
-                file.UseBrowserUserAgent,
-                file.CustomUserAgent,
-                cancellationToken,
-                enableParallelChunks,
-                file)
-            .ConfigureAwait(false);
+        var downloadPath = PreserveExistingFiles
+            ? Path.Combine(targetDir, $".pcl-{Guid.NewGuid():N}.part")
+            : file.LocalPath;
+        try
+        {
+            await FileDownloader
+                .DownloadAsync(
+                    file.Urls,
+                    downloadPath,
+                    file.UseBrowserUserAgent,
+                    file.CustomUserAgent,
+                    cancellationToken,
+                    enableParallelChunks,
+                    file)
+                .ConfigureAwait(false);
+            if (PreserveExistingFiles)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                File.Move(downloadPath, file.LocalPath);
+            }
+        }
+        finally
+        {
+            if (PreserveExistingFiles)
+            {
+                try { File.Delete(downloadPath); }
+                catch (IOException ex) { LauncherCommon.Log(ex, $"无法清理下载临时文件：{downloadPath}"); }
+                catch (UnauthorizedAccessException ex) { LauncherCommon.Log(ex, $"无法清理下载临时文件：{downloadPath}"); }
+            }
+        }
         try
         {
             file.TotalSize = new FileInfo(file.LocalPath).Length;

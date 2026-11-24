@@ -15,6 +15,7 @@ using PCL.Core.UI.Dialogs;
 using PCL.Core.UI.Hints;
 using PCL.Core.Utils.Validate;
 using PCL.Navigation;
+using PCL.Network;
 using PCL.Network.Loaders;
 using PCL.UI.Controls;
 
@@ -571,11 +572,10 @@ public partial class PageDownloadCompDetail : MyPageRight
                 return;
 
             var desc = Comp.GetCompTypeName(file.Type);
-            var subFolder = GetSubFolder(file.Type);
             var isModpack = file.Type == Comp.CompType.ModPack;
             var defaultFolder = isModpack
                 ? null
-                : GetDefaultSaveFolder(file, project, subFolder);
+                : GetDefaultSaveFolder(file, project);
             var target = await SystemDialogs.SelectSaveFileAsync(
                 Lang.Text("Download.Comp.Detail.SelectSaveLocation"),
                 Comp.CompFileNameGet(project, file),
@@ -591,28 +591,10 @@ public partial class PageDownloadCompDetail : MyPageRight
                 || !PathsEqual(targetDir, defaultFolder))
                 CachedFolder[file.Type] = targetDir;
 
-            var targetInstance = FindInstanceByIndiePath(targetDir);
-            if (targetInstance is { IsLoaded: false })
-                targetInstance.Load();
-            if (file.Type == Comp.CompType.Mod
-                && Config.Download.Comp.AutoInstallDependencies
-                && file.Dependencies.Count > 0)
-            {
-                var proceed = await ResolveAndStartDependenciesAsync(
-                    file,
-                    project,
-                    targetDir,
-                    targetInstance,
-                    GetAllowedLoaders(file, project));
-                if (!proceed)
-                    return;
-            }
-
-            StartDownloadTask(
-                file,
-                target,
-                desc,
-                $"CompDetail:Save:{target}");
+            var targetInstance = file.Type == Comp.CompType.Mod
+                ? FindInstanceByModsFolder(targetDir)
+                : null;
+            await DownloadResourceAsync(file, project, target, targetInstance);
         }
         catch (Exception ex)
         {
@@ -657,7 +639,7 @@ public partial class PageDownloadCompDetail : MyPageRight
         };
     }
 
-    private static McInstance? FindApplicableInstance(
+    private static async Task<McInstance?> SelectInstallInstanceAsync(
         Comp.CompFile file,
         Comp.CompProject project)
     {
@@ -680,17 +662,38 @@ public partial class PageDownloadCompDetail : MyPageRight
                 true);
         }
 
-        return InstanceList
+        var compatible = InstanceList
             .mcInstanceList.Values
             .SelectMany(instances => instances)
-            .FirstOrDefault(instance => IsFileSuitableForInstance(instance, file, allowedLoaders));
+            .Where(instance => IsFileSuitableForInstance(instance, file, allowedLoaders))
+            .Distinct()
+            .ToList();
+        if (compatible.Count == 0)
+        {
+            HintService.Show(Hints.Error(Lang.Text("Download.Comp.Detail.NoApplicableInstance")));
+            return null;
+        }
+        if (file.Type != Comp.CompType.Mod)
+            return compatible[0];
+
+        var choice = await DialogService.Instance.ShowAsync(
+            new SelectDialogRequest
+            {
+                Title = Lang.Text("Download.Comp.QuickDownload.ChooseInstance.Title"),
+                Options = compatible
+                    .Select(instance => new DialogOption { Text = instance.Name, Description = instance.PathInstance })
+                    .ToList(),
+                Buttons = DialogButtons.ContinueCancel
+            });
+        return choice.IsConfirmed && choice.SelectedIndex is int index && index >= 0 && index < compatible.Count
+            ? compatible[index]
+            : null;
     }
 
     /// <summary>获取另存为的默认目录：上次目录 → 当前实例 → 其他适合的实例 → 当前 MC 文件夹。</summary>
     private static string? GetDefaultSaveFolder(
         Comp.CompFile file,
-        Comp.CompProject project,
-        string subFolder)
+        Comp.CompProject project)
     {
         if (CachedFolder.TryGetValue(file.Type, out var cached)
             && !string.IsNullOrWhiteSpace(cached))
@@ -703,7 +706,7 @@ public partial class PageDownloadCompDetail : MyPageRight
         var current = InstanceList.McMcInstanceSelected;
         if (IsFileSuitableForInstance(current, file, allowedLoaders))
         {
-            var folder = Path.Combine(current!.PathIndie, subFolder);
+            var folder = GetInstallFolder(current!, file.Type);
             Directory.CreateDirectory(folder);
             return folder;
         }
@@ -726,7 +729,7 @@ public partial class PageDownloadCompDetail : MyPageRight
             .mcInstanceList.Values
             .SelectMany(instances => instances)
             .Where(instance => IsFileSuitableForInstance(instance, file, allowedLoaders))
-            .Select(instance => new DirectoryInfo(Path.Combine(instance.PathIndie, subFolder)))
+            .Select(instance => new DirectoryInfo(GetInstallFolder(instance, file.Type)))
             .ToList();
         if (suitableFolders.Count > 0)
         {
@@ -769,20 +772,21 @@ public partial class PageDownloadCompDetail : MyPageRight
 
     private static bool PathsEqual(string left, string right)
     {
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         try
         {
             return string.Equals(
                 Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
                 Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
-                StringComparison.OrdinalIgnoreCase);
+                comparison);
         }
         catch
         {
-            return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(left, right, comparison);
         }
     }
 
-    private static McInstance? FindInstanceByIndiePath(string targetDir)
+    private static McInstance? FindInstanceByModsFolder(string targetDir)
     {
         try
         {
@@ -794,15 +798,16 @@ public partial class PageDownloadCompDetail : MyPageRight
                     .mcInstanceList.Values
                     .SelectMany(list => list)
                     .Where(instance => instance is not null));
-            var normalizedTarget = Path.TrimEndingDirectorySeparator(Path.GetFullPath(targetDir));
             foreach (var instance in instances.Distinct())
             {
-                var pathIndie = Path.TrimEndingDirectorySeparator(
-                    Path.GetFullPath(instance.PathIndie));
-                if (string.Equals(normalizedTarget, pathIndie, StringComparison.OrdinalIgnoreCase)
-                    || normalizedTarget.StartsWith(
-                        pathIndie + Path.DirectorySeparatorChar,
-                        StringComparison.OrdinalIgnoreCase))
+                var pathIndie = Path.TrimEndingDirectorySeparator(Path.GetFullPath(instance.PathIndie));
+                var relativePath = Path.GetRelativePath(pathIndie, targetDir);
+                if (relativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                    || relativePath == ".." || Path.IsPathRooted(relativePath))
+                    continue;
+                if (!instance.IsLoaded)
+                    instance.Load();
+                if (PathsEqual(targetDir, GetInstallFolder(instance, Comp.CompType.Mod)))
                     return instance;
             }
         }
@@ -822,17 +827,22 @@ public partial class PageDownloadCompDetail : MyPageRight
         Comp.CompFile file,
         string targetPath,
         string desc,
-        string identifier,
-        bool deleteOnFailureIfMissing = true,
-        Action? onTerminal = null)
+        List<DownloadFile> dependencies,
+        Action onTerminal)
     {
-        var existed = File.Exists(targetPath);
         var loaderName = Lang.Text(
             "Download.Comp.Detail.DownloadResource",
             desc,
             Path.GetFileNameWithoutExtension(targetPath));
-        var loaders = new List<Loading.LoaderBase>
-        {
+        var loaders = new List<Loading.LoaderBase>();
+        if (dependencies.Count > 0)
+            loaders.Add(new LoaderDownload(Lang.Text("Download.Comp.Dependency.Check.Download"), dependencies)
+            {
+                ProgressWeight = 6d * dependencies.Count,
+                block = true,
+                PreserveExistingFiles = true
+            });
+        loaders.Add(
             new LoaderDownload(
                 Lang.Text("Download.Comp.Detail.DownloadFile"),
                 [
@@ -846,11 +856,10 @@ public partial class PageDownloadCompDetail : MyPageRight
             {
                 ProgressWeight = 6d,
                 block = true
-            }
-        };
+            });
         var loader = new Loading.LoaderCombo<int>(loaderName, loaders)
         {
-            Identifier = identifier
+            Identifier = $"CompDetail:Download:{targetPath}"
         };
         loader.OnStateChangedUi += (sender, newState, _) =>
         {
@@ -858,7 +867,7 @@ public partial class PageDownloadCompDetail : MyPageRight
             {
                 case LoadState.Finished:
                     HintService.Show(Hints.Success(Lang.Text("Common.Status.Success")));
-                    onTerminal?.Invoke();
+                    onTerminal();
                     break;
 
                 case LoadState.Failed:
@@ -866,16 +875,12 @@ public partial class PageDownloadCompDetail : MyPageRight
                         Hints.Error(
                             sender.Error?.Message
                             ?? Lang.Text("Download.Comp.Error.OperationFailed")));
-                    if (deleteOnFailureIfMissing && !existed)
-                        TryDeleteFile(targetPath);
-                    onTerminal?.Invoke();
+                    onTerminal();
                     break;
 
                 case LoadState.Aborted:
                     HintService.Show(Hints.Info(Lang.Text("Common.Status.Cancelled")));
-                    if (deleteOnFailureIfMissing && !existed)
-                        TryDeleteFile(targetPath);
-                    onTerminal?.Invoke();
+                    onTerminal();
                     break;
 
                 case LoadState.Waiting:
@@ -891,157 +896,133 @@ public partial class PageDownloadCompDetail : MyPageRight
         LoadingUi.Current?.RefreshDownloadButton();
     }
 
-    private static void StartDependencyDownloads(
-        ModDependencyResolutionResult result,
-        string targetDir,
-        string desc)
+    private static readonly HashSet<string> DownloadPaths = new(
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
+    private async Task DownloadResourceAsync(
+        Comp.CompFile file, Comp.CompProject project, string targetPath, McInstance? instance)
     {
-        var downloads = CompDependency.BuildDependencyDownloads(result, targetDir);
-        if (downloads.Count == 0)
-        {
-            LauncherCommon.Log("[CompDeps] 前置解析完成，但没有可下载的前置文件", LauncherLogLevel.Debug);
+        targetPath = Path.GetFullPath(targetPath);
+        if (!DownloadPaths.Add(targetPath))
             return;
-        }
 
-        foreach (var (filename, downloadFile) in downloads)
-        {
-            var targetPath = downloadFile.LocalPath;
-            var existed = File.Exists(targetPath);
-            var loaderName = Lang.Text(
-                "Download.Comp.Detail.DownloadResource",
-                desc,
-                Path.GetFileNameWithoutExtension(filename));
-            var loader = new Loading.LoaderCombo<int>(
-                loaderName,
-                [
-                    new LoaderDownload(
-                        Lang.Text("Download.Comp.Detail.DownloadFile"),
-                        [downloadFile])
-                    {
-                        ProgressWeight = 6d,
-                        block = true
-                    }
-                ])
-            {
-                Identifier = $"CompDetail:Dependency:{targetPath}"
-            };
-            loader.OnStateChangedUi += (sender, newState, _) =>
-            {
-                switch (newState)
-                {
-                    case LoadState.Finished:
-                        HintService.Show(Hints.Success(Lang.Text("Common.Status.Success")));
-                        break;
-
-                    case LoadState.Failed:
-                        HintService.Show(
-                            Hints.Error(
-                                sender.Error?.Message
-                                ?? Lang.Text("Download.Comp.Error.OperationFailed")));
-                        if (!existed)
-                            TryDeleteFile(targetPath);
-                        break;
-
-                    case LoadState.Aborted:
-                        HintService.Show(Hints.Info(Lang.Text("Common.Status.Cancelled")));
-                        if (!existed)
-                            TryDeleteFile(targetPath);
-                        break;
-
-                    case LoadState.Waiting:
-                    case LoadState.Loading:
-                        break;
-
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(newState), newState, null);
-                }
-            };
-            loader.Start(1);
-            Loading.LoaderTaskbarAdd(loader);
-        }
-
-        LoadingUi.Current?.RefreshDownloadButton();
-    }
-
-    private static async Task<bool> ResolveAndStartDependenciesAsync(
-        Comp.CompFile file,
-        Comp.CompProject project,
-        string targetDir,
-        McInstance? targetInstance,
-        List<Comp.CompLoaderType> fallbackLoaders)
-    {
+        var reservedPaths = new List<string> { targetPath };
+        var started = false;
         try
         {
-            var mcVersion = targetInstance?.Info.VanillaName
-                ?? file.GameVersions.FirstOrDefault(version => version.Contains('.'))
-                ?? string.Empty;
-            var loaders = targetInstance is null
-                ? fallbackLoaders
-                : GetInstanceLoaders(targetInstance);
-            if (loaders.Count == 0)
-                loaders = fallbackLoaders;
-
-            LauncherCommon.Log($"[CompDeps] 开始解析必需前置: {file.Dependencies.Count} 个依赖");
-            var request = CompDependency.BuildRequest(
-                file,
-                project,
-                mcVersion,
-                loaders,
-                targetDir);
-            var result = await Task.Run(() => new ModDependencyResolver().Resolve(request));
-
-            if (result.Unresolved.Count == 0 && result.ToInstall.Count == 0)
+            List<DownloadFile>? dependencies = [];
+            if (file.Type == Comp.CompType.Mod
+                && Config.Download.Comp.AutoInstallDependencies
+                && (file.RawDependencies.Count != 0 || file.Dependencies.Count != 0))
             {
-                LauncherCommon.Log("[CompDeps] 所有必需前置已安装");
-                return true;
+                dependencies = await ResolveAndConfirmDependenciesAsync(file, project, targetPath, instance);
+            }
+            if (dependencies is null)
+                return;
+
+            foreach (var dependency in dependencies)
+            {
+                if (!DownloadPaths.Add(dependency.LocalPath))
+                {
+                    HintService.Show(Hints.Info(Lang.Text("Download.Comp.Dependency.Check.AlreadyDownloading")));
+                    return;
+                }
+                reservedPaths.Add(dependency.LocalPath);
             }
 
-            var choice = await CompDependency.ConfirmDependencyInstallAsync(result);
-            switch (choice)
-            {
-                case Comp.CompDepsInstallTypes.WithDeps:
-                    StartDependencyDownloads(
-                        result,
-                        targetDir,
-                        Comp.GetCompTypeName(file.Type));
-                    return true;
-
-                case Comp.CompDepsInstallTypes.Unresolved:
-                    LauncherCommon.Log("[CompDeps] 发现无法解析的前置，将继续下载已解析的前置");
-                    StartDependencyDownloads(
-                        result,
-                        targetDir,
-                        Comp.GetCompTypeName(file.Type));
-                    return true;
-
-                case Comp.CompDepsInstallTypes.WithoutDeps:
-                    LauncherCommon.Log("[CompDeps] 用户选择仅下载资源本体");
-                    return true;
-
-                case Comp.CompDepsInstallTypes.Cancel:
-                default:
-                    LauncherCommon.Log("[CompDeps] 用户取消安装");
-                    return false;
-            }
+            StartDownloadTask(file, targetPath, Comp.GetCompTypeName(file.Type), dependencies, ReleasePaths);
+            started = true;
         }
-        catch (Exception ex)
+        finally
         {
-            LauncherCommon.Log(
-                ex,
-                "[CompDeps] 依赖解析失败，继续下载资源本体",
-                LauncherLogLevel.Feedback);
-            await DialogService.Instance.ShowAsync(
+            if (!started)
+                ReleasePaths();
+        }
+
+        void ReleasePaths()
+        {
+            foreach (var path in reservedPaths)
+                DownloadPaths.Remove(path);
+        }
+    }
+
+    private async Task<List<DownloadFile>?> ResolveAndConfirmDependenciesAsync(
+        Comp.CompFile file, Comp.CompProject project, string targetPath, McInstance? instance)
+    {
+        var targetDir = Path.GetDirectoryName(targetPath)!;
+        var versions = file.GameVersions.Select(Comp.NormalizeGameVersion)
+            .Where(version => !string.IsNullOrWhiteSpace(version))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var contextVersion = Comp.NormalizeGameVersion(ViewModel.TargetGameVersion);
+        var mcVersion = instance is null
+            ? versions.FirstOrDefault(version => string.Equals(version, contextVersion, StringComparison.OrdinalIgnoreCase))
+                ?? (versions.Count == 1 ? versions[0] : "")
+            : Comp.NormalizeGameVersion(instance.Info.VanillaName);
+        List<Comp.CompLoaderType> loaders = instance is null ? [] : GetInstanceLoaders(instance);
+        if (loaders.Count == 0)
+            loaders = GetAllowedLoaders(file, project);
+
+        using var checkingCancellation = new CancellationTokenSource();
+        using var resolutionCancellation = new CancellationTokenSource();
+        var checking = DialogService.Instance.ShowAsync(
+            new TextDialogRequest
+            {
+                Title = Lang.Text("Download.Comp.Dependency.Install.Title"),
+                Content = Lang.Text("Download.Comp.Dependency.Check.Preparing", targetDir),
+                Buttons = DialogButtons.Create("Common.Action.Cancel"),
+                HighLight = false
+            },
+            checkingCancellation.Token);
+
+        var token = resolutionCancellation.Token;
+        var resolution = Task.Run(async () =>
+        {
+            var request = CompDependency.BuildRequest(file, project, mcVersion, loaders, targetDir, token);
+            var result = await new ModDependencyResolver().ResolveAsync(request, token).ConfigureAwait(false);
+            var downloads = CompDependency.BuildDependencyDownloads(result, targetPath);
+            return (Result: result, Downloads: downloads);
+        }, token);
+
+        try
+        {
+            if (await Task.WhenAny(checking, resolution) == checking || checking.IsCompleted)
+            {
+                resolutionCancellation.Cancel();
+                try { await resolution; }
+                catch (Exception) when (token.IsCancellationRequested) { }
+                return null;
+            }
+
+            checkingCancellation.Cancel();
+            await checking;
+            var (result, downloads) = await resolution;
+            if (result.Unresolved.Count == 0 && downloads.Count == 0)
+                return [];
+
+            var choice = await CompDependency.ConfirmDependencyInstallAsync(result, targetDir);
+            return choice switch
+            {
+                Comp.CompDepsInstallTypes.WithDeps => downloads,
+                Comp.CompDepsInstallTypes.WithoutDeps => [],
+                _ => null
+            };
+        }
+        catch (Exception ex) when (!token.IsCancellationRequested)
+        {
+            LauncherCommon.Log(ex, "[CompDeps] 前置检查失败", LauncherLogLevel.Debug);
+            var choice = await DialogService.Instance.ShowAsync(
                 new TextDialogRequest
                 {
                     Title = Lang.Text("Download.Comp.Dependency.ResolveFailed.Title"),
                     Content = ExceptionDetails.ComposeForDialog(
-                        Lang.Text("Download.Comp.Dependency.ResolveFailed.Message"),
-                        ex),
+                        Lang.Text("Download.Comp.Dependency.ResolveFailed.Message"), ex),
                     Buttons = DialogButtons.Create(
-                        "Download.Comp.Dependency.ResolveFailed.Continue"),
+                        "Download.Comp.Dependency.Install.WithoutDependencies",
+                        "Common.Action.Cancel"),
                     IsWarn = true
                 });
-            return true;
+            return choice.IsConfirmed ? [] : null;
         }
     }
 
@@ -1080,25 +1061,27 @@ public partial class PageDownloadCompDetail : MyPageRight
 
     private readonly HashSet<string> _installingFiles = new(StringComparer.OrdinalIgnoreCase);
 
+    private static string GetInstallFolder(McInstance instance, Comp.CompType type)
+    {
+        var baseFolder = instance.PathIndie;
+        if (type == Comp.CompType.Mod && instance.Info.HasLabyMod)
+            baseFolder = Path.Combine(baseFolder, "labymod-neo", "fabric", instance.Info.VanillaName);
+        return Path.Combine(baseFolder, GetSubFolder(type));
+    }
+
     /// <summary>把 Mod / 资源包 / 光影 / 投影原理图直接安装到当前实例目录。</summary>
     private async Task InstallToInstanceAsync(Comp.CompFile file)
     {
         if (ViewModel.Project is not { } project)
             return;
-        var instance = FindApplicableInstance(file, project);
-        if (instance is null)
-        {
-            HintService.Show(
-                Hints.Error(Lang.Text("Download.Comp.Detail.NoApplicableInstance")));
-            return;
-        }
 
         try
         {
+            var instance = await SelectInstallInstanceAsync(file, project);
+            if (instance is null)
+                return;
             if (!instance.IsLoaded)
                 instance.Load();
-            var allowedLoaders = GetAllowedLoaders(file, project);
-
             var subFolder = LocalComp.GetPathNameByCompType(file.Type);
             if (string.IsNullOrEmpty(subFolder) || subFolder == "Nothing")
             {
@@ -1106,53 +1089,13 @@ public partial class PageDownloadCompDetail : MyPageRight
                 return;
             }
 
-            var baseFolder = instance.PathIndie;
-            if (instance.Info.HasLabyMod && file.Type == Comp.CompType.Mod)
-                baseFolder = Path.Combine(
-                    baseFolder,
-                    "labymod-neo",
-                    "fabric",
-                    instance.Info.VanillaName);
-            var folder = Path.Combine(baseFolder, subFolder);
+            var folder = GetInstallFolder(instance, file.Type);
             Directory.CreateDirectory(folder);
             var targetPath = Path.Combine(folder, Comp.CompFileNameGet(project, file));
-            if (!_installingFiles.Add(file.FileName))
-                return;
-
-            var started = false;
-            try
-            {
-                if (file.Type == Comp.CompType.Mod
-                    && Config.Download.Comp.AutoInstallDependencies
-                    && file.Dependencies.Count > 0)
-                {
-                    var proceed = await ResolveAndStartDependenciesAsync(
-                        file,
-                        project,
-                        folder,
-                        instance,
-                        allowedLoaders);
-                    if (!proceed)
-                        return;
-                }
-
-                StartDownloadTask(
-                    file,
-                    targetPath,
-                    Comp.GetCompTypeName(file.Type),
-                    $"CompDetail:Install:{targetPath}",
-                    onTerminal: () => _installingFiles.Remove(file.FileName));
-                started = true;
-            }
-            finally
-            {
-                if (!started)
-                    _installingFiles.Remove(file.FileName);
-            }
+            await DownloadResourceAsync(file, project, targetPath, instance);
         }
         catch (Exception ex)
         {
-            _installingFiles.Remove(file.FileName);
             LauncherCommon.Log(
                 ex,
                 "安装资源到实例失败",

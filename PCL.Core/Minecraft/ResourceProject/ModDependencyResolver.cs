@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace PCL.Core.Minecraft.ResourceProject;
 
@@ -17,8 +19,21 @@ public sealed record class ModDependencyRequest
     public List<string> TargetLoaders { get; init; } = [];
     public List<ModDependencyReference> RequiredDependencies { get; init; } = [];
     public List<InstalledModIdentity> InstalledMods { get; init; } = [];
+    public ModDependencyReference? RootProject { get; init; }
     public Func<string, string, ModDependencyProject?> ProjectResolver { get; init; } = (_, _) => null;
 }
+
+public enum ModDependencyStage
+{
+    ScanningInstalledMods,
+    ResolvingDependencies,
+}
+
+public sealed record class ModDependencyProgress(
+    ModDependencyStage Stage,
+    int CompletedCount,
+    int PendingCount,
+    string? ProjectId = null);
 
 public sealed record class ModDependencyProject
 {
@@ -84,69 +99,108 @@ public sealed class ModDependencyResolver
     private static readonly StringComparer Comparer = StringComparer.OrdinalIgnoreCase;
 
     public ModDependencyResolutionResult Resolve(ModDependencyRequest request)
+        => ResolveAsync(request).GetAwaiter().GetResult();
+
+    public async Task<ModDependencyResolutionResult> ResolveAsync(
+        ModDependencyRequest request,
+        CancellationToken cancellationToken = default,
+        IProgress<ModDependencyProgress>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.ProjectResolver);
 
         var context = new ResolutionContext(request);
-        foreach (var dependency in request.RequiredDependencies)
+        var pending = new Queue<(ModDependencyReference Dependency, int Depth)>();
+        var running = new Dictionary<Task<ModDependencyProject?>, (ModDependencyReference Dependency, int Depth)>();
+        var completedCount = 0;
+        if (request.RootProject is { } root)
+            context.Visited.Add(context.GetVisitedKey(root.ProjectId, root.Source));
+        Enqueue(request.RequiredDependencies, 0);
+        progress?.Report(new(ModDependencyStage.ResolvingDependencies, completedCount, pending.Count));
+
+        while (pending.Count > 0 || running.Count > 0)
         {
-            ResolveDependency(context, dependency, 0);
+            cancellationToken.ThrowIfCancellationRequested();
+            while (pending.Count > 0 && running.Count < 4)
+            {
+                var item = pending.Dequeue();
+                var dependency = item.Dependency;
+                if (item.Depth > MaxDepth)
+                {
+                    context.AddUnresolved(dependency.ProjectId, dependency.Source, "Maximum dependency depth exceeded.");
+                    completedCount++;
+                }
+                else if (context.IsInstalledCompatible(dependency.ProjectId, dependency.Source))
+                {
+                    context.AddSatisfied(dependency.ProjectId, dependency.Source, "Already installed and compatible.");
+                    completedCount++;
+                }
+                else
+                {
+                    running.Add(Task.Run(() => request.ProjectResolver(dependency.Source, dependency.ProjectId),
+                        cancellationToken), item);
+                }
+                progress?.Report(new(ModDependencyStage.ResolvingDependencies, completedCount,
+                    pending.Count + running.Count, dependency.ProjectId));
+            }
+
+            if (running.Count == 0) continue;
+            var finished = await Task.WhenAny(running.Keys).WaitAsync(cancellationToken).ConfigureAwait(false);
+            var (reference, depth) = running[finished];
+            running.Remove(finished);
+            ModDependencyProject? project;
+            try
+            {
+                project = await finished.ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                context.AddUnresolved(reference.ProjectId, reference.Source, ex.Message);
+                completedCount++;
+                progress?.Report(new(ModDependencyStage.ResolvingDependencies, completedCount,
+                    pending.Count + running.Count, reference.ProjectId));
+                continue;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (project is null)
+            {
+                context.AddUnresolved(reference.ProjectId, reference.Source, "Dependency project was not found.");
+            }
+            else
+            {
+                var selectedFile = SelectBestFile(project.Files, context.TargetMinecraftVersion, context.TargetLoaders);
+                if (selectedFile is null)
+                    context.AddUnresolved(project.ProjectId, project.Source, "No compatible file was found.");
+                else
+                {
+                    context.AddInstall(project, selectedFile);
+                    Enqueue(selectedFile.RequiredDependencies, depth + 1);
+                }
+            }
+            completedCount++;
+            progress?.Report(new(ModDependencyStage.ResolvingDependencies, completedCount,
+                pending.Count + running.Count, reference.ProjectId));
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         return context.Result;
-    }
 
-    private static void ResolveDependency(ResolutionContext context, ModDependencyReference dependency, int depth)
-    {
-        if (string.IsNullOrWhiteSpace(dependency.ProjectId) || string.IsNullOrWhiteSpace(dependency.Source))
+        void Enqueue(IEnumerable<ModDependencyReference> dependencies, int depth)
         {
-            return;
-        }
-
-        if (!dependency.IsRequired)
-        {
-            context.AddSatisfied(dependency.ProjectId, dependency.Source, "Optional dependency ignored.");
-            return;
-        }
-
-        if (depth > MaxDepth)
-        {
-            context.AddUnresolved(dependency.ProjectId, dependency.Source, "Maximum dependency depth exceeded.");
-            return;
-        }
-
-        var visitedKey = context.GetVisitedKey(dependency.ProjectId, dependency.Source);
-        if (!context.Visited.Add(visitedKey))
-        {
-            return;
-        }
-
-        if (context.IsInstalledCompatible(dependency.ProjectId, dependency.Source))
-        {
-            context.AddSatisfied(dependency.ProjectId, dependency.Source, "Already installed and compatible.");
-            return;
-        }
-
-        var project = context.Request.ProjectResolver(dependency.Source, dependency.ProjectId);
-        if (project is null)
-        {
-            context.AddUnresolved(dependency.ProjectId, dependency.Source, "Dependency project was not found.");
-            return;
-        }
-
-        var selectedFile = SelectBestFile(project.Files, context.TargetMinecraftVersion, context.TargetLoaders);
-        if (selectedFile is null)
-        {
-            context.AddUnresolved(project.ProjectId, project.Source, "No compatible file was found.");
-            return;
-        }
-
-        context.AddInstall(project, selectedFile);
-
-        foreach (var nestedDependency in selectedFile.RequiredDependencies)
-        {
-            ResolveDependency(context, nestedDependency, depth + 1);
+            foreach (var dependency in dependencies)
+            {
+                if (string.IsNullOrWhiteSpace(dependency.ProjectId) || string.IsNullOrWhiteSpace(dependency.Source))
+                    continue;
+                if (!dependency.IsRequired)
+                {
+                    context.AddSatisfied(dependency.ProjectId, dependency.Source, "Optional dependency ignored.");
+                    completedCount++;
+                    continue;
+                }
+                if (context.Visited.Add(context.GetVisitedKey(dependency.ProjectId, dependency.Source)))
+                    pending.Enqueue((dependency, depth));
+            }
         }
     }
 

@@ -1,141 +1,124 @@
 name: Build (Reusable)
 
-permissions:
-  contents: read
-
 on:
   workflow_call:
     inputs:
       configuration:
         required: true
         type: string
-      target:
+      architecture:
         required: true
         type: string
-      rid:
-        required: true
+      build-metadata:
         type: string
-      platform:
-        required: true
+        default: ''
+      expected-version:
         type: string
-      runner:
-        required: true
+        default: ''
+      release-metadata-artifact:
         type: string
-      version:
-        required: false
-        type: string
-        default: '0.0.0'
-      include_secrets:
-        required: false
+        default: ''
+      require-ms-client-id:
+        type: boolean
+        default: false
+      require-curseforge-key:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    name: Build ${{ inputs.target }}
-    runs-on: ${{ inputs.runner }}
+    name: ${{ inputs.configuration }} / ${{ inputs.architecture }}
+    runs-on: windows-2022
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
     env:
-      LANG: en_US.UTF-8
-      DOTNET: dotnet
-      CONFIGURATION: ${{ inputs.configuration }}
-      TARGET: ${{ inputs.target }}
-      RID: ${{ inputs.rid }}
-      PLATFORM: ${{ inputs.platform }}
-      VERSION: ${{ inputs.version }}
-      ASSET_NAME: PCL2_CE_${{ inputs.configuration }}_${{ inputs.target }}
+      BUILD_CONFIGURATION: ${{ inputs.configuration }}
+      BUILD_ARCHITECTURE: ${{ inputs.architecture }}
+      BUILD_METADATA: ${{ inputs.build-metadata }}
+      EXPECTED_VERSION: ${{ inputs.expected-version }}
+      RELEASE_METADATA_ARTIFACT: ${{ inputs.release-metadata-artifact }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set Describe
-        shell: bash
-        run: |
-          describe=`git describe --tags --always`
-          echo "describe=$describe" >> $GITHUB_ENV
+        with:
+          persist-credentials: false
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: 11.0.x
+          dotnet-version: |
+            10.0.404
+            11.0.100
 
-      - name: Publish
-        shell: bash
+      - name: Download prepared release metadata
+        if: ${{ inputs.release-metadata-artifact != '' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.release-metadata-artifact }}
+          path: artifacts/build/release-metadata
+
+      - name: Build and package
         env:
-          PCL_WRITE_SECRET: ${{ inputs.include_secrets && '1' || '' }}
-          PCL_MS_CLIENT_ID: ${{ inputs.include_secrets && secrets.CLIENT_ID || '' }}
-          PCL_CURSEFORGE_API_KEY: ${{ inputs.include_secrets && secrets.CURSEFORGE_API_KEY || '' }}
-          PCL_SENTRY_DSN: ${{ inputs.include_secrets && secrets.SENTRY_DSN || '' }}
-          PCL_NAID_CLIENT_ID: ${{ inputs.include_secrets && secrets.NAID_CLIENT_ID || '' }}
-          PCL_NAID_CLIENT_SECRET: ${{ inputs.include_secrets && secrets.NAID_CLIENT_SECRET || '' }}
-          PCL_LINK_SERVER_ROOT: ${{ inputs.include_secrets && secrets.LINK_SERVER_ROOTS || '' }}
-          PCL_LOBBY_DEFAULT_SECRET: ${{ inputs.include_secrets && secrets.LOBBY_DEFAULT_SECRET || '' }}
+          REQUIRE_MS_CLIENT_ID: ${{ inputs.require-ms-client-id }}
+          REQUIRE_CURSEFORGE_KEY: ${{ inputs.require-curseforge-key }}
+          PCL_WRITE_SECRET: ${{ inputs.release-metadata-artifact != '' && '1' || '' }}
+          PCL_MS_CLIENT_ID: ${{ secrets.PCL_MS_CLIENT_ID }}
+          PCL_CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+          PCL_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          PCL_NAID_CLIENT_ID: ${{ secrets.NAID_CLIENT_ID }}
+          PCL_NAID_CLIENT_SECRET: ${{ secrets.NAID_CLIENT_SECRET }}
+          PCL_LINK_SERVER_ROOT: ${{ secrets.LINK_SERVER_ROOTS }}
+          PCL_LOBBY_DEFAULT_SECRET: ${{ secrets.LOBBY_DEFAULT_SECRET }}
+          PCL_LOBBY_REPORT_ENDPOINT: ${{ secrets.LOBBY_REPORT_ENDPOINT }}
+          PCL_TELEMETRY_KEY: ${{ secrets.TELEMETRY_KEY }}
+          PCL_LOBBY_PRIVACY_URL: ${{ secrets.LOBBY_PRIVACY_URL }}
           PCL_GITHUB_SHA: ${{ github.sha }}
-          CODESIGN_IDENTITY: ${{ inputs.include_secrets && runner.os == 'macOS' && secrets.APPLE_CODESIGN_IDENTITY || '' }}
-          APPLE_ID: ${{ inputs.include_secrets && runner.os == 'macOS' && secrets.APPLE_ID || '' }}
-          APPLE_TEAM_ID: ${{ inputs.include_secrets && runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.include_secrets && runner.os == 'macOS' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
         run: |
-          if [ "${{ runner.os }}" = "macOS" ]; then
-            scripts/package-macos.sh "$RID" "$CONFIGURATION" "$VERSION" dist
-          else
-            scripts/publish.sh "$RID" "$CONFIGURATION" dist
-          fi
+          $ErrorActionPreference = 'Stop'
+          if ($env:BUILD_CONFIGURATION -notin @('CI', 'Release', 'Beta')) { throw 'Invalid configuration' }
+          if ($env:BUILD_ARCHITECTURE -notin @('x64', 'ARM64')) { throw 'Invalid architecture' }
+          if ($env:REQUIRE_MS_CLIENT_ID -eq 'true' -and [string]::IsNullOrWhiteSpace($env:PCL_MS_CLIENT_ID)) {
+            throw 'Set the PCL_MS_CLIENT_ID repository secret before publishing a release.'
+          }
+          if ($env:REQUIRE_CURSEFORGE_KEY -eq 'true' -and [string]::IsNullOrWhiteSpace($env:PCL_CURSEFORGE_API_KEY)) {
+            throw 'Set the CURSEFORGE_API_KEY repository secret before publishing a release.'
+          }
+          $publishArguments = @{
+            Architecture = $env:BUILD_ARCHITECTURE
+            Configuration = $env:BUILD_CONFIGURATION
+            BuildMetadata = $env:BUILD_METADATA
+            ExpectedVersion = $env:EXPECTED_VERSION
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_METADATA_ARTIFACT)) {
+            $publishArguments.ReleaseNotesPath = Join-Path (Get-Location) 'artifacts/build/release-metadata/notes'
+          }
+          ./scripts/Publish-Windows.ps1 @publishArguments
 
-      - name: Install Linux packaging tools
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/bin"
-          case "$(uname -m)" in
-            x86_64) NFPM_ARCH=x86_64; APPIMAGE_ARCH=x86_64 ;;
-            aarch64|arm64) NFPM_ARCH=arm64; APPIMAGE_ARCH=aarch64 ;;
-            *) echo "unsupported runner architecture: $(uname -m)" >&2; exit 2 ;;
-          esac
-          curl -sSfL \
-            "https://github.com/goreleaser/nfpm/releases/download/v2.49.0/nfpm_2.49.0_Linux_${NFPM_ARCH}.tar.gz" \
-            | tar -xz -C "$HOME/.local/bin" nfpm
-          curl -sSfL -o "$HOME/.local/bin/appimagetool" \
-            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${APPIMAGE_ARCH}.AppImage"
-          chmod 0755 "$HOME/.local/bin/appimagetool"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          $assetName = "PCL_SU_$($env:BUILD_CONFIGURATION)_$($env:BUILD_ARCHITECTURE).exe"
+          $asset = Join-Path 'artifacts' $assetName
+          $binaryBytes = [IO.File]::ReadAllBytes($asset)
+          $binaryText = [Text.Encoding]::Unicode.GetString($binaryBytes)
+          $binaryTextOdd = [Text.Encoding]::Unicode.GetString($binaryBytes, 1, $binaryBytes.Length - 1)
+          foreach ($value in @($env:PCL_MS_CLIENT_ID, $env:PCL_CURSEFORGE_API_KEY)) {
+            if ($env:PCL_WRITE_SECRET -eq '1' -and -not [string]::IsNullOrWhiteSpace($value) -and -not $binaryText.Contains($value) -and -not $binaryTextOdd.Contains($value)) {
+              throw 'A configured service credential was not embedded'
+            }
+          }
+          $hash = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+          "Asset: $assetName; SHA256: $hash" >> $env:GITHUB_STEP_SUMMARY
+          "Microsoft login configured: $(-not [string]::IsNullOrWhiteSpace($env:PCL_MS_CLIENT_ID))" >> $env:GITHUB_STEP_SUMMARY
+          "CurseForge official API configured: $(-not [string]::IsNullOrWhiteSpace($env:PCL_CURSEFORGE_API_KEY))" >> $env:GITHUB_STEP_SUMMARY
 
-      - name: Package Windows
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $source = Join-Path (Join-Path "dist" $env:RID) "*"
-          $destination = Join-Path "dist" "$env:ASSET_NAME.zip"
-          Compress-Archive -Path $source -DestinationPath $destination -Force
-
-      - name: Package Linux
-        if: runner.os == 'Linux'
-        shell: bash
-        run: scripts/package-linux.sh "$RID" "$CONFIGURATION" "$VERSION" dist
-
-      - name: Package macOS
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          ditto -c -k --sequesterRsrc --keepParent "dist/PCL CE.app" "dist/${ASSET_NAME}.zip"
-          DMG_ROOT="dist/.dmg-root-${RID}"
-          rm -rf "$DMG_ROOT"
-          mkdir -p "$DMG_ROOT"
-          cp -a "dist/PCL CE.app" "$DMG_ROOT/"
-          ln -s /Applications "$DMG_ROOT/Applications"
-          hdiutil create -volname "PCL CE" -srcfolder "$DMG_ROOT" \
-            -ov -format UDZO "dist/${ASSET_NAME}.dmg"
-          rm -rf "$DMG_ROOT"
-
-      - name: Upload the Build Artifact
+      - name: Upload build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: PCL2_CE_${{ inputs.configuration }}_${{ inputs.target }}
-          path: |
-            dist/*.zip
-            dist/*.dmg
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.rpm
+          name: PCL_SU_${{ inputs.configuration }}_${{ inputs.architecture }}
+          path: artifacts/PCL_SU_*
           if-no-files-found: error
+          retention-days: 14

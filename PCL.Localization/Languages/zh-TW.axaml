@@ -402,6 +402,12 @@
     <sys:String x:Key="Download.Comp.Category.ResourcePack.Resolution8xOrLower">8x 或更低</sys:String>
 
     <!-- Download.Comp.Dependency -->
+    <sys:String x:Key="Download.Comp.Dependency.Check.Download">安裝必要前置模組</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Preparing">正在檢查已安裝模組和必要前置模組…&#xA;目標資料夾：{0}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.MissingFile">來源未傳回選取的檔案。</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.FileConflict">檔案名稱與目標資料夾中的其他檔案衝突：{0}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Target">目標資料夾：{0}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.AlreadyDownloading">有必要前置模組正在下載。請等待目前的工作完成。</sys:String>
 
     <sys:String x:Key="Download.Comp.Dependency.Abort.Message">安裝已中止。&#xA;&#xA;原因：&#xA;{0}</sys:String>
     <sys:String x:Key="Download.Comp.Dependency.Abort.Title">安裝已中止</sys:String>
@@ -3180,6 +3186,7 @@
 
     <!-- Setup.Ui.Theme -->
 
+    <sys:String x:Key="Setup.Ui.Theme.Color.MistRose">霧玫瑰</sys:String>
     <sys:String x:Key="Setup.Ui.Theme.Color.CatBlue">龍貓藍</sys:String>
     <sys:String x:Key="Setup.Ui.Theme.Color.CrashBlue">當機藍</sys:String>
     <sys:String x:Key="Setup.Ui.Theme.Color.Hmcl">HMCL</sys:String>

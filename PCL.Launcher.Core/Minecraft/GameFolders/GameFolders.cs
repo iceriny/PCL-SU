@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Globalization;
 using System.Text;
 using PCL.Core.App;
@@ -47,8 +46,28 @@ public static class GameFolders
     /// <summary>应用配置中保存的当前文件夹路径，将启动器目录占位符 <c>$</c> 展开为实际路径。</summary>
     public static void ApplySelectedFolder(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return;
-        mcFolderSelected = value.Replace("$", LauncherPaths.UserDataRoot);
+        var folder = ExpandSelectedFolder(value);
+        if (folder.Length != 0)
+            mcFolderSelected = folder;
+    }
+
+    /// <summary>读取保存的游戏目录，兼容便携目录占位符并补全路径分隔符。</summary>
+    public static string ExpandSelectedFolder(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "";
+
+        var folder = value[0] == '$' ? LauncherPaths.UserDataRoot + value[1..] : value;
+        folder = folder.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        return Path.EndsInDirectorySeparator(folder) ? folder : folder + Path.DirectorySeparatorChar;
+    }
+
+    /// <summary>保存游戏目录时，相对于启动器数据根目录的路径可随便携安装移动。</summary>
+    public static string EncodeSelectedFolder(string folder)
+    {
+        var root = LauncherPaths.UserDataRoot;
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return folder.StartsWith(root, comparison) ? "$" + folder[root.Length..] : folder;
     }
 
     private static void McFolderListLoadSub()
@@ -87,13 +106,10 @@ public static class GameFolders
     {
         var cacheMcFolderList = new List<McFolder>();
 
-        foreach (string folder in (IEnumerable)((dynamic)States.Game.Folders).Split("|"))
+        foreach (var folder in States.Game.Folders.Split('|', StringSplitOptions.RemoveEmptyEntries))
         {
-            if (string.IsNullOrEmpty(folder))
-                continue;
-
-            if (!folder.Contains('>')
-                || !folder.EndsWithF(Path.DirectorySeparatorChar.ToString()))
+            var parts = folder.Split('>', 2);
+            if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[1]))
             {
                 LauncherUi.Interaction?.ShowHint(
                     Lang.Text("Select.Folder.Invalid", folder),
@@ -101,8 +117,7 @@ public static class GameFolders
                 continue;
             }
 
-            var name = folder.Split(">")[0];
-            var path = folder.Split(">")[1];
+            var path = ExpandSelectedFolder(parts[1]);
             try
             {
                 _EnsureLauncherOwnedFolder(path);
@@ -110,10 +125,14 @@ public static class GameFolders
                 cacheMcFolderList.Add(
                     new McFolder
                     {
-                        Name = name,
+                        Name = parts[0],
                         Location = path,
                         Type = McFolder.Types.Custom
                     });
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                LauncherCommon.Log($"[Minecraft] 已跳过不存在的已保存 Minecraft 文件夹：{path}");
             }
             catch (Exception ex)
             {
@@ -130,17 +149,12 @@ public static class GameFolders
 
     private static void _EnsureLauncherOwnedFolder(string path)
     {
-        var normalized = Path.GetFullPath(path);
-        var isOwned =
-            Files.ArePathsEqual(normalized, LauncherPaths.DefaultMinecraftDirectory)
-            || Files.ArePathsEqual(normalized, LauncherPaths.UserDataRoot);
-        if (isOwned)
-            Directory.CreateDirectory(normalized);
+        if (Files.ArePathsEqual(path, LauncherPaths.DefaultMinecraftDirectory))
+            Directory.CreateDirectory(Path.Combine(path, "versions"));
     }
 
     private static List<McFolder> _ScanOriginalFolders()
     {
-        var currentMcFolderList = new List<McFolder>();
         var originalMcFolderList = new List<McFolder>();
         try
         {
@@ -158,14 +172,12 @@ public static class GameFolders
                     && folder.Name != ".minecraft")
                     continue;
 
-                var newCurrentFolder = new McFolder
+                originalMcFolderList.Add(new McFolder
                 {
                     Name = folder.Name,
                     Location = folder.FullName + Path.DirectorySeparatorChar,
                     Type = McFolder.Types.Original
-                };
-                originalMcFolderList.Add(newCurrentFolder);
-                currentMcFolderList.Add(newCurrentFolder);
+                });
             }
         }
         catch (Exception ex)
@@ -174,8 +186,7 @@ public static class GameFolders
         }
 
         var mojangPath = LauncherPaths.OfficialMinecraftDirectory;
-        if ((currentMcFolderList.Count == 0
-                || mojangPath != currentMcFolderList[0].Location)
+        if (originalMcFolderList.All(folder => !Files.ArePathsEqual(mojangPath, folder.Location))
             && Directory.Exists(Path.Combine(mojangPath, "versions")))
             originalMcFolderList.Add(
                 McFolder.CreateBuiltin(
@@ -194,7 +205,7 @@ public static class GameFolders
         {
             var unAdded = true;
             foreach (var cacheFolder in cacheMcFolderList.Where(cacheFolder =>
-                         (cacheFolder.Location ?? "") == (newOriginalFolder.Location ?? "")))
+                         Files.ArePathsEqual(cacheFolder.Location, newOriginalFolder.Location)))
             {
                 var newOriginalName = newOriginalFolder.Name ?? "";
                 // 旧版本保存的是译文；仅当它确实是该内置文件夹的旧译名时才迁移，
@@ -264,7 +275,7 @@ public static class GameFolders
                       "profiles":  {
                           "PCL": {
                               "icon": "Grass",
-                              "name": "PCL CE",
+                              "name": "PCL SU",
                               "lastVersionId": "latest-release",
                               "type": "latest-release",
                               "lastUsed": "{{now.ToString("yyyy'-'MM'-'dd", CultureInfo.InvariantCulture)}}T{{now.ToString("HH':'mm':'ss", CultureInfo.InvariantCulture)}}.0000Z"

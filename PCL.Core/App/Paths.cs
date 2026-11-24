@@ -14,6 +14,8 @@ namespace PCL.Core.App;
 /// </summary>
 public static class Paths
 {
+    public const string ProductDirectoryName = "PCLSU";
+
     private static string _data;
     private static string _sharedData;
     private static string _sharedLocalData;
@@ -22,10 +24,12 @@ public static class Paths
     static Paths()
     {
 #if DEBUG
-        const string name = "PCLCE_Debug";
+        const string name = ProductDirectoryName + "_Debug";
+        const string communityName = "PCLCE_Debug";
         const string oldName = ".PCLCEDebug";
 #else
-        const string name = "PCLCE";
+        const string name = ProductDirectoryName;
+        const string communityName = "PCLCE";
         const string oldName = ".PCLCE";
 #endif
         PackageKind = _ReadPackageKind();
@@ -36,14 +40,16 @@ public static class Paths
         _sharedLocalData = GetSpecialPath(Special.LocalApplicationData, name);
         _temp = Path.Combine(Path.GetTempPath(), name);
         OldSharedData = GetSpecialPath(Special.ApplicationData, oldName);
+        CommunitySharedData = GetSpecialPath(Special.ApplicationData, communityName);
 
         var dataOverride = Environment.GetEnvironmentVariable("PCL_DATA_DIR");
         if (!string.IsNullOrWhiteSpace(dataOverride))
             _data = Path.GetFullPath(ExpandUserPath(dataOverride));
-        else if (!string.IsNullOrWhiteSpace(PackageKind) || !_CanWriteDirectory(DefaultDirectory))
+        else if (!string.IsNullOrWhiteSpace(PackageKind)
+            || (!Directory.Exists(_data) && !_CanWriteDirectory(DefaultDirectory)))
             _data = Path.Combine(
                 Environment.GetFolderPath(Special.UserProfile),
-                "PCLCE");
+                ProductDirectoryName);
 
 #if DEBUG
         // read environment variables
@@ -84,6 +90,9 @@ public static class Paths
     /// migration, DO NOT USE IT.
     /// </summary>
     public static string OldSharedData { get; set; }
+
+    /// <summary>Directory consulted when importing existing PCL CE settings.</summary>
+    public static string CommunitySharedData { get; }
 
     /// <summary>
     /// Shared local data directory, used to put some large files that can be released or

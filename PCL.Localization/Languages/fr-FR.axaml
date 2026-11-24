@@ -371,6 +371,12 @@
     <sys:String x:Key="Download.Comp.Category.ResourcePack.Resolution8xOrLower">8x ou moins</sys:String>
 
     <!-- Download.Comp.Dependency -->
+    <sys:String x:Key="Download.Comp.Dependency.Check.Download">Installer les dépendances requises</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Preparing">Vérification des mods installés et des dépendances requises…&#xA;Dossier de destination : {0}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.MissingFile">La source n’a pas renvoyé le fichier sélectionné.</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.FileConflict">Le nom du fichier est déjà utilisé dans le dossier de destination : {0}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Target">Dossier de destination : {0}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.AlreadyDownloading">Une dépendance requise est déjà en cours de téléchargement. Attendez la fin de la tâche actuelle.</sys:String>
 
     <sys:String x:Key="Download.Comp.Dependency.Abort.Message">L'installation a été annulée.&#xA;&#xA;Raison:&#xA;{0}</sys:String>
     <sys:String x:Key="Download.Comp.Dependency.Abort.Title">Installation annulée</sys:String>
@@ -432,4 +438,5 @@
     <sys:String x:Key="Launch.Homepage.LoadFailed.Retry">Réessayer</sys:String>
     <sys:String x:Key="Launch.Homepage.SlowWarning">Le chargement de la page d'accueil est trop lent ({0} secondes). Veuillez signaler ce problème à l'auteur de la page d'accueil, ou cesser temporairement d'utiliser cette page.</sys:String>
 
+    <sys:String x:Key="Setup.Ui.Theme.Color.MistRose">Rose brume</sys:String>
 </ResourceDictionary>

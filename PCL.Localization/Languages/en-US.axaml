@@ -444,6 +444,12 @@
     <sys:String x:Key="Download.Comp.Category.ResourcePack.Resolution8xOrLower">8x or lower</sys:String>
 
     <!-- Download.Comp.Dependency -->
+    <sys:String x:Key="Download.Comp.Dependency.Check.Download">Install required dependencies</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Preparing">Checking installed mods and required dependencies…&#xA;Destination folder: {0}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.MissingFile">The source did not return the selected file.</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.FileConflict">The filename conflicts with another file in the destination folder: {0}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Target">Destination folder: {0}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.AlreadyDownloading">A required dependency is already downloading. Wait for the current task to finish.</sys:String>
 
     <sys:String x:Key="Download.Comp.Dependency.Abort.Message">Installation was canceled.&#xA;&#xA;Reason:&#xA;{0}</sys:String>
     <sys:String x:Key="Download.Comp.Dependency.Abort.Title">Installation canceled</sys:String>
@@ -3249,6 +3255,7 @@
 
     <!-- Setup.Ui.Theme -->
 
+    <sys:String x:Key="Setup.Ui.Theme.Color.MistRose">Rose Mist</sys:String>
     <sys:String x:Key="Setup.Ui.Theme.Color.CatBlue">LTCat Blue</sys:String>
     <sys:String x:Key="Setup.Ui.Theme.Color.CrashBlue">Crash Blue</sys:String>
     <sys:String x:Key="Setup.Ui.Theme.Color.Hmcl">HMCL</sys:String>

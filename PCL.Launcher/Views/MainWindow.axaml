@@ -17,7 +17,7 @@
         Background="Transparent"
         CanResize="True"
         TransparencyBackgroundFallback="{DynamicResource ColorBrushBackground}"
-        Title="Plain Craft Launcher Community Edition ">
+        Title="Plain Craft Launcher SU">
     <Grid x:Name="PanRoot"
           Background="Transparent">
         <ui:MyDropShadow x:Name="ShadowHost"

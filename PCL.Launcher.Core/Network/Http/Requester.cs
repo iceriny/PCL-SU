@@ -14,7 +14,8 @@ public static class Requester
             throw new HttpResponseException(response);
     }
 
-    public static async Task<string> FetchStringAsync(string url, RequestParam param = default)
+    public static async Task<string> FetchStringAsync(
+        string url, RequestParam param = default, CancellationToken cancellationToken = default)
     {
         return await FetchAsync(
                 url,
@@ -28,13 +29,15 @@ public static class Requester
                     Encoding = param.Encoding,
                     MakeLog = true
                 },
-                Math.Max(1, param.Retries == 0 ? 1 : param.Retries))
+                Math.Max(1, param.Retries == 0 ? 1 : param.Retries),
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
-    public static string FetchString(string url, RequestParam param = default)
+    public static string FetchString(
+        string url, RequestParam param = default, CancellationToken cancellationToken = default)
     {
-        return FetchStringAsync(url, param).GetAwaiter().GetResult();
+        return FetchStringAsync(url, param, cancellationToken).GetAwaiter().GetResult();
     }
 
     public static async Task<JsonNode> FetchJsonAsync(string url, RequestParam param = default)
@@ -80,7 +83,8 @@ public static class Requester
             });
     }
 
-    private static async Task<string> FetchAsync(string url, FetchParam param, int retries)
+    private static async Task<string> FetchAsync(
+        string url, FetchParam param, int retries, CancellationToken cancellationToken = default)
     {
         var urls = new[]
             {
@@ -95,9 +99,9 @@ public static class Requester
             for (var attempt = 0; attempt < Math.Max(1, retries); attempt++)
                 try
                 {
-                    return await FetchOnceAsync(currentUrl, param).ConfigureAwait(false);
+                    return await FetchOnceAsync(currentUrl, param, cancellationToken).ConfigureAwait(false);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
                 {
                     lastException = ex;
                 }
@@ -105,7 +109,8 @@ public static class Requester
         throw lastException ?? new HttpRequestException("请求失败");
     }
 
-    private static async Task<string> FetchOnceAsync(string url, FetchParam param)
+    private static async Task<string> FetchOnceAsync(
+        string url, FetchParam param, CancellationToken cancellationToken)
     {
         HttpResponseMessage? response = null;
         var request = new HttpRequestMessage(
@@ -137,14 +142,14 @@ public static class Requester
                 }
             }
 
-            using var cts = new CancellationTokenSource();
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(param.Timeout <= 0 ? 30000 : param.Timeout);
             response = await NetworkService
                 .GetClient()
                 .SendAsync(request, cts.Token)
                 .ConfigureAwait(false);
             EnsureSuccess(response);
-            return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            return await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
         }
         finally
         {

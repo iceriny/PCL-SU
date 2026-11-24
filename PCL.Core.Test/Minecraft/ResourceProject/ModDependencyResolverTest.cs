@@ -3,6 +3,8 @@ using PCL.Core.Minecraft.ResourceProject;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace PCL.Core.Test.Minecraft.ResourceProject;
 
@@ -281,6 +283,124 @@ public class ModDependencyResolverTest
         Assert.AreEqual("B", result.ToInstall[0].ProjectId);
         Assert.AreEqual("CurseForge", result.ToInstall[0].Source);
         Assert.AreEqual(0, result.Satisfied.Count);
+        Assert.AreEqual(0, result.Unresolved.Count);
+    }
+
+    [TestMethod]
+    public async Task LimitsConcurrentProjectQueriesToFour()
+    {
+        using var started = new CountdownEvent(4);
+        using var release = new ManualResetEventSlim();
+        var calls = 0;
+        var active = 0;
+        var request = CreateRequest(new Dictionary<string, ModDependencyProject>(),
+            Enumerable.Range(0, 6).Select(index => CreateDependency(index.ToString())).ToArray()) with
+        {
+            ProjectResolver = (_, id) =>
+            {
+                var current = Interlocked.Increment(ref active);
+                if (Interlocked.Increment(ref calls) <= 4) started.Signal();
+                release.Wait();
+                Interlocked.Decrement(ref active);
+                Assert.IsTrue(current <= 4);
+                return CreateProject(id, CreateFile(id));
+            },
+        };
+
+        var resolution = new ModDependencyResolver().ResolveAsync(request);
+        try
+        {
+            Assert.IsTrue(await Task.Run(() => started.Wait(TimeSpan.FromSeconds(10))));
+            Assert.AreEqual(4, Volatile.Read(ref calls));
+        }
+        finally
+        {
+            release.Set();
+        }
+        var result = await resolution;
+        Assert.AreEqual(6, result.ToInstall.Count);
+        Assert.AreEqual(0, result.Unresolved.Count);
+    }
+
+    [TestMethod]
+    public async Task ProcessesReturnedDependenciesBeforeOtherQueriesFinish()
+    {
+        using var release = new ManualResetEventSlim();
+        var childStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var request = CreateRequest(new Dictionary<string, ModDependencyProject>(),
+            CreateDependency("A"), CreateDependency("B"), CreateDependency("C"), CreateDependency("D")) with
+        {
+            ProjectResolver = (_, id) =>
+            {
+                if (id == "A")
+                    return CreateProject(id, CreateFile(id, requiredDependencies: [CreateDependency("E")]));
+                if (id == "E") childStarted.SetResult();
+                else release.Wait();
+                return CreateProject(id, CreateFile(id));
+            },
+        };
+
+        var resolution = new ModDependencyResolver().ResolveAsync(request);
+        try
+        {
+            await childStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            release.Set();
+        }
+        Assert.AreEqual(5, (await resolution).ToInstall.Count);
+    }
+
+    [TestMethod]
+    public async Task CancellationStopsWaitingAndDoesNotExpandLateResults()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var release = new ManualResetEventSlim();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var returned = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var request = CreateRequest(new Dictionary<string, ModDependencyProject>(), CreateDependency("B")) with
+        {
+            ProjectResolver = (_, id) =>
+            {
+                Interlocked.Increment(ref calls);
+                started.SetResult();
+                release.Wait();
+                returned.SetResult();
+                return CreateProject(id, CreateFile(id, requiredDependencies: [CreateDependency("C")]));
+            },
+        };
+
+        var resolution = new ModDependencyResolver().ResolveAsync(request, cancellation.Token);
+        try
+        {
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            cancellation.Cancel();
+            await Assert.ThrowsAsync<OperationCanceledException>(() => resolution.WaitAsync(TimeSpan.FromSeconds(3)));
+        }
+        finally
+        {
+            release.Set();
+        }
+        await returned.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.AreEqual(1, Volatile.Read(ref calls));
+    }
+
+    [TestMethod]
+    public void ExpandsOnlySelectedCompatibleFileAndSkipsRootProject()
+    {
+        var projects = CreateProjectStore(
+            CreateProject("B",
+                CreateFile("compatible", requiredDependencies: [CreateDependency("A"), CreateDependency("C")]),
+                CreateFile("incompatible", gameVersions: ["1.19.2"],
+                    requiredDependencies: [CreateDependency("unused")])),
+            CreateProject("C", CreateFile("c-file")));
+        var request = CreateRequest(projects, CreateDependency("B")) with { RootProject = CreateDependency("A") };
+
+        var result = new ModDependencyResolver().Resolve(request);
+
+        CollectionAssert.AreEquivalent(new[] { "B", "C" }, result.ToInstall.Select(item => item.ProjectId).ToList());
         Assert.AreEqual(0, result.Unresolved.Count);
     }
 

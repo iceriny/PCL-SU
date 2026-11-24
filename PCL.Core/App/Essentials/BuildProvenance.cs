@@ -19,7 +19,7 @@ internal static class BuildProvenance
     public const bool Enabled = true;
 
     // 如果你在做 PCL-CE fork 并且有自己的 Sentry，记得改掉这里的地址！
-    private const string ReleaseApiUrl = "https://api.github.com/repos/PCL-Community/PCL-CE/releases/tags/v";
+    private const string ReleaseApiUrl = "https://api.github.com/repos/iceriny/PCL-SU/releases/tags/v";
     private const string DigestPrefix = "sha256:";
 
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(8);

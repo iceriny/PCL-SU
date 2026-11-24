@@ -1,0 +1,71 @@
+name: Test (Reusable)
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      build-metadata:
+        type: string
+        default: ''
+      release-metadata-artifact:
+        type: string
+        default: ''
+
+jobs:
+  regression:
+    name: Windows regressions
+    runs-on: windows-2022
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_NOLOGO: 'true'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      BUILD_METADATA: ${{ inputs.build-metadata }}
+      RELEASE_METADATA_ARTIFACT: ${{ inputs.release-metadata-artifact }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            10.0.404
+            11.0.100
+
+      - name: Download prepared release metadata
+        if: ${{ inputs.release-metadata-artifact != '' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.release-metadata-artifact }}
+          path: artifacts/build/release-metadata
+
+      - name: Run regression tests
+        run: |
+          $resultsDirectory = Join-Path $env:RUNNER_TEMP 'PCLSU-TestResults'
+          $env:PCL_DATA_DIR = Join-Path $env:RUNNER_TEMP 'PCLSU-TestRoot'
+          $testArguments = @(
+            'test', 'PCL.Core.Test/PCL.Core.Test.csproj', '--configuration', 'CI',
+            '-p:Platform=x64', '--results-directory', $resultsDirectory,
+            '--logger', 'trx;LogFileName=PCLSU-Regression.trx'
+          )
+          if ($env:BUILD_METADATA) { $testArguments += "-p:PclBuildMetadata=$env:BUILD_METADATA" }
+          if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_METADATA_ARTIFACT)) {
+            $notesPath = Join-Path (Get-Location) 'artifacts/build/release-metadata/notes'
+            $testArguments += "-p:PclReleaseNotesPath=$notesPath"
+          }
+          dotnet @testArguments
+          if ($LASTEXITCODE -ne 0) { throw 'Regression tests failed.' }
+
+      - name: Upload regression results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: PCL_SU_Regression_Results
+          path: ${{ runner.temp }}/PCLSU-TestResults/*.trx
+          if-no-files-found: warn

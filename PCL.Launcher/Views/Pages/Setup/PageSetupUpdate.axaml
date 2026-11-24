@@ -12,7 +12,7 @@
         <StackPanel Margin="25,25,25,10">
             <ui:MyCard>
                 <StackPanel Margin="20,15,20,15">
-                    <Grid RowDefinitions="28,7,28,7,28">
+                    <Grid RowDefinitions="28,7,28">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"
                                               SharedSizeGroup="Name" />
@@ -35,9 +35,6 @@
                                                ToolTip.Tip="{loc:Loc Setup.Update.Channel.Release.ToolTip}" />
                             <ui:MyComboBoxItem Content="{loc:Loc Setup.Update.Channel.Beta}"
                                                ToolTip.Tip="{loc:Loc Setup.Update.Channel.Beta.ToolTip}" />
-                            <ui:MyComboBoxItem Content="{loc:Loc Setup.Update.Channel.Dev}"
-                                               ToolTip.Tip="{loc:Loc Setup.Update.Channel.Dev.ToolTip}"
-                                               IsVisible="False" />
                         </ui:MyComboBox>
 
                         <TextBlock Grid.Row="2"
@@ -60,22 +57,6 @@
                             <ui:MyComboBoxItem Content="{loc:Loc Setup.Update.Auto.Disabled}"
                                                ToolTip.Tip="{loc:Loc Setup.Update.Auto.Disabled.ToolTip}" />
                         </ui:MyComboBox>
-
-                        <TextBlock Grid.Row="4"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Left"
-                                   Margin="0,0,25,0"
-                                   Text="{loc:Loc Setup.Update.MirrorChyanCdk.Label}" />
-                        <ui:MyPasswordBox x:Name="TextMirrorCDK"
-                                          Grid.Row="4"
-                                          Grid.Column="1"
-                                          ToolTip.Tip="{loc:Loc Setup.Update.MirrorChyanCdk.ToolTip}"
-                                          Text="{Binding MirrorChyanKey, Mode=TwoWay}" />
-                        <ui:MyButton x:Name="BtnGetMirrorCDK"
-                                     Grid.Row="4"
-                                     Grid.Column="3"
-                                     ColorType="Highlight"
-                                     Text="{loc:Loc Setup.Update.MirrorChyanCdk.Get}" />
                     </Grid>
                 </StackPanel>
             </ui:MyCard>
@@ -86,7 +67,7 @@
                 <StackPanel Margin="20,20,20,20">
                     <Grid ColumnDefinitions="50,10,*,Auto"
                           RowDefinitions="29,1,20,8,Auto,10,Auto">
-                        <ui:MyImage x:Name="ImgUpdateIcon"
+                        <Image x:Name="ImgUpdateIcon"
                                     Grid.Row="0"
                                     Grid.RowSpan="3"
                                     Grid.Column="0"
@@ -94,7 +75,7 @@
                                     Height="50"
                                     HorizontalAlignment="Left"
                                     VerticalAlignment="Center"
-                                    Source="https://www.pclc.cc/img/pcl-ce/icon.webp" />
+                                    Source="avares://PCL.Launcher/Assets/Images/icon.png" />
                         <TextBlock x:Name="TextUpdateName"
                                    Grid.Row="0"
                                    Grid.Column="2"
@@ -107,7 +88,7 @@
                                    Grid.Row="2"
                                    Grid.Column="2"
                                    FontSize="14"
-                                   Text="by PCL-Community"
+                                   Text="by iceriny"
                                    HorizontalAlignment="Left"
                                    VerticalAlignment="Top" />
                         <ui:MyButton x:Name="BtnUpdate"

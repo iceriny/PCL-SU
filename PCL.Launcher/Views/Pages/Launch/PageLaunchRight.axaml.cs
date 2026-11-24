@@ -22,7 +22,7 @@ using PCL.Xaml;
 namespace PCL.Views.Pages.Launch;
 
 /// <summary>
-/// 启动页右栏：按 <c>Preference.Homepage</c> 配置构建主页内容，另带社区版提示与启动日志卡片。
+/// 启动页右栏：按 <c>Preference.Homepage</c> 配置构建主页内容与启动日志卡片。
 /// 主页来源分为空白、内置“你知道吗”、Minecraft 信息流与运行时 XAML 主页四类； 运行时内容支持旧 WPF XAML 与 AXAML
 /// 两种格式，统一走预设、本地文件、URL、 缓存与 CustomLive.json 实时补丁流程。
 /// </summary>
@@ -43,16 +43,11 @@ public partial class PageLaunchRight : MyPageRight, IRefreshable
             ["opacity"] = "Opacity"
         };
 
-    private readonly TextBlock _labHint1;
-    private readonly TextBlock _labHint2;
     private readonly TextBlock _labLog;
     private readonly PageHomepageNewsView _newsView;
     private readonly MyScrollViewer _panBack;
     private readonly StackPanel _panCustom;
-    private readonly MyCard _panHint;
     private readonly MyCard _panLog;
-
-    private bool _communityHintDialogOpen;
 
     private DispatcherTimer? _homepageLivePatchTimer;
     private FileSystemWatcher? _homepageLiveWatcher;
@@ -68,23 +63,13 @@ public partial class PageLaunchRight : MyPageRight, IRefreshable
 
         _panBack = this.FindControl<MyScrollViewer>("PanBack")!;
         _panCustom = this.FindControl<StackPanel>("PanCustom")!;
-        _panHint = this.FindControl<MyCard>("PanHint")!;
         _panLog = this.FindControl<MyCard>("PanLog")!;
-        _labHint1 = this.FindControl<TextBlock>("LabHint1")!;
-        _labHint2 = this.FindControl<TextBlock>("LabHint2")!;
         _labLog = this.FindControl<TextBlock>("LabLog")!;
         PanScroll = _panBack;
 
         _newsView = new PageHomepageNewsView();
 
         FileDragHandler.CustomHomepageDropped += _ => ForceRefresh();
-
-        _panHint.IsVisible = States.Hint.CEMessage;
-        _labHint1.SetLocalizedValue(TextBlock.TextProperty, "Launch.Right.CommunityHint.Message");
-        _labHint2.SetLocalizedValue(
-            TextBlock.TextProperty,
-            "Launch.Right.CommunityHint.HidePrompt");
-        this.FindControl<MyIconButton>("BtnHintClose")!.Click += (_, _) => HideCommunityHint();
 
         _panLog.IsVisible = LauncherCommon.ModeDebug;
 
@@ -201,7 +186,6 @@ public partial class PageLaunchRight : MyPageRight, IRefreshable
                     {
                         // 新下载没有可复用的缓存：按 WPF 行为先清空旧页。
                         _panCustom.Children.Clear();
-                        _panHint.Margin = new Thickness(0d, 0d, 0d, 15d);
                         return;
                     }
 
@@ -224,44 +208,6 @@ public partial class PageLaunchRight : MyPageRight, IRefreshable
     private static void ShowHomepageLoadingHint()
     {
         HintService.Show(Hints.Info(Lang.Text("Launch.Homepage.Loading")));
-    }
-
-    private async void HideCommunityHint()
-    {
-        if (_communityHintDialogOpen)
-            return;
-
-        _communityHintDialogOpen = true;
-        var closeButton = this.FindControl<MyIconButton>("BtnHintClose");
-        closeButton?.IsEnabled = false;
-        try
-        {
-            var result = await DialogService.Instance.ShowAsync(
-                new InputDialogRequest
-                {
-                    Title = Lang.Text("Launch.Right.CommunityHint.InputTitle"),
-                    Buttons = DialogButtons.OkCancel,
-                    HighLight = false
-                });
-            var input = result.InputText ?? "";
-            if (string.IsNullOrWhiteSpace(input))
-                return;
-
-            input = new string(input.Where(char.IsAsciiLetter).ToArray()).ToLowerInvariant();
-            if (!input.Contains("pclcommunity"))
-            {
-                HintService.Show(Hints.Info(Lang.Text("Launch.Right.CommunityHint.WrongInput")));
-                return;
-            }
-
-            AnimationService.DisposeControl(_panHint, true);
-            States.Hint.CEMessage = false;
-        }
-        finally
-        {
-            _communityHintDialogOpen = false;
-            closeButton?.IsEnabled = true;
-        }
     }
 
     #region 主页内容
@@ -302,7 +248,6 @@ public partial class PageLaunchRight : MyPageRight, IRefreshable
             case HomepageSourceKind.Blank:
                 LogWrapper.Info("Launch", "[Page] 实例化：清空主页 UI，来源为空");
                 _panCustom.Children.Clear();
-                _panHint.Margin = new Thickness(0d, 0d, 0d, 15d);
                 break;
 
             case HomepageSourceKind.Removed:

@@ -15,17 +15,28 @@ public static partial class Comp
     ///     获取某个工程下的全部文件列表。
     ///     必须在工作线程执行，失败会抛出异常。
     /// </summary>
-    public static List<CompFile> CompFilesGet(string projectId, bool fromCurseForge)
+    public static List<CompFile> CompFilesGet(
+        string projectId,
+        bool fromCurseForge,
+        bool loadDependencies = true,
+        CancellationToken cancellationToken = default)
     {
-        if (!compProjectCache.TryGetValue(projectId, out var targetProject))
-            targetProject = _FetchCompProject(projectId, fromCurseForge);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!compProjectCache.TryGetValue(projectId, out var targetProject)
+            || targetProject.FromCurseForge != fromCurseForge)
+            targetProject = _FetchCompProject(projectId, fromCurseForge, cancellationToken);
 
-        if (!compFilesCache.TryGetValue(projectId, out var currentFiles))
+        if (!compFilesCache.TryGetValue(projectId, out var currentFiles)
+            || currentFiles.Any(file => file.FromCurseForge != fromCurseForge))
         {
             LauncherCommon.Log($"[Comp] 开始获取文件列表：{projectId}");
-            currentFiles = _FetchCompFiles(projectId, fromCurseForge, targetProject.Type);
+            currentFiles = _FetchCompFiles(
+                projectId, fromCurseForge, targetProject.Type, cancellationToken);
             compFilesCache[projectId] = currentFiles;
         }
+
+        if (!loadDependencies)
+            return currentFiles;
 
         var allRawDeps = currentFiles
             .SelectMany(f => f.RawDependencies.Concat(f.RawOptionalDependencies))
@@ -54,12 +65,13 @@ public static partial class Comp
         return currentFiles;
     }
 
-    private static CompProject _FetchCompProject(string projectId, bool fromCurseForge)
+    private static CompProject _FetchCompProject(
+        string projectId, bool fromCurseForge, CancellationToken cancellationToken)
     {
         if (fromCurseForge)
         {
             var json = GameDownload.DlModRequest<JsonObject>(
-                $"https://api.curseforge.com/v1/mods/{projectId}");
+                $"https://api.curseforge.com/v1/mods/{projectId}", cancellationToken);
             return new CompProject(
                 json["data"] as JsonObject
                 ?? throw new InvalidOperationException("CurseForge 工程数据无效。"));
@@ -67,26 +79,27 @@ public static partial class Comp
 
         return new CompProject(
             GameDownload.DlModRequest<JsonObject>(
-                $"https://api.modrinth.com/v2/project/{projectId}"));
+                $"https://api.modrinth.com/v2/project/{projectId}", cancellationToken));
     }
 
     private static List<CompFile> _FetchCompFiles(
         string projectId,
         bool fromCurseForge,
-        CompType projectType)
+        CompType projectType,
+        CancellationToken cancellationToken)
     {
         JsonArray resultJsonArray;
         if (fromCurseForge)
         {
             var response = GameDownload.DlModRequest<JsonObject>(
-                $"https://api.curseforge.com/v1/mods/{projectId}/files?pageSize=10000");
+                $"https://api.curseforge.com/v1/mods/{projectId}/files?pageSize=10000", cancellationToken);
             resultJsonArray = response["data"] as JsonArray
                 ?? throw new InvalidOperationException("CurseForge 文件列表数据无效。");
         }
         else
         {
             resultJsonArray = GameDownload.DlModRequest<JsonArray>(
-                $"https://api.modrinth.com/v2/project/{projectId}/version?include_changelog=false");
+                $"https://api.modrinth.com/v2/project/{projectId}/version?include_changelog=false", cancellationToken);
         }
 
         return

@@ -13,7 +13,7 @@ namespace PCL.Views.Pages.Setup;
 /// </summary>
 public partial class PageSetupFeedback : MyPageRight, IRefreshable
 {
-    private const string IssuesUrl = "https://github.com/PCL-Community/PCL2-CE/issues";
+    private const string IssuesUrl = "https://github.com/iceriny/PCL-SU/issues";
 
     private readonly Loading.LoaderTask<bool, List<FeedbackItem>> _loader;
     private bool _loaded;

@@ -2,12 +2,6 @@ using PCL.Core.Platform;
 
 namespace PCL;
 
-public interface IUpdatePolicy
-{
-    bool SupportsInAppUpdate { get; }
-    string InstallButtonKey { get; }
-}
-
 public static class UpdatePolicies
 {
     public static IUpdatePolicy Current =>

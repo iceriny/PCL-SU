@@ -1,160 +1,197 @@
 name: Release publish
-
-permissions:
-  contents: write
-  actions: write
+run-name: PCL SU ${{ inputs.version || 'automatic build' }}
 
 on:
   workflow_dispatch:
     inputs:
-      configuration:
-        description: 'Build configuration (Beta is published as prerelease)'
-        required: true
-        default: Beta
-        type: choice
-        options:
-          - Release
-          - Beta
       version:
-        description: 'Version to release (e.g., 2.14.2)'
-        required: true
+        description: 'Optional version core or full version; defaults to metadata.json with an automatic build number'
+        required: false
         type: string
 
+permissions:
+  contents: read
+
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      build-metadata: ${{ steps.release.outputs.build-metadata }}
+      configuration: ${{ steps.release.outputs.configuration }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.404
+
+      - name: Prepare release version
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_REF: ${{ github.ref }}
+          DOTNET_NOLOGO: 'true'
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_REF" == "refs/heads/dev" ]]
+          gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" > "$RUNNER_TEMP/release-history.json"
+          dotnet build PCL.Build/PCL.Build.csproj --configuration Release --nologo --verbosity quiet
+          tool="PCL.Build/bin/Release/net10.0/PCL.Build.dll"
+          build="$(dotnet "$tool" allocate --history "$RUNNER_TEMP/release-history.json")"
+          prepared="$RUNNER_TEMP/release-prepared"
+          test -s release-notes/current.md
+          dotnet "$tool" prepare --metadata 'PCL.Launcher/Resources/metadata.json' --notes release-notes --output "$prepared" --state "$RUNNER_TEMP/release-build-state" --build "$build" --history "$RUNNER_TEMP/release-history.json"
+          RELEASE_VERSION="$(tr -d '\r\n' < "$prepared/version.txt")"
+          PREPARED_DIRECTORY="$prepared"
+          export RELEASE_VERSION PREPARED_DIRECTORY
+          python - <<'PY'
+          import os, pathlib, re
+          version = os.environ["RELEASE_VERSION"]
+          core, build = version.split("+", 1)
+          assert re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:alpha|beta|rc)\.(?:0|[1-9][0-9]*))?", core), "Unsupported release version"
+          requested = os.environ.get("REQUESTED_VERSION", "").strip()
+          assert requested in ("", core, version), f"Requested {requested!r}, automatic version is {version}"
+          text = (pathlib.Path(os.environ["PREPARED_DIRECTORY"]) / "notes" / f"{version}.md").read_text(encoding="utf-8-sig")
+          summaries = re.findall(r"<summary>(.*?)</summary>", text, re.S)
+          assert text.count("<summary>") == text.count("</summary>") == 1, "Expected exactly one summary"
+          assert len(summaries) == 1 and summaries[0].strip(), "Missing update summary"
+          assert not re.search(r"[<>\r\n]", summaries[0]), "Summary must be one line of plain text"
+          assert text.split("</summary>", 1)[1].strip(), "Missing player-facing release details"
+          prerelease = "-" in core
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"version={version}\nbuild-metadata={build}\nconfiguration={'Beta' if prerelease else 'Release'}\nprerelease={str(prerelease).lower()}\n")
+          PY
+          tag="v$RELEASE_VERSION"
+          if existing_sha=$(gh api "repos/$GH_REPO/commits/$tag" --jq '.sha' 2>/dev/null); then
+            test "$existing_sha" = "$RELEASE_SHA"
+          fi
+          if draft=$(gh release view "$tag" --json isDraft --jq '.isDraft' 2>/dev/null); then
+            test "$draft" = "true"
+          fi
+
+      - name: Upload prepared release metadata
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: PCL_SU_Build_Metadata
+          path: ${{ runner.temp }}/release-prepared/
+          if-no-files-found: error
+          retention-days: 14
+
+  test:
+    needs: validate
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      build-metadata: ${{ needs.validate.outputs.build-metadata }}
+      release-metadata-artifact: PCL_SU_Build_Metadata
+
   build:
+    needs: [validate, test]
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - target: windows_x64
-            runner: windows-latest
-            rid: win-x64
-            platform: x64
-          - target: windows_ARM64
-            runner: windows-latest
-            rid: win-arm64
-            platform: ARM64
-          - target: linux_x64
-            runner: ubuntu-latest
-            rid: linux-x64
-            platform: x64
-          - target: linux_ARM64
-            runner: ubuntu-24.04-arm
-            rid: linux-arm64
-            platform: ARM64
-          - target: macos_ARM64
-            runner: macos-latest
-            rid: osx-arm64
-            platform: ARM64
-          - target: macos_x64
-            runner: macos-latest
-            rid: osx-x64
-            platform: x64
-
+        architecture: [x64, ARM64]
     uses: ./.github/workflows/reusable-build.yml
     with:
-      configuration: ${{ inputs.configuration }}
-      target: ${{ matrix.target }}
-      rid: ${{ matrix.rid }}
-      platform: ${{ matrix.platform }}
-      runner: ${{ matrix.runner }}
-      version: ${{ inputs.version }}
-      include_secrets: true
+      configuration: ${{ needs.validate.outputs.configuration }}
+      architecture: ${{ matrix.architecture }}
+      build-metadata: ${{ needs.validate.outputs.build-metadata }}
+      expected-version: ${{ needs.validate.outputs.version }}
+      release-metadata-artifact: PCL_SU_Build_Metadata
+      require-ms-client-id: true
+      require-curseforge-key: true
     secrets: inherit
 
-  changelog:
+  publish:
+    needs: [validate, test, build]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
     steps:
-      - name: Checkout all
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Install git-cliff
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
-        with:
-          tool: git-cliff
-
-      - name: Create local release tag
-        run: git tag -f "v${{ inputs.version }}"
-
-      - name: Generate changelog
-        run: git-cliff --latest -o CHANGELOG.md
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create or update release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          draft: true
-          tag_name: v${{ inputs.version }}
-          name: Release ${{ inputs.version }}
-          body_path: CHANGELOG.md
-          prerelease: ${{ inputs.configuration == 'Beta' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  publish_assets:
-    needs: [ build, changelog ]
-    permissions:
-      actions: read
-      contents: write
-      id-token: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Build Artifacts
+      - name: Download prepared release metadata
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: PCL2_CE_${{ inputs.configuration }}_*
-          path: ./release
-          merge-multiple: true
+          name: PCL_SU_Build_Metadata
+          path: release-metadata
 
-      - name: Sign release archives
+      - name: Download binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: PCL_SU_${{ needs.validate.outputs.configuration }}_*
+          merge-multiple: true
+          path: dist
+
+      - name: Verify packages
+        working-directory: dist
+        env:
+          BUILD_CONFIGURATION: ${{ needs.validate.outputs.configuration }}
+        run: |
+          set -euo pipefail
+          for arch in x64 ARM64; do
+            test -s "PCL_SU_${BUILD_CONFIGURATION}_$arch.exe"
+            sha256sum --check "PCL_SU_${BUILD_CONFIGURATION}_$arch.exe.sha256"
+          done
+
+      - name: Sign and verify binaries
         uses: sigstore/gh-action-sigstore-python@790bc6befb9d733738f18d8f895854b453640ec9 # v3.5.0
         with:
-          inputs: |
-            release/*.zip
-            release/*.dmg
-            release/*.AppImage
-            release/*.deb
-            release/*.rpm
+          inputs: dist/PCL_SU_${{ needs.validate.outputs.configuration }}_x64.exe dist/PCL_SU_${{ needs.validate.outputs.configuration }}_ARM64.exe
           verify: true
-          verify-cert-identity: https://github.com/${{ github.repository }}/.github/workflows/release-publish.yml@refs/heads/dev
+          verify-cert-identity: https://github.com/${{ github.workflow_ref }}
           verify-oidc-issuer: https://token.actions.githubusercontent.com
+          upload-signing-artifacts: false
 
-      - name: Upload archives and signatures to Release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          draft: true
-          tag_name: v${{ inputs.version }}
-          files: release/*
+      - name: Publish release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  publish_draft:
-    needs: [ publish_assets ]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Publish Draft
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          tag_name: v${{ inputs.version }}
-
-      - name: Trigger MirrorChyanUploading
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          RELEASE_CONFIGURATION: ${{ needs.validate.outputs.configuration }}
+          RELEASE_PRERELEASE: ${{ needs.validate.outputs.prerelease }}
+          RELEASE_SHA: ${{ github.sha }}
         run: |
-          MRC_CHANNEL="stable"
-          if [ "${{ inputs.configuration }}" = "Beta" ]; then
-            MRC_CHANNEL="beta"
-          fi
-
-          for arch in x64 arm64; do
-            gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_uploading.yml -f channel=$MRC_CHANNEL -f arch=$arch
+          set -euo pipefail
+          tag="v$RELEASE_VERSION"
+          for arch in x64 ARM64; do
+            test -s "dist/PCL_SU_${RELEASE_CONFIGURATION}_$arch.exe.sigstore.json"
           done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Trigger MirrorChyanReleaseNote
-        run: |
-          gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_release_note.yml
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          if existing_sha=$(gh api "repos/$GH_REPO/commits/$tag" --jq '.sha' 2>/dev/null); then
+            test "$existing_sha" = "$RELEASE_SHA"
+          else
+            gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$tag" -f sha="$RELEASE_SHA"
+          fi
+          if draft=$(gh release view "$tag" --json isDraft --jq '.isDraft' 2>/dev/null); then
+            test "$draft" = "true"
+            gh release edit "$tag" --title "PCL SU $RELEASE_VERSION" --notes-file "release-metadata/notes/$RELEASE_VERSION.md"
+          else
+            gh release create "$tag" --verify-tag --draft --title "PCL SU $RELEASE_VERSION" --notes-file "release-metadata/notes/$RELEASE_VERSION.md"
+          fi
+          gh release upload "$tag" dist/*.exe dist/*.sha256 dist/*.sigstore.json --clobber
+          test "$(gh release view "$tag" --json assets --jq '.assets | length')" -eq 6
+          if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
+            gh release edit "$tag" --draft=false --prerelease=true --latest=false
+          else
+            gh release edit "$tag" --draft=false --prerelease=false --latest
+          fi
+          echo "Published: https://github.com/$GH_REPO/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"

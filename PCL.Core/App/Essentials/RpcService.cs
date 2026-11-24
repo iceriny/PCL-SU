@@ -36,7 +36,7 @@ public sealed class RegisterRpc(string name) : Attribute;
 [LifecycleScope("rpc", "远程执行服务")]
 public sealed partial class RpcService
 {
-    public const string PipePrefix = "PCLCE_RPC";
+    public const string PipePrefix = "PCLSU_RPC";
 
     private static readonly string _EchoPipeName = $"{PipePrefix}@{Basics.CurrentProcess.Id}";
     private static readonly string[] _RequestTypeArray = ["GET", "SET", "REQ"];

@@ -8,12 +8,14 @@ namespace PCL.Core.App;
 /// <param name="Suffix">后缀, 如 <c>beta.1</c></param>
 /// <param name="Code">内部版本代号, 如 <c>712</c></param>
 /// <param name="UpstreamVersion">上游版本, 如 <c>2.12.0</c></param>
+/// <param name="BuildMetadata">构建日期和当日编号</param>
 public sealed record LauncherVersionModel(
     [property: JsonPropertyName("base")] string BaseVersion,
     [property: JsonPropertyName("suffix")] string Suffix,
     [property: JsonPropertyName("code")] int Code,
     [property: JsonPropertyName("upstream")]
-    string UpstreamVersion)
+    string UpstreamVersion,
+    [property: JsonPropertyName("build")] string BuildMetadata = "")
 {
     private static readonly (string Name, int Code) _CompilationBranchInfo =
 #if DEBUG
@@ -30,6 +32,10 @@ public sealed record LauncherVersionModel(
     /// <summary>基本版本名, 若 <see cref="Suffix" /> 存在实际值会附加后缀, 否则与 <see cref="BaseVersion" /> 相同</summary>
     public string BaseName { get; } =
         BaseVersion + (string.IsNullOrWhiteSpace(Suffix) ? "" : "-" + Suffix);
+
+    public string FullName => BaseName + (string.IsNullOrWhiteSpace(BuildMetadata) ? "" : "+" + BuildMetadata);
+
+    public bool IsPrerelease => !string.IsNullOrWhiteSpace(Suffix);
 
     /// <summary>发行分支名</summary>
     public string BranchName { get; } = _CompilationBranchInfo.Name;
@@ -48,7 +54,7 @@ public sealed record LauncherVersionModel(
 
     public override string ToString()
     {
-        return $"{BranchName} {BaseName} ({Code}, {CommitDigest})";
+        return $"{BranchName} {FullName} ({Code}, {CommitDigest})";
     }
 }
 

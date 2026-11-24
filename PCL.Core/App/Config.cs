@@ -264,12 +264,14 @@ public static partial class Config
             /// <summary>
             /// 暗色配色主题。
             /// </summary>
-            [ConfigItem<ColorTheme>("UiDarkColor", ColorTheme.CatBlue)] public partial ColorTheme DarkColor { get; set; }
+            [ConfigItem<ColorTheme>("UiDarkColor", ColorTheme.MistRose)] public partial ColorTheme DarkColor { get; set; }
 
             /// <summary>
             /// 亮色配色主题。
             /// </summary>
-            [ConfigItem<ColorTheme>("UiLightColor", ColorTheme.CatBlue)] public partial ColorTheme LightColor { get; set; }
+            [ConfigItem<ColorTheme>("UiLightColor", ColorTheme.MistRose)] public partial ColorTheme LightColor { get; set; }
+
+            [ConfigItem<int>("UiPaletteVersion", 0)] public partial int PaletteVersion { get; set; }
 
             /// <summary>
             /// 窗口透明度。
@@ -534,7 +536,7 @@ public static partial class Config
         /// <summary>
         /// 自定义左下角版本信息。
         /// </summary>
-        [ConfigItem<string>("LaunchArgumentInfo", "PCLCE", ConfigSource.Local)] public partial string TypeInfo { get; set; }
+        [ConfigItem<string>("LaunchArgumentInfo", "PCLSU", ConfigSource.Local)] public partial string TypeInfo { get; set; }
 
         /// <summary>
         /// 选择的默认 Java 实例。

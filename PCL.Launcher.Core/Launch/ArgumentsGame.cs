@@ -196,7 +196,7 @@ public static partial class GameLaunch
                     Path.Combine(GameFolders.mcFolderSelected!, "libraries"))
             },
             {
-                "${launcher_name}", "PCLCE"
+                "${launcher_name}", "PCLSU"
             },
             {
                 "${launcher_version}", LauncherCommon.VersionCode.ToString()

@@ -6,7 +6,7 @@ using PCL.UI.Controls;
 namespace PCL.Views.Pages.Setup;
 
 /// <summary>
-/// 更新设置页：更新通道、自动更新行为、MirrorChyan CDK 与检查更新入口。 检查更新、安装进度与更新日志由
+/// 更新设置页：更新通道、自动更新行为与检查更新入口。检查更新、安装进度与更新日志由
 /// <see cref="PageSetupUpdateViewModel" /> 负责。
 /// </summary>
 public partial class PageSetupUpdate : MyPageRight
@@ -23,12 +23,7 @@ public partial class PageSetupUpdate : MyPageRight
 
         ComboSystemUpdateChannel.SelectionChanged += async (_, _) =>
             await OnChannelChangedAsync();
-        TextMirrorCDK.TextChanged += (_, _) =>
-        {
-            if (!_reloading) ViewModel.MirrorChyanKey = TextMirrorCDK.Text ?? string.Empty;
-        };
-        BtnGetMirrorCDK.Click += (_, _) => Basics.OpenPath("https://mirrorchyan.com/");
-        BtnCheckAgain.Click += async (_, _) => await ViewModel.CheckUpdateAsync();
+        BtnCheckAgain.Click += async (_, _) => await ViewModel.CheckUpdateAsync(forceRefresh: true);
         BtnChangelog.Click += (_, _) => PageSetupUpdateViewModel.OpenReleasesPage();
         BtnChangelogDetail.Click += async (_, _) => await ViewModel.ShowChangelogAsync();
         BtnUpdate.Click += async (_, _) => await ViewModel.StartUpdateAsync();
@@ -76,11 +71,10 @@ public partial class PageSetupUpdate : MyPageRight
         try
         {
             ViewModel.Reload();
-            ViewModel.MirrorChyanKey = Config.Update.MirrorChyanKey;
             ComboSystemUpdateChannel.SelectedIndex = Math.Clamp(
                 (int)Config.Update.UpdateChannel,
                 0,
-                2);
+                1);
             ComboSystemUpdateMode.SelectedIndex = Math.Clamp(
                 (int)Config.Update.UpdateMode,
                 0,
@@ -104,7 +98,7 @@ public partial class PageSetupUpdate : MyPageRight
                 ComboSystemUpdateChannel.SelectedIndex = Math.Clamp(
                     (int)Config.Update.UpdateChannel,
                     0,
-                    2);
+                    1);
             }
             finally
             {

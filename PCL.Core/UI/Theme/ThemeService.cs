@@ -53,6 +53,7 @@ public sealed partial class ThemeService
                 if (Lifecycle.CurrentState > LifecycleState.Loading)
                     UiDispatcher.Post(() =>
                     {
+                        ApplyGrayResources();
                         ApplyColorResources();
                         ColorThemeChanged?.Invoke(CurrentTheme);
                         _AprilFoolLogic();
@@ -64,7 +65,17 @@ public sealed partial class ThemeService
     public static bool IsDarkMode { get; private set; }
 
     /// <summary>当前使用的色彩属性。</summary>
-    public static ToneProfile CurrentTone => IsDarkMode ? ToneProfiles.Dark : ToneProfiles.Light;
+    public static ToneProfile CurrentTone
+    {
+        get
+        {
+            var tone = IsDarkMode ? ToneProfiles.Dark : ToneProfiles.Light;
+            if (CurrentTheme != ColorTheme.MistRose) return tone;
+            var defaultTone = IsDarkMode ? ToneProfileConfig.DefaultDark : ToneProfileConfig.DefaultLight;
+            if (tone != defaultTone) return tone;
+            return IsDarkMode ? ToneProfileConfig.MistRoseDark : ToneProfileConfig.MistRoseLight;
+        }
+    }
 
     /// <summary>当前使用的主题色。</summary>
     public static ColorTheme CurrentTheme
@@ -97,10 +108,27 @@ public sealed partial class ThemeService
     [LifecycleStart]
     private static void _Start()
     {
+        _MigrateDefaultPalette();
         IsDarkMode = _IsDarkMode();
         _SubscribeSystemTheme();
         _LogStatus();
         _RefreshAll();
+    }
+
+    private static void _MigrateDefaultPalette()
+    {
+        var theme = Config.Preference.Theme;
+        if (theme.PaletteVersion >= 1) return;
+        if (theme.LightColor == ColorTheme.CatBlue && theme.DarkColor == ColorTheme.CatBlue
+            && ToneProfiles.Light == ToneProfileConfig.DefaultLight
+            && ToneProfiles.Dark == ToneProfileConfig.DefaultDark
+            && theme.ThemeSelected == 0 && theme.WindowHue == 180
+            && theme.WindowSat == 80 && theme.WindowLight == 20 && theme.WindowDelta == 90)
+        {
+            theme.LightColor = ColorTheme.MistRose;
+            theme.DarkColor = ColorTheme.MistRose;
+        }
+        theme.PaletteVersion = 1;
     }
 
     private static void _SubscribeSystemTheme()
@@ -175,6 +203,7 @@ public sealed partial class ThemeService
             ColorTheme.CatBlue => (255, 0, -0.2),
             ColorTheme.DeathBlue => (268, -0.05, -0.1),
             ColorTheme.HmclBlue => (275, -0.03, -0.35),
+            ColorTheme.MistRose => (338, 0, 0),
 #if DEBUG
             _ => ((int)theme, 0, 0)
 #else
@@ -197,29 +226,29 @@ public sealed partial class ThemeService
         };
     }
 
-    private static CatColorResource[] _CalculateGrays(ToneProfile tone)
+    private static CatColorResource[] _CalculateGrays(ToneProfile tone, double chroma = 0, int hue = 0)
     {
         return
         [
-            LabColor.FromLch(tone.L1).ToCatColor("Gray1"),
-            LabColor.FromLch(tone.L2).ToCatColor("Gray2"),
-            LabColor.FromLch(tone.L3).ToCatColor("Gray3"),
-            LabColor.FromLch(tone.L4).ToCatColor("Gray4"),
-            LabColor.FromLch(tone.L5).ToCatColor("Gray5"),
-            LabColor.FromLch(tone.L6).ToCatColor("Gray6"),
-            LabColor.FromLch(tone.L7).ToCatColor("Gray7"),
-            LabColor.FromLch(tone.L8).ToCatColor("Gray8"),
-            LabColor.FromLch(tone.LWhite, alpha: tone.AHalfWhite).ToCatColor("HalfWhite", false),
-            LabColor.FromLch(tone.LWhite, alpha: tone.ASemiWhite).ToCatColor("SemiWhite", false),
-            LabColor.FromLch(tone.LWhite).ToCatColor("White", false),
+            LabColor.FromLch(tone.L1, chroma, hue).ToCatColor("Gray1"),
+            LabColor.FromLch(tone.L2, chroma, hue).ToCatColor("Gray2"),
+            LabColor.FromLch(tone.L3, chroma, hue).ToCatColor("Gray3"),
+            LabColor.FromLch(tone.L4, chroma, hue).ToCatColor("Gray4"),
+            LabColor.FromLch(tone.L5, chroma, hue).ToCatColor("Gray5"),
+            LabColor.FromLch(tone.L6, chroma, hue).ToCatColor("Gray6"),
+            LabColor.FromLch(tone.L7, chroma, hue).ToCatColor("Gray7"),
+            LabColor.FromLch(tone.L8, chroma, hue).ToCatColor("Gray8"),
+            LabColor.FromLch(tone.LWhite, chroma, hue, tone.AHalfWhite).ToCatColor("HalfWhite", false),
+            LabColor.FromLch(tone.LWhite, chroma, hue, tone.ASemiWhite).ToCatColor("SemiWhite", false),
+            LabColor.FromLch(tone.LWhite, chroma, hue).ToCatColor("White", false),
             LabColor
-                .FromLch(tone.LWhite, alpha: tone.ATransparent)
+                .FromLch(tone.LWhite, chroma, hue, tone.ATransparent)
                 .ToCatColor("Transparent", false),
             LabColor
-                .FromLch(tone.LBackground, alpha: tone.ABackground)
+                .FromLch(tone.LBackground, chroma, hue, tone.ABackground)
                 .ToCatColor("TransparentBackground", false),
-            LabColor.FromLch(tone.LBackground).ToCatColor("Background", false),
-            LabColor.FromLch(tone.LBackground, alpha: tone.AToolTip).ToCatColor("ToolTip", false),
+            LabColor.FromLch(tone.LBackground, chroma, hue).ToCatColor("Background", false),
+            LabColor.FromLch(tone.LBackground, chroma, hue, tone.AToolTip).ToCatColor("ToolTip", false),
             LabColor.FromLch(tone.L7, 0.25, 30, tone.AHalfTransparent).ToCatColor("RedBack", false),
             LabColor.FromLch(tone.LForeground).ToCatColor("Memory", false)
         ];
@@ -315,7 +344,9 @@ public sealed partial class ThemeService
     /// </summary>
     public static void ApplyGrayResources()
     {
-        var cache = IsDarkMode ? DarkGrayCache : LightGrayCache;
+        var cache = CurrentTheme == ColorTheme.MistRose
+            ? _CalculateGrays(CurrentTone, IsDarkMode ? 0.03 : 0.007, IsDarkMode ? 310 : 334)
+            : IsDarkMode ? DarkGrayCache : LightGrayCache;
         foreach (var c in cache) c.Apply();
     }
 
@@ -327,5 +358,11 @@ public sealed partial class ThemeService
     {
         var colors = _CalculateColors(CurrentTone, GetCurrentThemeArgs());
         foreach (var c in colors) c.Apply();
+
+        var title = CurrentTheme == ColorTheme.MistRose
+            ? (IsDarkMode ? LabColor.FromRgb(130, 76, 114) : LabColor.FromRgb(146, 90, 130)).ToCatColor("Title")
+            : Array.Find(colors, color => color.Suffix == "3")!;
+        var backend = ApplicationRuntime.GetService<IThemeBackend>();
+        backend?.SetBrushResource("ColorBrushTitle", title.Alpha, title.Red, title.Green, title.Blue);
     }
 }

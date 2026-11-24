@@ -242,6 +242,7 @@ public static partial class States
         /// 上个版本。
         /// </summary>
         [ConfigItem<int>("SystemLastVersionReg", 0, ConfigSource.SharedEncrypt)] public partial int LastVersion { get; set; }
+        [ConfigItem<string>("SystemLastVersionName", "", ConfigSource.SharedEncrypt)] public partial string LastVersionName { get; set; }
 
         // [ConfigItem<int>("SystemHighestSavedBetaVersionReg", 0, ConfigSource.SharedEncrypt)] public partial int LastSavedBetaVersion { get; set; }
 

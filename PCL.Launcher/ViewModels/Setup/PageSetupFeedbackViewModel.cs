@@ -84,7 +84,7 @@ public partial class PageSetupFeedbackViewModel : ViewModelBase
     public static List<FeedbackItem> FetchFeedbackList()
     {
         var json = Requester.FetchJson(
-            "https://api.github.com/repos/PCL-Community/PCL2-CE/issues?state=all&sort=created&per_page=200",
+            "https://api.github.com/repos/iceriny/PCL-SU/issues?state=all&sort=created&per_page=200",
             new RequestParam
             {
                 Retries = 3,

@@ -16,4 +16,5 @@
     <Project Path="PCL.Platform\PCL.Platform.csproj" Type="C#" />
     <Project Path="PCL.Localization\PCL.Localization.csproj" Type="C#" />
     <Project Path="PCL.Launcher\PCL.Launcher.csproj" Type="C#" />
+    <Project Path="PCL.Build\PCL.Build.csproj" Type="C#" />
 </Solution>

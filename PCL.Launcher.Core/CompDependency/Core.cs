@@ -13,61 +13,71 @@ public static partial class CompDependency
         CompProject project,
         string targetMinecraftVersion,
         List<CompLoaderType> targetLoaders,
-        string targetModsFolder)
+        string targetModsFolder,
+        CancellationToken cancellationToken = default,
+        IProgress<ModDependencyProgress>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(file);
         ArgumentNullException.ThrowIfNull(project);
 
         var source = GetSource(project.FromCurseForge);
-        var dependencies = file
-            .Dependencies
-            .Where(static dependencyId => !string.IsNullOrWhiteSpace(dependencyId))
-            .Select(dependencyId => new ModDependencyReference
-            {
-                ProjectId = dependencyId,
-                Source = source,
-                IsRequired = true
-            })
-            .Concat(
-                file
-                    .OptionalDependencies
-                    .Where(static dependencyId => !string.IsNullOrWhiteSpace(dependencyId))
-                    .Select(dependencyId => new ModDependencyReference
-                    {
-                        ProjectId = dependencyId,
-                        Source = source,
-                        IsRequired = false
-                    }))
-            .ToList();
-
         return new ModDependencyRequest
         {
             TargetMinecraftVersion = targetMinecraftVersion,
             TargetLoaders = ToLoaderNames(targetLoaders),
-            RequiredDependencies = dependencies,
-            InstalledMods = ScanInstalledMods(targetModsFolder),
-            ProjectResolver = ResolveProjectFiles
+            RequiredDependencies = GetRequiredDependencies(file, source),
+            RootProject = new ModDependencyReference { ProjectId = project.Id, Source = source },
+            InstalledMods = ScanInstalledMods(
+                targetModsFolder, targetMinecraftVersion, targetLoaders, cancellationToken, progress),
+            ProjectResolver = (dependencySource, projectId) =>
+                ResolveProjectFiles(dependencySource, projectId, cancellationToken)
         };
     }
 
-    public static List<InstalledModIdentity> ScanInstalledMods(string targetModsFolder)
+    private static List<ModDependencyReference> GetRequiredDependencies(CompFile file, string source)
+    {
+        return file.RawDependencies
+            .Concat(file.Dependencies)
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(id => new ModDependencyReference { ProjectId = id, Source = source })
+            .ToList();
+    }
+
+    private static List<InstalledModIdentity> ScanInstalledMods(
+        string targetModsFolder,
+        string targetMinecraftVersion,
+        List<CompLoaderType> targetLoaders,
+        CancellationToken cancellationToken,
+        IProgress<ModDependencyProgress>? progress)
     {
         var result = new List<InstalledModIdentity>();
         if (string.IsNullOrWhiteSpace(targetModsFolder) || !Directory.Exists(targetModsFolder))
             return result;
 
-        foreach (var path in Directory.GetFiles(targetModsFolder))
+        var paths = Directory.GetFiles(targetModsFolder)
+            .Where(path => LocalCompFile.IsModFile(path)
+                && !path.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase)
+                && !path.EndsWith(".old", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var cache = new Lazy<JsonObject>(LocalComp.LoadLocalModInfoCache);
+        var completed = 0;
+        progress?.Report(new(ModDependencyStage.ScanningInstalledMods, completed, paths.Count));
+        foreach (var path in paths)
         {
-            if (!LocalCompFile.IsModFile(path)) continue;
+            cancellationToken.ThrowIfCancellationRequested();
 
             try
             {
                 var localFile = new LocalCompFile(path);
-                localFile.Load();
+                var cacheKey = localFile.ModrinthHash + targetMinecraftVersion + string.Join("", targetLoaders);
+                if (cache.Value[cacheKey] is JsonObject cachedFile)
+                    localFile.FromJson(cachedFile);
 
-                var source = localFile.Comp is null
-                    ? null
-                    : GetSource(localFile.Comp.FromCurseForge);
+                var projectId = localFile.Comp?.Id ?? localFile.CompFile?.ProjectId;
+                if (string.IsNullOrWhiteSpace(projectId))
+                    continue;
+                var fromCurseForge = localFile.Comp?.FromCurseForge ?? localFile.CompFile.FromCurseForge;
                 var gameVersions = localFile
                         .CompFile?.GameVersions
                         ?.Where(static version => !string.IsNullOrWhiteSpace(version))
@@ -77,42 +87,11 @@ public static partial class CompDependency
                     ?? [];
                 var loaders = ToLoaderNames(localFile.CompFile?.ModLoaders);
 
-                if (!string.IsNullOrWhiteSpace(localFile.Comp?.Id)
-                    && !string.IsNullOrWhiteSpace(source))
-                {
-                    result.Add(
-                        new InstalledModIdentity
-                        {
-                            SourceProjectId = localFile.Comp.Id,
-                            Source = source,
-                            ModId = localFile.ModId,
-                            GameVersions = gameVersions,
-                            Loaders = loaders
-                        });
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(localFile.CompFile?.ProjectId))
-                {
-                    var fileSource = GetSource(localFile.CompFile.FromCurseForge);
-                    result.Add(
-                        new InstalledModIdentity
-                        {
-                            SourceProjectId = localFile.CompFile.ProjectId,
-                            Source = fileSource,
-                            ModId = localFile.ModId,
-                            GameVersions = gameVersions,
-                            Loaders = loaders
-                        });
-                    continue;
-                }
-
                 result.Add(
                     new InstalledModIdentity
                     {
-                        SourceProjectId = null,
-                        Source = null,
-                        ModId = localFile.ModId,
+                        SourceProjectId = projectId,
+                        Source = GetSource(fromCurseForge),
                         GameVersions = gameVersions,
                         Loaders = loaders
                     });
@@ -124,19 +103,26 @@ public static partial class CompDependency
                     $"[CompDeps] 读取已安装 Mod 失败：{path}",
                     LauncherLogLevel.Developer);
             }
+            finally
+            {
+                completed++;
+                progress?.Report(new(ModDependencyStage.ScanningInstalledMods, completed, paths.Count - completed));
+            }
         }
 
         return result;
     }
 
-    public static ModDependencyProject? ResolveProjectFiles(string source, string projectId)
+    private static ModDependencyProject? ResolveProjectFiles(
+        string source, string projectId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(projectId))
             return null;
 
         var fromCurseForge =
             string.Equals(source, "CurseForge", StringComparison.OrdinalIgnoreCase);
-        var files = Comp.CompFilesGet(projectId, fromCurseForge);
+        var files = Comp.CompFilesGet(
+            projectId, fromCurseForge, loadDependencies: false, cancellationToken: cancellationToken);
         if (!Comp.compProjectCache.TryGetValue(projectId, out var compProject))
             return null;
 
@@ -167,18 +153,7 @@ public static partial class CompDependency
                     Loaders = ToLoaderNames(compFile.ModLoaders),
                     ReleaseType = MapReleaseType(compFile.Status),
                     ReleaseDate = compFile.ReleaseDate,
-                    RequiredDependencies =
-                    [
-                        .. compFile
-                            .Dependencies
-                            .Where(static dependencyId => !string.IsNullOrWhiteSpace(dependencyId))
-                            .Select(dependencyId => new ModDependencyReference
-                            {
-                                ProjectId = dependencyId,
-                                Source = source,
-                                IsRequired = true
-                            })
-                    ]
+                    RequiredDependencies = GetRequiredDependencies(compFile, source)
                 })
             ]
         };

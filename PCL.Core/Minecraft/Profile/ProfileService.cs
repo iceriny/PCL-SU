@@ -24,7 +24,6 @@ public partial class ProfileService
     private static readonly ProfileManagement<McProfile> _profiles = new();
     private static readonly object _saveLock = new();
     private static readonly object _loadStateLock = new();
-    private static Task? _loadTask;
     private static bool _loadStarted;
     private static bool _canPersist = true;
 
@@ -42,7 +41,7 @@ public partial class ProfileService
             if (!_loadStarted)
             {
                 _loadStarted = true;
-                _loadTask = Task.Run(() =>
+                _ = Task.Run(() =>
                 {
                     try
                     {
@@ -67,8 +66,15 @@ public partial class ProfileService
 
     public static void Load()
     {
-        if (_profiles.IsLoaded) return;
+        lock (_loadStateLock)
+        {
+            if (!_profiles.IsLoaded)
+                _LoadCore();
+        }
+    }
 
+    private static void _LoadCore()
+    {
         var encryptedProvider = ConfigService.GetProvider(ConfigSource.SharedEncrypt);
         var hasConfiguredProfiles = encryptedProvider.GetValue<string>("Profile", out var configured);
         if (!hasConfiguredProfiles && ConfigService.GetProvider(ConfigSource.Shared).GetValue<string>("Profile", out var rawProfile))
@@ -318,28 +324,6 @@ public partial class ProfileService
 
     private static void _EnsureLoaded()
     {
-        if (IsLoaded) return;
-
-        Task? task;
-        lock (_loadStateLock) task = _loadTask;
-        if (task is not null)
-        {
-            try
-            {
-                task.Wait(TimeSpan.FromSeconds(2));
-            }
-            catch
-            {
-                // ignored
-            }
-
-            if (IsLoaded) return;
-            Context.Warn("档案加载未完成，暂以空档案继续");
-            _canPersist = false;
-            _profiles.LoadFromString("{\"lastUsed\":-1,\"profiles\":[]}");
-            return;
-        }
-
         Load();
     }
 
@@ -380,8 +364,9 @@ public partial class ProfileService
         migrated = null;
         var candidates = new[]
         {
-            Path.Combine(Paths.OldSharedData, "profiles.json"),
-            Path.Combine(Paths.SharedData, "profiles.json")
+            Path.Combine(Paths.SharedData, "profiles.json"),
+            Path.Combine(Paths.CommunitySharedData, "profiles.json"),
+            Path.Combine(Paths.OldSharedData, "profiles.json")
         };
         var path = candidates.FirstOrDefault(File.Exists);
         if (path is null) return true;

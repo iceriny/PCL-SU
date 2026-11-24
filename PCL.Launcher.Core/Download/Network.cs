@@ -27,7 +27,7 @@ public static partial class GameDownload
     ///     对可能涉及 Mod 镜像源的请求进行处理，返回字符串或 JSON 对象。
     ///     调用 NetGetCodeByRequest，会进行重试。
     /// </summary>
-    public static T DlModRequest<T>(string url)
+    public static T DlModRequest<T>(string url, CancellationToken cancellationToken = default)
     {
         var urls = new List<KeyValuePair<string, int>>();
         var mcimUrl = DlSourceModGet(url);
@@ -59,22 +59,27 @@ public static partial class GameDownload
                 }
             }
 
+        if (urls.Count == 0)
+            urls.Add(new KeyValuePair<string, int>(url, 15));
+
         var exs = "";
         foreach (var source in urls)
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var json = Requester.FetchString(
                     source.Key,
                     new RequestParam
                     {
                         Timeout = source.Value * 1000,
                         UseBrowserUserAgent = true
-                    });
+                    },
+                    cancellationToken);
                 return typeof(T) == typeof(string)
                     ? (T)(object)json
                     : (T)(object)LauncherCommon.GetJson(json);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
                 if (!ex.Message.ContainsF("mcimirror")) exs += $"{ex.Message}\r\n";
             }

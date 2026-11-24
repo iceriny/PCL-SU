@@ -484,7 +484,7 @@ public partial class PageLaunchLeftViewModel : ViewModelBase
     {
         var separator = Path.DirectorySeparatorChar;
         var folder = LauncherPaths.DefaultMinecraftDirectory + separator;
-        States.Game.SelectedFolder = "$.minecraft" + separator;
+        States.Game.SelectedFolder = GameFolders.EncodeSelectedFolder(folder);
         if (!Directory.Exists(folder))
         {
             Directory.CreateDirectory(folder);
@@ -547,10 +547,7 @@ public partial class PageLaunchLeftViewModel : ViewModelBase
             GameFolders.McFolderListLoader.Start(null, true);
         GameFolders.McFolderListLoader.WaitForExit();
 
-        var selected = States.Game.SelectedFolder;
-        var folderPath = string.IsNullOrEmpty(selected)
-            ? ""
-            : selected.Replace("$", LauncherPaths.UserDataRoot);
+        var folderPath = GameFolders.ExpandSelectedFolder(States.Game.SelectedFolder);
         if (!string.IsNullOrEmpty(folderPath) && Directory.Exists(folderPath))
         {
             GameFolders.mcFolderSelected = folderPath;
@@ -568,7 +565,7 @@ public partial class PageLaunchLeftViewModel : ViewModelBase
             return "";
 
         folderPath = GameFolders.mcFolderList[0].Location;
-        States.Game.SelectedFolder = folderPath.Replace(LauncherPaths.UserDataRoot, "$");
+        States.Game.SelectedFolder = GameFolders.EncodeSelectedFolder(folderPath);
         GameFolders.mcFolderSelected = folderPath;
         return folderPath;
     }

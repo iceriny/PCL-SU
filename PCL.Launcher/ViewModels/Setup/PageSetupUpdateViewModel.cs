@@ -2,11 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using PCL.Core.App;
 using PCL.Core.App.Localization;
 using PCL.Core.UI.Dialogs;
-using PCL.Core.UI.Hints;
-using PCL.Core.Utils;
-using PCL.Core.Utils.OS;
 using PCL.Core.ViewModel;
-using PCL.Text;
 
 namespace PCL;
 
@@ -36,9 +32,6 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
 
     [ObservableProperty] public partial string CurrentVersionText { get; set; } = string.Empty;
 
-    [ObservableProperty]
-    public partial string MirrorChyanKey { get; set; } = Config.Update.MirrorChyanKey;
-
     [ObservableProperty] public partial bool ShowCheckCard { get; set; }
 
     [ObservableProperty] public partial bool ShowUpdateCard { get; set; }
@@ -62,7 +55,6 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
 
     public string CurrentDescText => _hasStatusText ? Lang.Text(_descKey, _descArgs) : string.Empty;
 
-    public string? LatestChangelog => _latestVersion?.Changelog;
 
     public string UpdateButtonText =>
         _externalUpdateButtonKey is { } externalKey
@@ -87,11 +79,6 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
                 ? UpdateButtonState.Install
                 : UpdateButtonState.OpenDownload;
 
-    partial void OnMirrorChyanKeyChanged(string value)
-    {
-        Config.Update.MirrorChyanKey = value ?? string.Empty;
-    }
-
     partial void OnShowUpdateCardChanged(bool value)
     {
         OnPropertyChanged(nameof(ChangelogText));
@@ -104,14 +91,13 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
 
     public void Reload()
     {
-        CurrentVersionText = "PCL CE " + VersionNameFormat(LauncherCommon.VersionBaseName);
-        MirrorChyanKey = Config.Update.MirrorChyanKey;
+        CurrentVersionText = "PCL SU " + LauncherCommon.VersionBaseName;
         UpdateModeIndex = Math.Clamp((int)Config.Update.UpdateMode, 0, 3);
         SetUpdateButtonState(InstallButtonState);
         UpdateButtonEnabled = !IsFlatpak;
     }
 
-    public async Task CheckUpdateAsync()
+    public async Task CheckUpdateAsync(bool forceRefresh = false)
     {
         if (_checking) return;
         _checking = true;
@@ -121,29 +107,22 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
         CheckAgainEnabled = false;
         try
         {
-            var channel = UpdateManager.IsCurrentVersionBeta
-                ? UpdateSourceChannel.Beta
-                : UpdateSourceChannel.Stable;
-            var arch = SystemInfo.IsArm64System ? UpdateArch.Arm64 : UpdateArch.X64;
-            var isLatest = await UpdateManager.remoteServer.IsLatestAsync(
-                channel,
-                arch,
-                SemVer.Parse(LauncherCommon.VersionBaseName),
-                LauncherCommon.VersionCode);
-            if (isLatest)
+            var version = await Task.Run(() => UpdateManager.FindUpdate(forceRefresh));
+            _latestVersion = version;
+            if (version is null)
             {
                 SetStatusText("Setup.Update.Latest");
                 return;
             }
 
-            var version = await Task.Run(() =>
-                UpdateManager.remoteServer.GetLatestVersion(channel, arch));
-            _latestVersion = version;
-            UpdateNameText = "PCL CE " + VersionNameFormat(version.VersionName);
+            UpdateNameText = "PCL SU " + version.VersionName;
             _changelogSummary = ExtractSummary(version.Changelog);
             OnPropertyChanged(nameof(ChangelogText));
 
-            if (UpdateManager.updateLoader is { State: LoadState.Loading })
+            if (UpdateManager.SupportsInAppUpdate)
+                UpdateManager.DownloadAutomatically(version);
+
+            if (UpdateManager.IsPreparingUpdate || UpdateManager.updateLoader is { State: LoadState.Loading })
             {
                 UpdateButtonEnabled = false;
                 _ = MonitorAndRestoreAsync();
@@ -192,18 +171,24 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
 
         if (UpdateManager.isUpdateWaitingRestart)
         {
-            UpdateManager.UpdateRestart(true);
+            if (!await Task.Run(() => UpdateManager.UpdateRestart(true)))
+                await SyncUpdateButtonStateAsync();
             return;
         }
 
         UpdateButtonEnabled = false;
-        UpdateManager.UpdateStart(UpdateEnums.UpdateType.UpdateNow);
+        UpdateManager.UpdateStart(UpdateEnums.UpdateType.UpdateNow, _latestVersion);
         await MonitorAndRestoreAsync();
     }
 
     private async Task MonitorAndRestoreAsync()
     {
-        await MonitorUpdateProgressAsync();
+        while (UpdateManager.IsPreparingUpdate || UpdateManager.updateLoader is { State: LoadState.Loading })
+        {
+            if (UpdateManager.updateLoader is { State: LoadState.Loading } loader)
+                SetUpdateProgress(loader.Progress);
+            await Task.Delay(200);
+        }
         SetUpdateButtonState(
             UpdateManager.isUpdateWaitingRestart
                 ? UpdateButtonState.RestartInstall
@@ -214,7 +199,7 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
     /// <summary>页面重新进入时同步更新按钮状态，若下载仍在进行则恢复进度显示。</summary>
     public async Task SyncUpdateButtonStateAsync()
     {
-        if (UpdateManager.updateLoader is { State: LoadState.Loading })
+        if (UpdateManager.IsPreparingUpdate || UpdateManager.updateLoader is { State: LoadState.Loading })
         {
             UpdateButtonEnabled = false;
             SetUpdateButtonState(InstallButtonState);
@@ -229,24 +214,6 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
         {
             SetUpdateButtonState(InstallButtonState);
             UpdateButtonEnabled = !IsFlatpak;
-        }
-    }
-
-    private async Task MonitorUpdateProgressAsync()
-    {
-        // UpdateStart 在后台线程准备任务，先等待 updateLoader 出现，避免错过进度。
-        for (var i = 0; i < 150; i++)
-        {
-            if (UpdateManager.updateLoader is not null || UpdateManager.isUpdateWaitingRestart)
-                break;
-            await Task.Delay(200);
-        }
-
-        while (UpdateManager.updateLoader is { State: LoadState.Loading } loader)
-        {
-            var progress = loader.Progress;
-            LauncherCommon.RunInUi(() => SetUpdateProgress(progress));
-            await Task.Delay(200);
         }
     }
 
@@ -292,77 +259,28 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
 
     public static void OpenReleasesPage()
     {
-        Basics.OpenPath(
-            "https://github.com/PCL-Community/PCL2-CE/releases/v"
-            + LauncherCommon.VersionBaseName);
+        Basics.OpenPath(UpdatesGitHubModel.ReleasesPage);
     }
 
     /// <summary>切换更新通道；返回 false 表示用户取消，调用方需要把下拉恢复原值。</summary>
     public async Task<bool> ChangeChannelAsync(int index)
     {
+        if (index is not (0 or 1)) return false;
         ChannelEnabled = false;
         try
         {
-            switch (index)
+            if (index == 1)
             {
-                case 1:
+                var result = await Dialog.ShowAsync(new TextDialogRequest
                 {
-                    var result = await Dialog.ShowAsync(
-                        new TextDialogRequest
-                        {
-                            Title = Lang.Text("Setup.Update.Channel.Common.Warning.Title"),
-                            Content = Lang.Text("Setup.Update.Channel.Beta.Warning.Message"),
-                            Buttons = DialogButtons.From(
-                                DialogButton.Create(
-                                    Lang.Text("Setup.Update.Channel.Common.Warning.Confirm")),
-                                DialogButton.Create(Lang.Text("Common.Action.Cancel"))),
-                            IsWarn = true
-                        });
-                    if (result.Button != 1) return false;
-                    break;
-                }
-                case 2:
-                {
-                    var warn = await Dialog.ShowAsync(
-                        new TextDialogRequest
-                        {
-                            Title = Lang.Text("Setup.Update.Channel.Common.Warning.Title"),
-                            Content = Lang.Text("Setup.Update.Channel.Dev.Warning.Message"),
-                            Buttons = DialogButtons.From(
-                                DialogButton.Create(
-                                    Lang.Text("Setup.Update.Channel.Common.Warning.Confirm")),
-                                DialogButton.Create(Lang.Text("Common.Action.Cancel"))),
-                            IsWarn = true
-                        });
-                    if (warn.Button != 1) return false;
-
-                    var confirmText = Lang.Text(
-                        "Setup.Update.Channel.Dev.FinalConfirm.ExpectedInput");
-                    var input = await Dialog.ShowAsync(
-                        new InputDialogRequest
-                        {
-                            Title = Lang.Text("Setup.Update.Channel.Dev.FinalConfirm.Title"),
-                            Content = Lang.Text(
-                                "Setup.Update.Channel.Dev.FinalConfirm.Message",
-                                confirmText),
-                            Buttons = DialogButtons.From(
-                                DialogButton.Create(
-                                    Lang.Text("Setup.Update.Channel.Dev.FinalConfirm.Submit")),
-                                DialogButton.Create(Lang.Text("Common.Action.Cancel"))),
-                            IsWarn = true,
-                            HighLight = false
-                        });
-                    if (!input.IsConfirmed || input.InputText != confirmText)
-                    {
-                        if (input.IsConfirmed)
-                            HintService.Show(
-                                Hints.Info(
-                                    Lang.Text("Setup.Update.Channel.Dev.FinalConfirm.WrongInput")));
-                        return false;
-                    }
-
-                    break;
-                }
+                    Title = Lang.Text("Setup.Update.Channel.Common.Warning.Title"),
+                    Content = Lang.Text("Setup.Update.Channel.Beta.Warning.Message"),
+                    Buttons = DialogButtons.From(
+                        DialogButton.Create(Lang.Text("Setup.Update.Channel.Common.Warning.Confirm")),
+                        DialogButton.Create(Lang.Text("Common.Action.Cancel"))),
+                    IsWarn = true
+                });
+                if (result.Button != 1) return false;
             }
 
             Config.Update.UpdateChannel = (UpdateChannel)index;
@@ -413,15 +331,6 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
         OnPropertyChanged(nameof(UpdateButtonText));
     }
 
-    public static string VersionNameFormat(string str)
-    {
-        str = str.Replace("v", "");
-        if (!str.Contains('-'))
-            return str;
-        var add = str.AfterLast("-");
-        str = str.BeforeLast("-");
-        return $"{str} {add.Replace(".", " ").Replace("beta", "Beta").Replace("rc", "RC")}";
-    }
 
     private static string ExtractSummary(string? changelog)
     {

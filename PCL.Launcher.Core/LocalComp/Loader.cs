@@ -280,7 +280,7 @@ public static partial class LocalComp
             CompLocalUi.Current?.SetLoadProgress(data.frm, true);
     }
 
-    private static JsonObject LoadLocalModInfoCache()
+    internal static JsonObject LoadLocalModInfoCache()
     {
         var cachePath = Path.Combine(LauncherPaths.Temp, "Cache", "LocalComp.json");
         var cache = new JsonObject();

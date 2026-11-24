@@ -64,20 +64,20 @@ public static class LauncherPaths
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 ".minecraft"));
 
-    /// <summary>当前 Minecraft 文件夹路径，由 WPF 宿主同步设置。</summary>
+    /// <summary>当前 Minecraft 文件夹路径。</summary>
     public static string? MinecraftFolder { get; set; }
 
     private static string _GetUserDataRoot()
     {
         var dataDirectory = Environment.GetEnvironmentVariable("PCL_DATA_DIR");
         if (!string.IsNullOrWhiteSpace(dataDirectory))
-            return _WithTrailingSeparator(Paths.ExpandUserPath(dataDirectory));
+            return _WithTrailingSeparator(Path.GetFullPath(Paths.ExpandUserPath(dataDirectory)));
 
         if (!string.IsNullOrWhiteSpace(Paths.PackageKind))
             return _WithTrailingSeparator(
                 Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    "PCLCE"));
+                    Paths.ProductDirectoryName));
 
         return ExecutableDirectory;
     }
@@ -99,7 +99,7 @@ public static class LauncherPaths
         if (!string.IsNullOrWhiteSpace(Paths.PackageKind))
             return Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                "PCLCE",
+                Paths.ProductDirectoryName,
                 ".minecraft");
 
         return Path.TrimEndingDirectorySeparator(

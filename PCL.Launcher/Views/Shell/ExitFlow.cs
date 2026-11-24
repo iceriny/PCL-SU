@@ -45,10 +45,10 @@ public sealed class ExitFlow
 
             IsExiting = true;
 
-            if (UpdateManager.isUpdateWaitingRestart)
+            if (UpdateManager.ShouldInstallOnExit)
                 try
                 {
-                    UpdateManager.UpdateRestart(false, false);
+                    await Task.Run(() => UpdateManager.UpdateRestart(false, false));
                 }
                 catch (Exception ex)
                 {

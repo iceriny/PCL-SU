@@ -161,20 +161,6 @@ public sealed class StartupEffects(
         {
             LogWrapper.Error(ex, "UI", "初始化加载池失败");
         }
-
-        try
-        {
-            var lastVersion = States.System.LastVersion;
-            if (lastVersion != Basics.VersionCode)
-            {
-                LogWrapper.Info("UI", $"版本号从 {lastVersion} 变更为 {Basics.VersionCode}");
-                States.System.LastVersion = Basics.VersionCode;
-            }
-        }
-        catch (Exception ex)
-        {
-            LogWrapper.Error(ex, "UI", "记录版本号失败");
-        }
     }
 
     private static async void ShowStartupDialogs()
@@ -185,12 +171,30 @@ public sealed class StartupEffects(
             await ShowEnvironmentWarningAsync();
             await ShowEulaDialogAsync();
             await ShowTelemetryDialogAsync();
+            await ShowReleaseNotesAsync();
             HardwareInfo.GetHardwareInfo();
         }
         catch (Exception ex)
         {
             LogWrapper.Error(ex, "UI", "启动弹窗提示失败");
         }
+    }
+
+    private static async Task ShowReleaseNotesAsync()
+    {
+        if (!EmbeddedReleaseNotes.RecordStartupVersion()) return;
+        var content = EmbeddedReleaseNotes.ReadCurrent();
+        if (string.IsNullOrWhiteSpace(content)) return;
+
+        await DialogService.Instance.ShowAsync(new MarkdownDialogRequest
+        {
+            Title = $"PCL SU {Basics.VersionName}",
+            Content = content,
+            Buttons = DialogButtons.From(
+                DialogButton.Create(Lang.Text("Common.Action.Confirm")),
+                DialogButton.Create(Lang.Text("Main.UpdateLog.FullChangelog"),
+                    () => OpenWebsite("https://github.com/iceriny/PCL-SU/releases")))
+        });
     }
 
     private static void ShowSpecialVersionHint()
@@ -211,7 +215,7 @@ public sealed class StartupEffects(
                         Lang.Text("Main.SpecialVersion.OpenDownloadPageAndExit"),
                         () =>
                         {
-                            OpenWebsite("https://github.com/PCL-Community/PCL2-CE/releases/latest");
+                            OpenWebsite("https://github.com/iceriny/PCL-SU/releases/latest");
                             UiInteraction.Shutdown();
                         })),
                 IsWarn = true

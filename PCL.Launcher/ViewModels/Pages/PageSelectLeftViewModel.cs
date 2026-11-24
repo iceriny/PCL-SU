@@ -33,8 +33,7 @@ public partial class PageSelectLeftViewModel : ViewModelBase
         if (selected is null && snapshot.Count > 0)
         {
             selected = snapshot[0];
-            States.Game.SelectedFolder = selected.Location
-                .Replace(LauncherPaths.UserDataRoot, "$");
+            States.Game.SelectedFolder = GameFolders.EncodeSelectedFolder(selected.Location);
             GameFolders.ApplySelectedFolder(selected.Location);
         }
 
@@ -98,8 +97,7 @@ public partial class PageSelectLeftViewModel : ViewModelBase
             return false;
         }
 
-        States.Game.SelectedFolder = folder.Location
-            .Replace(LauncherPaths.UserDataRoot, "$");
+        States.Game.SelectedFolder = GameFolders.EncodeSelectedFolder(folder.Location);
         GameFolders.ApplySelectedFolder(folder.Location);
         LauncherCommon.Log(
             $"[Minecraft] 切换文件夹：{folder.Location}",
@@ -181,7 +179,7 @@ public partial class PageSelectLeftViewModel : ViewModelBase
         {
             Directory.CreateDirectory(minecraftFolder);
             Directory.CreateDirectory(Path.Combine(minecraftFolder, "versions"));
-            States.Game.SelectedFolder = "$.minecraft" + Path.DirectorySeparatorChar;
+            States.Game.SelectedFolder = GameFolders.EncodeSelectedFolder(minecraftFolder);
             GameFolders.ApplySelectedFolder(minecraftFolder);
             GameFolders.McFolderLauncherProfilesJsonCreate(minecraftFolder);
             HintService.Show(Hints.Success(Lang.Text("Select.Folder.CreateSuccess")));
@@ -587,8 +585,7 @@ public partial class PageSelectLeftViewModel : ViewModelBase
                 if (!isAdded)
                     folders.Add($"{displayName}>{folderPath}");
                 States.Game.Folders = string.Join("|", folders);
-                States.Game.SelectedFolder = folderPath
-                    .Replace(LauncherPaths.UserDataRoot, "$");
+                States.Game.SelectedFolder = GameFolders.EncodeSelectedFolder(folderPath);
                 GameFolders.ApplySelectedFolder(folderPath);
                 GameFolders.McFolderListLoader.Start(null, true);
                 if (isReplace)
