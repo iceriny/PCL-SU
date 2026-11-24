@@ -34,16 +34,16 @@ public sealed class ToolsPageModule : IPageModule
     [
         new(
             PageIds.Tools,
-            "Tools.Left.Lobby",
+            "Main.Tab.Tools",
             "lucide/wrench",
             MainTab.Tools,
             150d,
-            SubPageIds.ToolsGameLink,
+            Secrets.HasLobbyService ? SubPageIds.ToolsGameLink : SubPageIds.ToolsTest,
             [
                 new PageGroupDescriptor("multiplayer", "Tools.Left.Multiplayer", 0),
                 new PageGroupDescriptor("utilities", "Tools.Left.Utilities", 1)
             ],
-            ToolsSubPages,
+            [.. ToolsSubPages.Where(sub => Secrets.HasLobbyService || sub.Id != SubPageIds.ToolsGameLink)],
             (sp, descriptor) => ActivatorUtilities.CreateInstance<ToolsPageHost>(sp, descriptor))
     ];
 

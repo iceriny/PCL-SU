@@ -1801,7 +1801,7 @@
 
     <sys:String x:Key="Link.Mod.AccountBanned">你的 Natayark Network 帳戶狀態異常，可能已被封禁！</sys:String>
     <sys:String x:Key="Link.Mod.DownloadComplete">連線元件下載完成！</sys:String>
-    <sys:String x:Key="Link.Mod.DownloadEasyTierFailed">下載 EasyTier 依賴檔案失敗，請檢查網路連線</sys:String>
+    <sys:String x:Key="Link.Mod.DownloadEasyTierFailed">EasyTier 連線元件安裝失敗，詳情請查看啟動器日誌。</sys:String>
     <sys:String x:Key="Link.Mod.DownloadingDeps">正在下載連線依賴元件，請稍後...</sys:String>
     <sys:String x:Key="Link.Mod.DownloadingEasyTier">正在下載 EasyTier，請稍後...</sys:String>
     <sys:String x:Key="Link.Mod.EasyTierNotReady">EasyTier 尚未下載完成，請等待其下載完成後再試！</sys:String>
@@ -3363,14 +3363,14 @@
 
     <!-- Tools.GameLink.Agreement -->
 
-    <sys:String x:Key="Tools.GameLink.Agreement.Accept">我已閱讀並同意</sys:String>
-    <sys:String x:Key="Tools.GameLink.Agreement.Body">使用大廳功能即代表你同意下列條款：&#xA;&#xA;我承諾嚴格遵守中國大陸相關法律法規，不會將大廳功能用於違法違規用途。&#xA;我承諾使用大廳功能帶來的一切風險自行承擔。&#xA;我已知曉並同意 PCL CE 收集經處理的本機識別碼、Natayark ID 與其他資訊並在必要時提供給執法部門。&#xA;為保護未成年人個人資訊，使用連線大廳前，我確認我已滿十四歲。&#xA;&#xA;另外，你還需要同意 PCL CE 大廳相關隱私政策及《Natayark OpenID 服務條款》。</sys:String>
-    <sys:String x:Key="Tools.GameLink.Agreement.Description">此處列出了 PCL CE 大廳使用的相關服務檔案及介紹</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.Accept">我已了解</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.Body">連線使用 EasyTier 建立點對點連線，並可藉由公共或自訂節點探索和中繼。&#xA;&#xA;選擇 Natayark 登入時，啟動器會連線至 Natayark 完成帳號驗證。你也可以使用自訂使用者名稱。&#xA;&#xA;設定雲端服務後，啟動器會從所設定的服務取得公告和連線節點。</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.Description">點對點連線與選用帳號服務的說明。</sys:String>
     <sys:String x:Key="Tools.GameLink.Agreement.NatayarkTerms">Natayark OpenID 服務條款</sys:String>
     <sys:String x:Key="Tools.GameLink.Agreement.NatayarkTermsInfo">檢視 Natayark OpenID 服務條款</sys:String>
-    <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicy">PCL CE 大廳相關隱私政策</sys:String>
-    <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicyInfo">了解 PCL CE 如何處理您的個人資訊</sys:String>
-    <sys:String x:Key="Tools.GameLink.Agreement.Title">PCL CE 連線大廳說明與條款</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicy">大廳服務隱私政策</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicyInfo">了解所設定的大廳服務如何處理你的個人資訊。</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.Title">連線功能說明</sys:String>
 
     <!-- Tools.GameLink.Finish -->
 
@@ -3705,4 +3705,6 @@
     <sys:String x:Key="Setup.Ui.Background.ImageLoadFailed">圖片載入失敗，嘗試將檔案作為影片播放：{0}</sys:String>
     <sys:String x:Key="Setup.Ui.Background.PauseVideo">遊戲啟動後暫停影片背景，遊戲退出後重新播放</sys:String>
     <sys:String x:Key="Setup.Ui.Background.PauseVideo.ToolTip">若啟用此項設定，遊戲時將無法重新整理背景</sys:String>
+    <sys:String x:Key="Tools.GameLink.Natayark.Unconfigured">目前建置未設定 Natayark 登入服務。點對點連線可使用自訂使用者名稱。</sys:String>
+    <sys:String x:Key="Tools.GameLink.CloudAccountUnavailable">目前大廳服務需要 Natayark 登入，但此建置未設定登入憑證。</sys:String>
 </ResourceDictionary>

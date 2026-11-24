@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Net;
+using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PCL.Core.App;
@@ -13,6 +17,62 @@ namespace PCL.Core.Test;
 public sealed class EasyTierInstallerIntegrationTest
 {
     public TestContext TestContext { get; set; }
+
+    [TestMethod]
+    public async Task RejectedMirrorPayloadsFallBackBeforeInstalling()
+    {
+        var previous = Paths.SharedLocalData;
+        var temp = Directory.CreateTempSubdirectory("pcl-easytier-mirrors-");
+        Paths.SharedLocalData = temp.FullName;
+        try
+        {
+            var package = EasyTierMetadata.Package;
+            using var mirrors = new ArchiveMirrors(
+                "<html>temporarily unavailable</html>"u8.ToArray(),
+                CreateZip(["incomplete.txt"]),
+                CreateZip(package.RequiredFiles));
+            using var client = new HttpClient(mirrors);
+            var installed = await EasyTierInstaller.DownloadAndInstallAsync(
+                client, ["https://example.org/first", "https://example.org/second", "https://example.org/third"],
+                EasyTierMetadata.CurrentEasyTierVer, package, TestContext.CancellationToken);
+
+            Assert.IsTrue(installed);
+            Assert.AreEqual(3, mirrors.Requests);
+            Assert.IsTrue(EasyTierMetadata.IsInstalled);
+            Assert.IsFalse(File.Exists(Path.Combine(EasyTierMetadata.InstallRoot, "incomplete.txt")));
+            Assert.HasCount(1, Directory.GetFileSystemEntries(Path.GetDirectoryName(EasyTierMetadata.InstallRoot)!));
+        }
+        finally
+        {
+            Paths.SharedLocalData = previous;
+            temp.Delete(true);
+        }
+    }
+
+    private static byte[] CreateZip(IEnumerable<string> entries)
+    {
+        using var buffer = new MemoryStream();
+        using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
+            foreach (var name in entries)
+            {
+                using var entry = zip.CreateEntry(name).Open();
+                entry.WriteByte(42);
+            }
+        return buffer.ToArray();
+    }
+
+    private sealed class ArchiveMirrors(params byte[][] responses) : HttpMessageHandler
+    {
+        public int Requests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(responses[Requests++])
+            });
+        }
+    }
 
     [TestMethod]
     [OSCondition(ConditionMode.Exclude, OperatingSystems.Windows)]

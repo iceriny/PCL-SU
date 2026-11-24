@@ -91,11 +91,13 @@
                                        Text="{loc:Loc Tools.GameLink.Agreement.Description}"
                                        TextWrapping="Wrap" />
                             <ui:MyListItem x:Name="ItemEulaPrivacy"
+                                           IsVisible="{Binding HasPrivacyPolicy}"
                                            Title="{loc:Loc Tools.GameLink.Agreement.PrivacyPolicy}"
                                            Info="{loc:Loc Tools.GameLink.Agreement.PrivacyPolicyInfo}"
                                            Logo="avares://PCL.Launcher/Assets/Images/Blocks/Grass.png"
                                            Type="Clickable" />
                             <ui:MyListItem x:Name="ItemEulaTerms"
+                                           IsVisible="{Binding HasNatayarkLogin}"
                                            Title="{loc:Loc Tools.GameLink.Agreement.NatayarkTerms}"
                                            Info="{loc:Loc Tools.GameLink.Agreement.NatayarkTermsInfo}"
                                            Logo="avares://PCL.Launcher/Assets/Images/Blocks/Grass.png"
@@ -143,6 +145,7 @@
                             </StackPanel>
                         </ui:MyCard>
                         <ui:MyCard x:Name="CardAccount"
+                                   IsVisible="{Binding HasNatayarkLogin}"
                                    IsEnabled="{Binding AccountEnabled}">
                             <StackPanel Background="{DynamicResource ColorBrushSemiTransparent}"
                                         Orientation="Horizontal"
@@ -428,11 +431,13 @@
                                     Orientation="Horizontal">
                             <ui:MyTextButton x:Name="BtnLinkReport"
                                              Text="{loc:Loc Tools.GameLink.Link.Report}" />
-                            <TextBlock Text=" | " />
+                            <TextBlock IsVisible="{Binding HasNatayarkLogin}" Text=" | " />
                             <ui:MyTextButton x:Name="BtnLinkTerms"
+                                             IsVisible="{Binding HasNatayarkLogin}"
                                              Text="{loc:Loc Tools.GameLink.Link.Terms}" />
-                            <TextBlock Text=" | " />
+                            <TextBlock IsVisible="{Binding HasPrivacyPolicy}" Text=" | " />
                             <ui:MyTextButton x:Name="BtnLinkPrivacy"
+                                             IsVisible="{Binding HasPrivacyPolicy}"
                                              Text="{loc:Loc Tools.GameLink.Link.Privacy}" />
                             <TextBlock Text=" | " />
                             <ui:MyTextButton x:Name="BtnEulaStop"

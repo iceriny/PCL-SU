@@ -683,7 +683,7 @@ public partial class PageSetupUI : MyPageRight, ISetupResetPage
                     "Setup.Ui.FeatureHide.Item.GameManage"),
                 new HideCheckDefinition(
                     "UiHiddenSetupGameLink",
-                    "Setup.Ui.FeatureHide.Item.GameLink"),
+                    "Setup.Ui.FeatureHide.Item.GameLink", Available: Secrets.HasLobbyService),
                 new HideCheckDefinition("UiHiddenSetupUi", "Setup.Ui.FeatureHide.Item.Ui"),
                 new HideCheckDefinition(
                     "UiHiddenSetupLauncherLanguage",
@@ -701,7 +701,7 @@ public partial class PageSetupUI : MyPageRight, ISetupResetPage
             "Setup.Ui.FeatureHide.SubTools",
             false,
             [
-                new HideCheckDefinition("UiHiddenToolsGameLink", "Setup.Ui.FeatureHide.Item.Lobby"),
+                new HideCheckDefinition("UiHiddenToolsGameLink", "Setup.Ui.FeatureHide.Item.Lobby", Available: Secrets.HasLobbyService),
                 new HideCheckDefinition("UiHiddenToolsTest", "Setup.Ui.FeatureHide.Item.Toolbox")
             ]);
 
@@ -775,7 +775,7 @@ public partial class PageSetupUI : MyPageRight, ISetupResetPage
         PanHidePanel.Children.Add(title);
 
         var wrap = new WrapPanel();
-        foreach (var item in items)
+        foreach (var item in items.Where(item => item.Available))
             wrap.Children.Add(CreateHideCheck(item));
         PanHidePanel.Children.Add(wrap);
     }
@@ -811,7 +811,8 @@ public partial class PageSetupUI : MyPageRight, ISetupResetPage
         string ConfigKey,
         string? LangKey,
         string? Literal = null,
-        string? TooltipKey = null);
+        string? TooltipKey = null,
+        bool Available = true);
 
     #endregion
 }

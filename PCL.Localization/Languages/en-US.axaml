@@ -1852,7 +1852,7 @@
 
     <sys:String x:Key="Link.Mod.AccountBanned">Your Natayark Network account status is abnormal and may be banned!</sys:String>
     <sys:String x:Key="Link.Mod.DownloadComplete">Multiplayer components downloaded!</sys:String>
-    <sys:String x:Key="Link.Mod.DownloadEasyTierFailed">Failed to download EasyTier dependencies. Please check your network.</sys:String>
+    <sys:String x:Key="Link.Mod.DownloadEasyTierFailed">Could not install the EasyTier multiplayer components. See the launcher log for details.</sys:String>
     <sys:String x:Key="Link.Mod.DownloadingDeps">Downloading multiplayer dependencies. Please wait...</sys:String>
     <sys:String x:Key="Link.Mod.DownloadingEasyTier">Downloading EasyTier. Please wait...</sys:String>
     <sys:String x:Key="Link.Mod.EasyTierNotReady">EasyTier has not finished downloading. Please wait and try again!</sys:String>
@@ -3432,14 +3432,14 @@
 
     <!-- Tools.GameLink.Agreement -->
 
-    <sys:String x:Key="Tools.GameLink.Agreement.Accept">I have read and agree</sys:String>
-    <sys:String x:Key="Tools.GameLink.Agreement.Body">By using the lobby feature, you agree to the following terms:&#xA;&#xA;I agree to comply with applicable laws and regulations and will not use the lobby feature for illegal or prohibited purposes.&#xA;I agree to bear all risks associated with using the lobby feature.&#xA;I acknowledge and agree that PCL CE collects processed device identifiers, Natayark ID, and other information, and may provide them to law enforcement when necessary.&#xA;To protect minors' personal information, I confirm that I am at least 14 years old before using the lobby.&#xA;&#xA;Additionally, you must also agree to the PCL CE lobby privacy policy and the Natayark OpenID terms of service.</sys:String>
-    <sys:String x:Key="Tools.GameLink.Agreement.Description">Service documents and introductions used by PCL CE Lobby are listed below.</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.Accept">I understand</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.Body">Multiplayer uses EasyTier to establish peer-to-peer connections, with public or custom nodes available for discovery and relay.&#xA;&#xA;Choosing Natayark sign-in connects to Natayark for account authentication. You can also use a custom username.&#xA;&#xA;When cloud services are configured, the launcher retrieves announcements and connection nodes from those services.</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.Description">Peer-to-peer multiplayer and optional account services.</sys:String>
     <sys:String x:Key="Tools.GameLink.Agreement.NatayarkTerms">Natayark OpenID ToS</sys:String>
     <sys:String x:Key="Tools.GameLink.Agreement.NatayarkTermsInfo">View Natayark OpenID terms of service.</sys:String>
-    <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicy">PCL CE Lobby Privacy Policy</sys:String>
-    <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicyInfo">Learn how PCL CE handles your personal information.</sys:String>
-    <sys:String x:Key="Tools.GameLink.Agreement.Title">PCL CE Lobby Terms &amp; Conditions</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicy">Lobby service privacy policy</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicyInfo">Learn how the configured lobby service handles your personal information.</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.Title">Multiplayer information</sys:String>
 
     <!-- Tools.GameLink.Finish -->
 
@@ -3714,4 +3714,6 @@
     <sys:String x:Key="Setup.Ui.Background.ImageLoadFailed">Failed to load the image, trying to play the file as a video: {0}</sys:String>
     <sys:String x:Key="Setup.Ui.Background.PauseVideo">Pause video backgrounds while an instance is running</sys:String>
     <sys:String x:Key="Setup.Ui.Background.PauseVideo.ToolTip">If enabled, the background cannot be refreshed while the game is running</sys:String>
+    <sys:String x:Key="Tools.GameLink.Natayark.Unconfigured">Natayark sign-in is not configured in this build. Use a custom username for peer-to-peer multiplayer.</sys:String>
+    <sys:String x:Key="Tools.GameLink.CloudAccountUnavailable">This lobby service requires Natayark sign-in, but this build has no sign-in credentials configured.</sys:String>
 </ResourceDictionary>

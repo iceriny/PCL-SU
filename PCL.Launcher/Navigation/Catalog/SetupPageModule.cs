@@ -133,7 +133,7 @@ public sealed class SetupPageModule : IPageModule
                 new PageGroupDescriptor("launcher", "Setup.Left.Category.Launcher", 2),
                 new PageGroupDescriptor("about", "Setup.Left.Category.About", 3)
             ],
-            SetupSubPages,
+            [.. SetupSubPages.Where(sub => Secrets.HasLobbyService || sub.Id != SubPageIds.SetupGameLink)],
             (sp, descriptor) => ActivatorUtilities.CreateInstance<PageSetupHost>(sp, descriptor))
     ];
 

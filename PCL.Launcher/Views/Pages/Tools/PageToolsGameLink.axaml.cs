@@ -18,9 +18,8 @@ namespace PCL.Views.Pages.Tools;
 /// </summary>
 public partial class PageToolsGameLink : MyPageRight
 {
-    private const string PrivacyUrl = "https://www.pclc.cc/privacy/personal-info-brief.html";
     private const string TermsUrl = "https://account.naids.com/policy";
-    private const string ReportUrl = "https://qm.qq.com/q/zfml1KaPWS";
+    private const string ReportUrl = "https://github.com/iceriny/PCL-SU/issues";
     private const string EasyTierUrl = "https://easytier.cn/";
     private const string PysioUrl = "https://pysio.online/";
 
@@ -103,9 +102,9 @@ public partial class PageToolsGameLink : MyPageRight
             _ = ViewModel.JoinLobbyAsync();
         };
 
-        this.FindControl<MyListItem>("ItemEulaPrivacy")!.Click += (_, _) => OpenLink(PrivacyUrl);
+        this.FindControl<MyListItem>("ItemEulaPrivacy")!.Click += (_, _) => OpenLink(Secrets.LobbyPrivacyUrl);
         this.FindControl<MyListItem>("ItemEulaTerms")!.Click += (_, _) => OpenLink(TermsUrl);
-        this.FindControl<MyTextButton>("BtnLinkPrivacy")!.Click += (_, _) => OpenLink(PrivacyUrl);
+        this.FindControl<MyTextButton>("BtnLinkPrivacy")!.Click += (_, _) => OpenLink(Secrets.LobbyPrivacyUrl);
         this.FindControl<MyTextButton>("BtnLinkTerms")!.Click += (_, _) => OpenLink(TermsUrl);
         this.FindControl<MyTextButton>("BtnLinkReport")!.Click += (_, _) => OpenLink(ReportUrl);
         this.FindControl<MyTextButton>("BtnLinkEasyTier")!.Click += (_, _) => OpenLink(EasyTierUrl);

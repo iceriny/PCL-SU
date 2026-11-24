@@ -439,4 +439,8 @@
     <sys:String x:Key="Launch.Homepage.SlowWarning">Le chargement de la page d'accueil est trop lent ({0} secondes). Veuillez signaler ce problème à l'auteur de la page d'accueil, ou cesser temporairement d'utiliser cette page.</sys:String>
 
     <sys:String x:Key="Setup.Ui.Theme.Color.MistRose">Rose brume</sys:String>
+    <sys:String x:Key="Tools.GameLink.Natayark.Unconfigured">La connexion à Natayark n’est pas configurée dans cette version. Utilisez un nom personnalisé pour le multijoueur pair à pair.</sys:String>
+    <sys:String x:Key="Tools.GameLink.CloudAccountUnavailable">Ce service de salon exige une connexion à Natayark, mais cette version ne dispose pas des identifiants de connexion configurés.</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicy">Politique de confidentialité du service de salon</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicyInfo">Découvrez comment le service de salon configuré traite vos informations personnelles.</sys:String>
 </ResourceDictionary>

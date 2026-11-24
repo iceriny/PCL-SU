@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using PCL.Core.App;
-using PCL.Core.IO;
+using PCL.Core.IO.Net;
 using PCL.Core.IO.Net.Http;
 using PCL.Core.Logging;
 
@@ -29,7 +30,6 @@ public static class EasyTierInstaller
         var archiveName = package.GetArchiveName(version);
         return
         [
-            $"https://staticassets.naids.com/resources/pclce/static/easytier/{archiveName}",
             $"https://s3.pysio.online/pcl2-ce/static/easytier/{archiveName}",
             $"https://github.com/EasyTier/EasyTier/releases/download/v{version}/{archiveName}"
         ];
@@ -59,21 +59,9 @@ public static class EasyTierInstaller
 
             const string version = EasyTierMetadata.CurrentEasyTierVer;
             var package = EasyTierMetadata.Package;
-            var versionRoot = Path.Combine(Paths.SharedLocalData, "EasyTier", version);
-            Directory.CreateDirectory(versionRoot);
-
-            var archivePath = Path.Combine(versionRoot, $".download-{Guid.NewGuid():N}.zip");
-            try
-            {
-                await _DownloadAsync(package, version, archivePath, cancellationToken)
-                    .ConfigureAwait(false);
-                return await InstallArchiveAsync(archivePath, version, package, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            finally
-            {
-                _TryDeleteFile(archivePath);
-            }
+            using var client = NetworkService.GetClient();
+            return await DownloadAndInstallAsync(client, GetDownloadUrls(version, package), version, package, cancellationToken)
+                .ConfigureAwait(false);
         }
         finally
         {
@@ -99,11 +87,7 @@ public static class EasyTierInstaller
         try
         {
             var extractRoot = Path.Combine(stagingRoot, "extract");
-            await Files
-                .ExtractFileAsync(
-                    archivePath,
-                    extractRoot,
-                    cancellationToken: cancellationToken)
+            await ZipFile.ExtractToDirectoryAsync(archivePath, extractRoot, cancellationToken)
                 .ConfigureAwait(false);
 
             var extractedRoot = Path.Combine(extractRoot, package.FolderName);
@@ -115,11 +99,12 @@ public static class EasyTierInstaller
                     $"EasyTier 依赖包不完整：{package.GetArchiveName(version)}");
 
             var finalRoot = Path.Combine(versionRoot, package.FolderName);
+            EasyTierMetadata.EnsureExecutable(package, extractedRoot);
+            cancellationToken.ThrowIfCancellationRequested();
             if (Directory.Exists(finalRoot))
                 Directory.Delete(finalRoot, true);
 
             Directory.Move(extractedRoot, finalRoot);
-            EasyTierMetadata.EnsureExecutable(package, finalRoot);
             _CleanupOldVersions(version);
 
             return _RequiredFilesExist(finalRoot, package);
@@ -130,53 +115,53 @@ public static class EasyTierInstaller
         }
     }
 
-    private static async Task _DownloadAsync(
-        EasyTierPackage package,
+    internal static async Task<bool> DownloadAndInstallAsync(
+        HttpClient client,
+        IReadOnlyList<string> urls,
         string version,
-        string archivePath,
+        EasyTierPackage package,
         CancellationToken cancellationToken)
     {
+        var versionRoot = Path.Combine(Paths.SharedLocalData, "EasyTier", version);
+        Directory.CreateDirectory(versionRoot);
+        var archivePath = Path.Combine(versionRoot, $".download-{Guid.NewGuid():N}.zip");
         Exception? lastError = null;
-        foreach (var url in GetDownloadUrls(version, package))
-            try
+        try
+        {
+            foreach (var url in urls)
             {
-                LogWrapper.Info("EasyTier", $"下载依赖包：{url}");
-
-                using var timeoutCts =
-                    CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timeoutCts.CancelAfter(_DownloadTimeout);
-
-                using var response = await HttpRequest
-                    .Create(url)
-                    .SendAsync(
-                        httpCompletionOption: HttpCompletionOption.ResponseHeadersRead,
-                        retryTimes: 1,
-                        cancellationToken: timeoutCts.Token)
-                    .ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-
-                await using var source =
-                    await response.AsStreamAsync(timeoutCts.Token).ConfigureAwait(false);
-                await using var target = new FileStream(
-                    archivePath,
-                    FileMode.Create,
-                    FileAccess.Write,
-                    FileShare.None,
-                    81920,
-                    true);
-                await source.CopyToAsync(target, timeoutCts.Token).ConfigureAwait(false);
-
-                return;
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    await _DownloadAsync(client, url, archivePath, cancellationToken).ConfigureAwait(false);
+                    return await InstallArchiveAsync(archivePath, version, package, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (!cancellationToken.IsCancellationRequested &&
+                                           ex is HttpRequestException or IOException or InvalidDataException or OperationCanceledException)
+                {
+                    lastError = ex;
+                    LogWrapper.Debug(ex, "EasyTier", $"无法从 {url} 安装 EasyTier 依赖包");
+                }
             }
-            catch (Exception ex) when (ex is not OperationCanceledException
-                                       || !cancellationToken.IsCancellationRequested)
-            {
-                lastError = ex;
-                LogWrapper.Warn(ex, "EasyTier", $"从 {url} 下载 EasyTier 依赖包失败");
-                _TryDeleteFile(archivePath);
-            }
+            throw new IOException("下载 EasyTier 依赖文件失败", lastError);
+        }
+        finally
+        {
+            _TryDeleteFile(archivePath);
+        }
+    }
 
-        throw new IOException("下载 EasyTier 依赖文件失败", lastError);
+    private static async Task _DownloadAsync(HttpClient client, string url, string archivePath, CancellationToken cancellationToken)
+    {
+        LogWrapper.Info("EasyTier", $"下载依赖包：{url}");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_DownloadTimeout);
+        using var response = await HttpRequest.Create(url)
+            .SendAsync(client, httpCompletionOption: HttpCompletionOption.ResponseHeadersRead, retryTimes: 1, cancellationToken: timeout.Token)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        await using var target = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
+        await response.Content.CopyToAsync(target, timeout.Token).ConfigureAwait(false);
     }
 
     private static bool _RequiredFilesExist(string root, EasyTierPackage package)

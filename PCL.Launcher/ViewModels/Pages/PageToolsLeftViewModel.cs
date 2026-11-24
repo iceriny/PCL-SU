@@ -10,28 +10,25 @@ namespace PCL;
 /// <summary>工具页面左侧导航栏的视图模型。</summary>
 public partial class PageToolsLeftViewModel : ViewModelBase
 {
-    [ObservableProperty] public partial bool GameLinkVisible { get; set; } = true;
+    [ObservableProperty] public partial bool GameLinkVisible { get; set; } = Secrets.HasLobbyService;
 
     [ObservableProperty] public partial bool TestVisible { get; set; } = true;
 
-    [ObservableProperty] public partial bool MultiplayerCategoryVisible { get; set; } = true;
+    [ObservableProperty] public partial bool MultiplayerCategoryVisible { get; set; } = Secrets.HasLobbyService;
 
     [ObservableProperty] public partial bool UtilitiesCategoryVisible { get; set; } = true;
 
     [ObservableProperty]
-    public partial SubPageId SelectedPage { get; set; } = SubPageIds.ToolsGameLink;
+    public partial SubPageId SelectedPage { get; set; } = Secrets.HasLobbyService ? SubPageIds.ToolsGameLink : SubPageIds.ToolsTest;
 
     /// <summary>请求页面重新选中联机大厅并刷新其内容。</summary>
     public event Action? RefreshRequested;
 
     public static bool IsSubPageHidden(SubPageId subPage)
     {
-        if (HiddenFeatureState.ForceShow)
-            return false;
-
         var page = PageCatalog.RequirePage(PageIds.Tools);
-        return page.SubPages.FirstOrDefault(item => item.Id == subPage) is { } descriptor
-            && !PageDescriptor.IsVisible(descriptor);
+        return page.FindSubPage(subPage) is not { } descriptor
+            || (!HiddenFeatureState.ForceShow && !PageDescriptor.IsVisible(descriptor));
     }
 
     public static bool IsHiddenPage(
@@ -42,7 +39,7 @@ public partial class PageToolsLeftViewModel : ViewModelBase
         var hide = Config.Preference.Hide;
         var isHidden = (isGameLinkChecked && hide.ToolsGameLink)
             || (isTestChecked && hide.ToolsTest);
-        return !isForceShow && isHidden;
+        return (isGameLinkChecked && !Secrets.HasLobbyService) || (!isForceShow && isHidden);
     }
 
     public static SubPageId FirstVisible()
@@ -72,6 +69,7 @@ public partial class PageToolsLeftViewModel : ViewModelBase
     [RelayCommand]
     public void Refresh()
     {
+        if (!Secrets.HasLobbyService) return;
         Select(SubPageIds.ToolsGameLink);
         RefreshRequested?.Invoke();
     }

@@ -87,6 +87,7 @@ public class LobbyService() : GeneralService("lobby", "LobbyService")
 
     public static async Task InitializeAsync()
     {
+        if (!Secrets.HasLobbyService) return;
         if (CurrentState is not LobbyState.Idle && CurrentState is not LobbyState.Error) return;
 
         _SetState(LobbyState.Initializing);
@@ -104,7 +105,7 @@ public class LobbyService() : GeneralService("lobby", "LobbyService")
 
             // refresh naid token
             var naidRefreshToken = States.Link.NaidRefreshToken;
-            if (!string.IsNullOrWhiteSpace(naidRefreshToken))
+            if (NatayarkProfileManager.IsConfigured && !string.IsNullOrWhiteSpace(naidRefreshToken))
             {
                 var expTime = States.Link.NaidRefreshExpireTime;
                 if (!string.IsNullOrWhiteSpace(expTime)

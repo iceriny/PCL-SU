@@ -1,7 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
-using System.Text;
 using System.Threading.Tasks;
 using PCL.Core.App;
 using PCL.Core.App.Localization;
@@ -9,7 +9,6 @@ using PCL.Core.IO.Net.Http;
 using PCL.Core.Logging;
 using PCL.Core.UI;
 using PCL.Core.Utils;
-using PCL.Core.Utils.OS;
 
 namespace PCL.Core.Link.Natayark;
 
@@ -34,6 +33,10 @@ public static class NatayarkProfileManager
 {
     private const string LogModule = "Link";
 
+    public static bool IsConfigured =>
+        !string.IsNullOrWhiteSpace(Secrets.NatayarkClientId) &&
+        !string.IsNullOrWhiteSpace(Secrets.NatayarkClientSecret);
+
     private static Task? _getNaidData;
 
     public static NaidUser NaidProfile { get; private set; } = new();
@@ -50,6 +53,9 @@ public static class NatayarkProfileManager
         bool isRetry = false,
         ushort port = 0)
     {
+        if (!IsConfigured)
+            throw new InvalidOperationException(Lang.Text("Tools.GameLink.Natayark.Unconfigured"));
+
         if (_getNaidData is not null && !_getNaidData.IsCompleted)
         {
             await _getNaidData;
@@ -61,17 +67,15 @@ public static class NatayarkProfileManager
             try
             {
                 // 获取 AccessToken 和 RefreshToken
-                var requestData =
-                    $"grant_type={(isRefresh ? "refresh_token" : "authorization_code")}"
-                    + $"&client_id={EnvironmentInterop.GetSecret("NAID_CLIENT_ID")}"
-                    + $"&client_secret={EnvironmentInterop.GetSecret("NAID_CLIENT_SECRET")}"
-                    + $"&{(isRefresh ? "refresh_token" : "code")}={token}"
-                    + (isRefresh ? "" : $"&redirect_uri=http://localhost:{port}/callback");
-
-                var httpContent = new StringContent(
-                    requestData,
-                    Encoding.UTF8,
-                    "application/x-www-form-urlencoded");
+                var requestData = new Dictionary<string, string>
+                {
+                    ["grant_type"] = isRefresh ? "refresh_token" : "authorization_code",
+                    ["client_id"] = Secrets.NatayarkClientId,
+                    ["client_secret"] = Secrets.NatayarkClientSecret,
+                    [isRefresh ? "refresh_token" : "code"] = token
+                };
+                if (!isRefresh) requestData["redirect_uri"] = $"http://localhost:{port}/callback";
+                using var httpContent = new FormUrlEncodedContent(requestData);
 
                 using var oauthResponse = await HttpRequest
                     .CreatePost("https://account.naids.com/api/oauth2/token")

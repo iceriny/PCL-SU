@@ -40,7 +40,7 @@ public static class ETController
         LogWrapper.Info("Link", "EasyTier 路径: " + EasyTierMetadata.InstallRoot);
         if (!EasyTierMetadata.IsInstalled)
         {
-            LogWrapper.Error("Link", "EasyTier 不存在或不完整");
+            LogWrapper.Info("Link", "需要安装 EasyTier 联机组件");
             return 1;
         }
 

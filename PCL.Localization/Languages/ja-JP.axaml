@@ -23,4 +23,8 @@
     <sys:String x:Key="Application.EnvironmentWarning.Title">環境警報</sys:String>
     <sys:String x:Key="Application.EnvironmentWarning.WindowsVersion">- Windows 版本は推奨要件を満たしておらず、少なくともWindows 10 1809が推奨されており、Windowsシステムのアップグレードを検討することをお勧めします</sys:String>
     <sys:String x:Key="Setup.Ui.Theme.Color.MistRose">ミストローズ</sys:String>
+    <sys:String x:Key="Tools.GameLink.Natayark.Unconfigured">このビルドには Natayark ログインが設定されていません。ピアツーピア接続ではカスタムユーザー名を使用できます。</sys:String>
+    <sys:String x:Key="Tools.GameLink.CloudAccountUnavailable">このロビーサービスには Natayark ログインが必要ですが、このビルドにはログイン認証情報が設定されていません。</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicy">ロビーサービスのプライバシーポリシー</sys:String>
+    <sys:String x:Key="Tools.GameLink.Agreement.PrivacyPolicyInfo">設定されたロビーサービスによる個人情報の取り扱いについて。</sys:String>
 </ResourceDictionary>

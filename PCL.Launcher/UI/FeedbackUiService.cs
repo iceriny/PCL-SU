@@ -34,13 +34,18 @@ internal static class UiLogBridge
                 break;
 
             case LauncherLogLevel.Msgbox:
+                var summary = userSummary ?? text;
                 DialogService.Instance.ShowNotification(
                     new TextDialogRequest
                     {
                         Title = string.IsNullOrWhiteSpace(title)
                             ? Lang.Text("SystemDialog.Error.Title")
                             : title,
-                        Content = userSummary ?? text,
+                        Content = exception is null
+                            ? summary
+                            : ExceptionDetails.Compose(
+                                string.IsNullOrWhiteSpace(summary) ? Lang.Text("SystemDialog.Error.Unexpected.Message") : summary,
+                                ExceptionDetails.GetUserReason(exception)),
                         IsWarn = true
                     });
                 break;

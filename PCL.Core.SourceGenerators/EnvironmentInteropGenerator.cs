@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -12,28 +13,23 @@ public class EnvironmentInteropGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var secretProvider = context.CompilationProvider.Select(static (_, _) =>
+        var serviceTemplate = context.AdditionalTextsProvider
+            .Where(file => Path.GetFileName(file.Path) == ".env.example");
+        var secretProvider = serviceTemplate.Select(static (file, token) =>
         {
             // 只有发布构建显式传入 PCL_WRITE_SECRET=1 时才允许把环境变量写入产物。
             // 空的 PCL_WRITE_SECRET（例如 CI 中条件注入产生空字符串）不能触发。
 #pragma warning disable RS1035
             var writeSecret = Environment.GetEnvironmentVariable("PCL_WRITE_SECRET");
-            var envs = Environment.GetEnvironmentVariables();
-#pragma warning restore RS1035
-            var secretPairs = Enumerable.Empty<(string, string)>();
-            if (writeSecret == "1")
-            {
-                secretPairs =
-                    from key in envs.Keys.Cast<string>()
-                    where !string.IsNullOrWhiteSpace(key)
-                        && key.StartsWith("PCL_")
-                        && key != "PCL_WRITE_SECRET"
-                    let value = envs[key]?.ToString()
+            if (writeSecret != "1" || file.GetText(token) is not { } template)
+                return Array.Empty<(string, string)>();
+            return (from line in template.Lines
+                    let key = line.ToString().Split('=')[0].Trim()
+                    where key.StartsWith("PCL_", StringComparison.Ordinal)
+                    let value = Environment.GetEnvironmentVariable(key)
                     where !string.IsNullOrWhiteSpace(value)
-                    select (key.Substring(4), value);
-            }
-
-            return secretPairs;
+                    select (key.Substring(4), value!)).ToArray();
+#pragma warning restore RS1035
         });
 
         // 注册源代码输出

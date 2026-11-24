@@ -36,7 +36,7 @@ public partial class PageToolsGameLinkViewModel : ViewModelBase
     private const int AnnouncementRequestTimeoutMilliseconds = 7_000;
 
     private readonly Lock _announcementLock = new();
-    private readonly SemaphoreSlim _easyTierDownloadLock = new(1, 1);
+    private readonly Lock _easyTierDownloadLock = new();
 
     private int _accountActionBusy;
     private bool _accountBusy;
@@ -50,7 +50,7 @@ public partial class PageToolsGameLinkViewModel : ViewModelBase
     private LinkAnnounceInfo[] _announcementItems = [];
     private int _announcementRequestId;
     private int _announcementState;
-    private int _easyTierDownloading;
+    private Task<bool>? _easyTierDownload;
     private int _eulaBusy;
     private bool _eulaReadErrorShown;
     private bool _forceEulaPage;
@@ -108,6 +108,12 @@ public partial class PageToolsGameLinkViewModel : ViewModelBase
 
         if (LobbyInfoProvider.RequiresLogin)
         {
+            if (!NatayarkProfileManager.IsConfigured)
+            {
+                HintService.Show(Hints.Error(Lang.Text("Tools.GameLink.CloudAccountUnavailable")));
+                return false;
+            }
+
             var token = States.Link.NaidRefreshToken;
             if (string.IsNullOrWhiteSpace(token))
             {
@@ -161,12 +167,6 @@ public partial class PageToolsGameLinkViewModel : ViewModelBase
             return false;
         }
 
-        if (Volatile.Read(ref _easyTierDownloading) == 1)
-        {
-            HintService.Show(Hints.Info(Lang.Text("Link.Mod.EasyTierNotReady")));
-            return false;
-        }
-
         int easyTierStatus;
         try
         {
@@ -174,19 +174,11 @@ public partial class PageToolsGameLinkViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            LogWrapper.Error(ex, "Link", "检测 EasyTier 依赖失败");
-            HintService.Show(Hints.Error(ex.Message));
+            LogWrapper.Error(ex, "Link", ex.Message);
             return false;
         }
 
-        if (easyTierStatus == 1)
-        {
-            HintService.Show(Hints.Info(Lang.Text("Link.Mod.DownloadingDeps")));
-            _ = DownloadEasyTierAsync();
-            return false;
-        }
-
-        return true;
+        return easyTierStatus != 1 || await DownloadEasyTierAsync().ConfigureAwait(true);
     }
 
     #endregion
@@ -214,6 +206,10 @@ public partial class PageToolsGameLinkViewModel : ViewModelBase
     }
 
     #region 绑定状态
+
+    public bool HasPrivacyPolicy => !string.IsNullOrWhiteSpace(Secrets.LobbyPrivacyUrl);
+
+    public bool HasNatayarkLogin => NatayarkProfileManager.IsConfigured;
 
     /// <summary>公告文本随公告状态、当前条目与语言实时求值。</summary>
     public string AnnouncementText
@@ -1721,6 +1717,8 @@ public partial class PageToolsGameLinkViewModel : ViewModelBase
 
     private void EnsureAccountState()
     {
+        if (!HasNatayarkLogin) return;
+
         if (!Dispatcher.UIThread.CheckAccess())
         {
             Dispatcher.UIThread.Post(EnsureAccountState);
@@ -1833,6 +1831,7 @@ public partial class PageToolsGameLinkViewModel : ViewModelBase
 
     public async Task ToggleNatayarkAccountAsync()
     {
+        if (!HasNatayarkLogin) return;
         if (Interlocked.CompareExchange(ref _accountActionBusy, 1, 0) != 0)
             return;
 
@@ -2007,14 +2006,10 @@ public partial class PageToolsGameLinkViewModel : ViewModelBase
         RefreshLayout();
         try
         {
-            if (!EasyTierMetadata.IsInstalled)
+            if (!EasyTierMetadata.IsInstalled && !await DownloadEasyTierAsync().ConfigureAwait(true))
             {
-                await DownloadEasyTierAsync().ConfigureAwait(true);
-                if (!EasyTierMetadata.IsInstalled)
-                {
-                    _natTestFailed = true;
-                    return;
-                }
+                _natTestFailed = true;
+                return;
             }
 
             var status = await Task
@@ -2048,17 +2043,20 @@ public partial class PageToolsGameLinkViewModel : ViewModelBase
         _ = DownloadEasyTierAsync();
     }
 
-    private async Task DownloadEasyTierAsync()
+    private Task<bool> DownloadEasyTierAsync()
     {
-        if (!await _easyTierDownloadLock.WaitAsync(0).ConfigureAwait(false))
+        lock (_easyTierDownloadLock)
         {
-            HintService.Show(Hints.Info(Lang.Text("Link.Mod.EasyTierNotReady")));
-            return;
+            if (_easyTierDownload is { IsCompleted: false }) return _easyTierDownload;
+            return _easyTierDownload = InstallEasyTierAsync();
         }
+    }
 
-        Interlocked.Exchange(ref _easyTierDownloading, 1);
+    private static async Task<bool> InstallEasyTierAsync()
+    {
         try
         {
+            if (EasyTierMetadata.IsInstalled) return true;
             HintService.Show(Hints.Info(Lang.Text("Link.Mod.DownloadingDeps")));
 
             var installed = await EasyTierInstaller
@@ -2069,22 +2067,17 @@ public partial class PageToolsGameLinkViewModel : ViewModelBase
                 installed
                     ? Hints.Success(Lang.Text("Link.Mod.DownloadComplete"))
                     : Hints.Error(Lang.Text("Link.Mod.DownloadEasyTierFailed")));
+            return installed;
         }
         catch (PlatformNotSupportedException ex)
         {
-            LogWrapper.Error(ex, "Link", "当前架构没有可用的 EasyTier 依赖包");
-            HintService.Show(Hints.Error(ex.Message));
+            LogWrapper.Error(ex, "Link", ex.Message);
         }
         catch (Exception ex)
         {
-            LogWrapper.Error(ex, "Link", "下载 EasyTier 依赖文件失败");
-            HintService.Show(Hints.Error(Lang.Text("Link.Mod.DownloadEasyTierFailed")));
+            LogWrapper.Error(ex, "Link", Lang.Text("Link.Mod.DownloadEasyTierFailed"));
         }
-        finally
-        {
-            Interlocked.Exchange(ref _easyTierDownloading, 0);
-            _easyTierDownloadLock.Release();
-        }
+        return false;
     }
 
     #endregion

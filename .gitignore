@@ -351,3 +351,7 @@ MaskFiles/
 
 # 本地发布产物
 /dist/
+
+.env
+.env.*
+!.env.example

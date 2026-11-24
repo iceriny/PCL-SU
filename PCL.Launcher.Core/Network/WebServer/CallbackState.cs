@@ -64,10 +64,13 @@ public static partial class WebServer
 
     public static void StartNaidAuthorize(Action? completeCallback = null)
     {
+        if (!Secrets.HasLobbyService || !NatayarkProfileManager.IsConfigured)
+            throw new InvalidOperationException(Lang.Text("Tools.GameLink.Natayark.Unconfigured"));
+
         Exception? resultEx = null;
         StartOAuthWaitingCallback(
             "NatayarkID",
-            $"https://account.naids.com/oauth2/authorize?response_type=code&client_id={Secrets.NatayarkClientId}&redirect_uri=%r",
+            $"https://account.naids.com/oauth2/authorize?response_type=code&client_id={Uri.EscapeDataString(Secrets.NatayarkClientId)}&redirect_uri=%r",
             (success, parameters, content) =>
             {
                 OAuthCompleteStatus? status;

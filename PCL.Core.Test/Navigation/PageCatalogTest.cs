@@ -1,5 +1,6 @@
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PCL.Core.App;
 using PCL.Navigation;
 
 namespace PCL.Core.Test.Navigation;
@@ -11,7 +12,7 @@ public sealed class PageCatalogTest
     public void CatalogShouldContainAllFeaturePages()
     {
         Assert.HasCount(11, PageCatalog.Pages);
-        Assert.AreEqual(44, PageCatalog.Pages.Sum(page => page.SubPages.Count));
+        Assert.AreEqual(Secrets.HasLobbyService ? 44 : 42, PageCatalog.Pages.Sum(page => page.SubPages.Count));
     }
 
     [TestMethod]
@@ -42,7 +43,7 @@ public sealed class PageCatalogTest
     public void SetupSubPagesShouldHaveUniqueIdsAndOrders()
     {
         var setup = PageCatalog.RequirePage(PageIds.Setup);
-        Assert.HasCount(11, setup.SubPages);
+        Assert.HasCount(Secrets.HasLobbyService ? 11 : 10, setup.SubPages);
         Assert.HasCount(
             setup.SubPages.Count,
             setup
@@ -61,6 +62,16 @@ public sealed class PageCatalogTest
                     .Select(page => page.Id)
             ],
             SequenceOrder.InAnyOrder);
+    }
+
+    [TestMethod]
+    public void LobbyRoutesMatchConfiguredServiceEvenWhenHiddenPagesAreShown()
+    {
+        var tools = PageCatalog.RequirePage(PageIds.Tools);
+        var setup = PageCatalog.RequirePage(PageIds.Setup);
+        Assert.AreEqual(Secrets.HasLobbyService, tools.VisibleSubPages(forceShow: true).Any(sub => sub.Id == SubPageIds.ToolsGameLink));
+        Assert.AreEqual(Secrets.HasLobbyService, setup.VisibleSubPages(forceShow: true).Any(sub => sub.Id == SubPageIds.SetupGameLink));
+        Assert.AreEqual(Secrets.HasLobbyService ? SubPageIds.ToolsGameLink : SubPageIds.ToolsTest, tools.DefaultSubPage);
     }
 
     [TestMethod]

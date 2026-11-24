@@ -88,6 +88,8 @@
     </ItemGroup>
     <!-- 项目自定义源生成器 -->
     <ItemGroup>
+        <AdditionalFiles Include="..\.env.example" />
+        <CompilerVisibleProperty Include="PclServiceConfigurationHash" />
         <AdditionalFiles Include="App\IoC\LifecycleState.cs" />
         <ProjectReference Include="..\PCL.Core.SourceGenerators\PCL.Core.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
