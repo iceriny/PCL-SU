@@ -7,7 +7,7 @@
 - 正式发布时，准备阶段从既有 Release 自动分配当日编号，回归、x64 与 ARM64 构建共用同一编号。本地构建通过 `artifacts/build/local-state.json` 自动计数。
 - 当前待发布的日志固定写入 `release-notes/current.md`，构建时自动以完整版本命名，发布阶段冻结同一份日志快照。历史取自已有 Release 与仓库日志，EXE 仅嵌入不晚于自身版本的最近 5 份，新增时剔除最旧项。启动日志从嵌入资源读取。
 - 更新日志面向玩家，使用一组单行 `<summary>...</summary>` 摘要，正文简洁说明实际功能变化与问题修复。
-- 本地运行 `scripts/Publish-Windows.ps1`，使用 Release 配置、.NET 11 SDK 和 .NET 10 运行时。脚本以 `--no-self-contained` 打包，按架构固定输出到 `artifacts/publish/x64/` 或 `artifacts/publish/ARM64/`。
+- 本地运行 `scripts/Publish-Windows.ps1`，使用 Release 配置和 .NET 11 SDK。脚本以 `--no-self-contained` 打包，成品使用 .NET 11 运行时，按架构固定输出到 `artifacts/publish/x64/` 或 `artifacts/publish/ARM64/`。
 - 原始打包 EXE 的固定路径：
   - `artifacts/publish/x64/Plain Craft Launcher 2.exe`
   - `artifacts/publish/ARM64/Plain Craft Launcher 2.exe`

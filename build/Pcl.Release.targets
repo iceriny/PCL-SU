@@ -10,6 +10,7 @@
       <PclReleaseNotesPath>$([System.IO.Path]::GetFullPath('$(PclReleaseNotesPath)', '$(PclRepositoryRoot)'))</PclReleaseNotesPath>
       <PclReleaseHistoryPath Condition="'$(PclReleaseHistoryPath)' == '' and Exists('$(PclRepositoryRoot)/artifacts/build/release-history.json')">$(PclRepositoryRoot)/artifacts/build/release-history.json</PclReleaseHistoryPath>
       <PclDotNetHost Condition="'$(DotNetHostPath)' != ''">$(DotNetHostPath)</PclDotNetHost>
+      <PclDotNetHost Condition="'$(PclDotNetHost)' == '' and '$(DOTNET_HOST_PATH)' != ''">$(DOTNET_HOST_PATH)</PclDotNetHost>
       <PclDotNetHost Condition="'$(PclDotNetHost)' == ''">dotnet</PclDotNetHost>
       <PclBuildOption Condition="'$(PclBuildMetadata)' != ''">--build &quot;$(PclBuildMetadata)&quot;</PclBuildOption>
       <PclHistoryOption Condition="'$(PclReleaseHistoryPath)' != ''">--history &quot;$(PclReleaseHistoryPath)&quot;</PclHistoryOption>
