@@ -3,7 +3,7 @@
   "version": {
     "base": "2.15.11",
     "upstream": "2.12.1",
-    "suffix": "alpha.1",
+    "suffix": "",
     "code": 534
   },
   "licenses": [
