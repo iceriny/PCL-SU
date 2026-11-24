@@ -41,7 +41,7 @@ public static class Secrets
     public static bool HasLobbyService => LinkServers.Length > 0;
 
     /// <summary>
-    /// 自建大厅的上报地址；未配置时不发送上报。
+    /// 自建大厅的可选上报地址。
     /// </summary>
     public static string LobbyReportEndpoint { get; } = EnvironmentInterop.GetSecret("LOBBY_REPORT_ENDPOINT", readEnvDebugOnly: true).ReplaceNullOrEmpty();
 

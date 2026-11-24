@@ -6,11 +6,13 @@ public record LoggerConfiguration(
     string? FileNameFormat = null,
     bool AutoDeleteOldFile = true,
     int MaxKeepOldFile = 16,
-#if DEBUG
-    LogLevel MinLogLevel = LogLevel.Debug,
+#if TRACE
+    LogLevel MinLogLevel = LogLevel.Trace
 #else
-    LogLevel MinLogLevel = LogLevel.Info,
+    LogLevel MinLogLevel = LogLevel.Info
 #endif
-    int QueueCapacity = 2048,
-    int ImportantLogWriteTimeoutMilliseconds = 250
-);
+)
+{
+    /// <summary>是否将写入文件的日志同时输出到当前进程的控制台。</summary>
+    public bool ConsoleOutput { get; init; }
+}

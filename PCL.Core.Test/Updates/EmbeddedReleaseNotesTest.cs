@@ -1,57 +1,52 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using Avalonia.Controls;
+using Avalonia.LogicalTree;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PCL.Core.App;
-using PCL.Core.Test.Network;
+using PCL.Core.UI.Dialogs;
 using PCL.Core.Utils;
+using PCL.UI.Dialogs;
 
 namespace PCL.Core.Test.Updates;
 
 [TestClass]
-[DoNotParallelize]
 public sealed class EmbeddedReleaseNotesTest
 {
     [TestMethod]
-    public void StartupUsesBundledNotesEvenWhenTheSharedCacheContainsAnOlderRelease()
+    public void MarkdownDialogShowsSummaryTextAndPreservesLiteralTagsInCode()
     {
-        DownloadTestEnvironment.EnsureInitialized();
-        var cachePath = Path.Combine(global::PCL.ModBase.pathTemp, "SUUpdateLog.md");
-        File.WriteAllText(cachePath, "stale unrelated release");
-        try
+        var dialog = new MyMsgMarkdown(new DialogViewModel(new MarkdownDialogRequest
         {
-            var assembly = typeof(global::PCL.EmbeddedReleaseNotes).Assembly;
-            var resources = assembly.GetManifestResourceNames()
-                .Where(name => name.StartsWith("PCL.ReleaseNotes.", StringComparison.Ordinal)).ToArray();
-            Assert.HasCount(5, resources);
-            foreach (var resource in resources)
-            {
-                var version = resource["PCL.ReleaseNotes.".Length..^3];
-                Assert.IsTrue(LauncherVersionComparer.Compare(version, Basics.VersionName) <= 0);
-            }
-            var notes = global::PCL.EmbeddedReleaseNotes.ReadCurrent();
-            Assert.IsFalse(string.IsNullOrWhiteSpace(notes));
-            StringAssert.Contains(notes, "<summary>");
-            Assert.IsFalse(notes.Contains("stale unrelated release", StringComparison.Ordinal));
-            using var exactResource = assembly.GetManifestResourceStream("PCL.ReleaseNotes." + Basics.VersionName + ".md");
-            Assert.IsNotNull(exactResource, "The current complete version must have an exact embedded changelog.");
-            using var reader = new StreamReader(exactResource);
-            Assert.AreEqual(reader.ReadToEnd(), notes);
-            Assert.IsNull(global::PCL.EmbeddedReleaseNotes.Read(assembly, "2.15.9+209901011"),
-                "A missing build must not display the core version's older notes.");
-        }
-        finally { File.Delete(cachePath); }
+            Title = "更新日志",
+            Content = "正文\n<summary>本次更新摘要</summary>\n```\n<summary>示例</summary>\n```"
+        }));
+        var text = dialog.GetLogicalDescendants().OfType<SelectableTextBlock>()
+            .Select(block => block.Text?.TrimEnd('\r', '\n')).ToArray();
+        CollectionAssert.Contains(text, "本次更新摘要");
+        CollectionAssert.Contains(text, "<summary>示例</summary>");
     }
 
     [TestMethod]
-    [DataRow("2.15.9", "2.15.9+202611172", 1)]
-    [DataRow("2.15.9+202611171", "2.15.9+202611172", 1)]
-    [DataRow("2.15.9-rc.1+202611179", "2.15.9+202611172", 1)]
-    [DataRow("2.15.9+202611172", "2.15.9+202611172", 0)]
-    [DataRow("2.15.9+202611173", "2.15.9+202611172", -1)]
-    [DataRow("", "2.15.9+202611172", 0)]
-    public void StartupDetectsNewBuildsWithoutChangingTheBaseVersion(string previous, string current, int expected)
+    public void LauncherEmbedsNotesForItsExactBuild()
     {
-        Assert.AreEqual(expected, Math.Sign(global::PCL.EmbeddedReleaseNotes.CompareStartupVersion(previous, current)));
+        const string prefix = "PCL.ReleaseNotes.";
+        var launcher = typeof(global::PCL.Views.MainWindow).Assembly;
+        using var metadata = launcher.GetManifestResourceStream("PCL.metadata.json");
+        Assert.IsNotNull(metadata);
+        var version = JsonSerializer.Deserialize<MetadataModel>(metadata)!.Version;
+        Assert.IsTrue(LauncherVersionComparer.TryParseBuildMetadata(version.BuildMetadata, out _, out _));
+
+        var names = launcher.GetManifestResourceNames()
+            .Where(name => name.StartsWith(prefix, StringComparison.Ordinal)).ToArray();
+        Assert.HasCount(5, names);
+        Assert.IsTrue(names.All(name =>
+            LauncherVersionComparer.Compare(name[prefix.Length..^3], version.FullName) <= 0));
+        using var releaseNotes = launcher.GetManifestResourceStream(prefix + version.FullName + ".md");
+        Assert.IsNotNull(releaseNotes);
+        using var reader = new StreamReader(releaseNotes);
+        StringAssert.Contains(reader.ReadToEnd(), "<summary>");
     }
 }

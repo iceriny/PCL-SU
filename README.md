@@ -1,91 +1,91 @@
-# PCL SU
+**简体中文** | [English](README-EN.md) | [繁體中文](README-ZH_TW.md)
 
-PCL SU（Plain Craft Launcher SU）是基于 [PCL CE](https://github.com/PCL-Community/PCL-CE) 的 Minecraft Java 版启动器分支，继承 [PCL](https://github.com/Meloong-Git/PCL) 与社区版的功能和开源成果。
+<div align="center">
 
-[下载](https://github.com/iceriny/PCL-SU/releases) · [问题反馈](https://github.com/iceriny/PCL-SU/issues/new/choose) · [贡献代码](https://github.com/iceriny/PCL-SU/pulls)
+<img src="PCL.Launcher/Assets/Images/icon.svg" alt="Logo" width="80" height="80">
 
-## 功能
+# PCL Community Edition
 
-- 管理 Minecraft 实例、Java、模组、整合包与存档。
-- 创建微软账号、第三方认证服务器和离线档案。
-- 从 PCL SU 仓库获取启动器更新。
-- 自定义主页、背景、主题与启动选项。
+[![Stars](https://img.shields.io/github/stars/PCL-Community/PCL-CE?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZlcnNpb249IjEiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiI+PHBhdGggZD0iTTggLjI1YS43NS43NSAwIDAgMSAuNjczLjQxOGwxLjg4MiAzLjgxNSA0LjIxLjYxMmEuNzUuNzUgMCAwIDEgLjQxNiAxLjI3OWwtMy4wNDYgMi45Ny43MTkgNC4xOTJhLjc1MS43NTEgMCAwIDEtMS4wODguNzkxTDggMTIuMzQ3bC0zLjc2NiAxLjk4YS43NS43NSAwIDAgMS0xLjA4OC0uNzlsLjcyLTQuMTk0TC44MTggNi4zNzRhLjc1Ljc1IDAgMCAxIC40MTYtMS4yOGw0LjIxLS42MTFMNy4zMjcuNjY4QS43NS43NSAwIDAgMSA4IC4yNVoiIGZpbGw9IiNlYWM1NGYiLz48L3N2Zz4=&logoSize=auto&label=stars&labelColor=444444&color=eac54f)](https://github.com/PCL-Community/PCL-CE/)
+![GitHub Release](https://img.shields.io/github/v/release/PCL-Community/PCL-CE?label=release&logo=github&style=for-the-badge)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/PCL-Community/PCL-CE/build-test.yml?style=for-the-badge)
 
-## 运行与构建
+[![Issues](https://img.shields.io/github/issues/PCL-Community/PCL-CE?style=for-the-badge&label=issues&labelColor=444444&color=1F883D&logo=github)](https://github.com/PCL-Community/PCL-CE/issues)
+[![Pull requests](https://img.shields.io/github/issues-pr/PCL-Community/PCL-CE?style=for-the-badge&label=pull%20requests&labelColor=444444&color=1F883D&logo=github)](https://github.com/PCL-Community/PCL-CE/pulls)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/PCL-Community/PCL-CE/total?style=for-the-badge)
+[![哔哩哔哩](https://img.shields.io/badge/动态-bilibili-00A4DB?style=for-the-badge&labelColor=444444&logo=bilibili)](https://space.bilibili.com/3546847192811755/dynamic) <br />
 
-运行环境为 Windows 和 [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)。建议使用 Windows 10 1809 或更高版本。
+<a href="https://trendshift.io/repositories/21800?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-21800" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/21800/weekly?language=C%23" alt="PCL-Community%2FPCL-CE | Trendshift" width="250" height="55"/></a>
+<a href="https://trendshift.io/repositories/21800" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/21800" alt="PCL-Community%2FPCL-CE | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
-安装 .NET 10 SDK 后，可在仓库根目录构建：
+[社区版下载](https://github.com/PCL-Community/PCL-CE/releases/latest) |
+[上游存储库](https://github.com/Meloong-Git/PCL)
 
-```powershell
-dotnet build "Plain Craft Launcher 2.slnx" --configuration Release -p:Platform=x64
-dotnet publish "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj" --configuration Release -p:Platform=x64 --no-self-contained --output "artifacts/publish/x64"
-```
+[提交问题](https://github.com/PCL-Community/PCL-CE/issues/new/choose) |
+[贡献指南](https://github.com/PCL-Community/PCL-CE/wiki/开发指南)
 
-微软登录需要为此分支配置可用于 Minecraft 身份验证的客户端 ID；CurseForge 官方 API 需要 API Key。发布流程通过仓库的 Actions Secrets 注入这些服务配置。
+</div>
 
-## 自动构建与发布
+PCL CE 是基于 PCL 开源代码二次开发的社区版本，包括了主线暂未制作的功能和改进！
 
-推送到 `dev`、提交 Pull Request 或手动运行 `Build (CI)` 时，先在 Windows 执行下载、登录诊断、档案与配置相关回归，再构建 x64 和 ARM64 产物。
+社区版的版本号与主线并非严格对应关系，也请不要向官方仓库反馈社区版问题。
 
-本地安装 .NET 10 SDK 后，可复用相同的回归入口：
+欢迎大家来用用看！
 
-```powershell
-./scripts/Invoke-RegressionTests.ps1
-```
+**开发群:** [599620549](https://qm.qq.com/q/PNQA4Md8wc)[✦](https://t.me/+78XW2bUOvKJjMTZl) | **用户 1 群:** [1028074835](https://qm.qq.com/q/qrMGJo8BQQ) | **用户 2 群:** [1070029541](https://qm.qq.com/q/lBywbDMWhG)
 
-在 `metadata.json` 维护主版本与先行版本，更新 `release-notes/current.md`。将提交推送到 `dev` 后运行：
+## 💻 支持平台
 
-```powershell
-gh workflow run release-publish.yml --ref dev
-```
+### Windows
 
-发布准备阶段按上海日期和既有 Release 自动分配构建号，回归与两个架构共用同一个版本。完整格式为 `X.Y.Z[-alpha.P|-beta.P|-rc.P]+yyyyMMddN`，例如 `2.15.9+202611172`、`2.15.9-rc.1+202611172`；`N` 是当日构建次数，支持多位。主版本和先行版本相同时，启动器继续比较构建日期与次数。
+| 版本 | 架构 | 支持情况 | 环境要求 |
+|---|---|---|---|
+| Windows 10 1809 (17763) 及以上，或 Windows 11 | x64、ARM64 | ✅ 完整支持 | [.NET 11 Runtime](https://dotnet.microsoft.com/download/dotnet/11.0) |
+| Windows 10 1607 (E) | x64 | ⚠️ 理论能跑，酌情提供社区支持 | [.NET 11 Runtime](https://dotnet.microsoft.com/download/dotnet/11.0) |
+| Windows 8.1、8、7 及更低版本 | / | ❌ 不支持 | / |
 
-本地直接构建时，编号由 `artifacts/build/local-state.json` 自动维护。程序集版本、文件版本、程序展示版本由构建工具从元数据生成。
+<small>`(E)` 指 Enterprise 或 ESU 版本。.NET 11 对 Windows 10 1607 和 1809 的官方支持仅限这些版本。</small>
 
-工作流执行回归并构建两个架构。校验和、Sigstore 签名及全部产物准备完成后，才创建或更新同一提交的草稿 Release 并公开发布。稳定版资产使用 `PCL_SU_Release_x64.exe`、`PCL_SU_Release_ARM64.exe`，先行版使用 `PCL_SU_Beta_x64.exe`、`PCL_SU_Beta_ARM64.exe`，同时提供对应 `.sha256`、`.sigstore.json`。
+### Linux
 
-### 更新日志格式
+| 发行版 | 架构 | 支持情况 | 环境要求 |
+|---|---|---|---|
+| 常见 glibc 桌面发行版<br>（Ubuntu 22.04 及以上、Fedora 43 及以上、Arch Linux 等） | x64 | ✅ 支持 | [.NET 11 Runtime](https://dotnet.microsoft.com/download/dotnet/11.0)、X11、Wayland 实验 |
+| 同上 | ARM64 | ✅ 支持 | [.NET 11 Runtime](https://dotnet.microsoft.com/download/dotnet/11.0)、X11 |
+| 其他 glibc 桌面发行版 | x64、ARM64 | ⚠️ 理论能跑，酌情提供社区支持 | 需要 glibc 2.27 及以上，并能使用 X11 桌面 |
+| Alpine 等 musl 发行版 | x64、ARM64 | ❌ 不支持 | 当前产物尚未在 musl 环境验证 |
 
-`release-notes/current.md` 使用 UTF-8 Markdown，构建时自动生成以完整版本命名的日志，发布时原样作为 GitHub Release 正文，无需手工改写构建号或日志文件名。发布准备阶段合并已有 Release 与仓库历史，冻结最近 5 份日志供测试和两个架构共同使用；EXE 启动时读取对应日志，离线与手动替换 EXE 均可显示。更新页读取唯一一组 `<summary>...</summary>` 之间的文字作为摘要，“查看详情”显示整篇 Markdown。摘要写成一行纯文本，用一两句话概括本次更新对玩家的主要作用。
+<small>默认使用 X11。设置 `PCL_USE_WAYLAND=1` 可以尝试原生 Wayland。如果初始化失败，会自动回退到 X11。使用 Wayland 还需要安装 `libwayland-client` 和 `libxkbcommon`。</small>
 
-```markdown
-<summary>CurseForge 资源搜索与下载现已可用。</summary>
+### macOS
 
-## 更新内容
+| 版本 | 架构 | 支持情况 | 环境要求 |
+|---|---|---|---|
+| macOS 12 及以上 | Apple Silicon (ARM64)、Intel (x64) | ✅ 支持 | [.NET 11 Runtime](https://dotnet.microsoft.com/download/dotnet/11.0) |
 
-- 可以搜索 CurseForge 模组、整合包等资源，并查看版本和下载。
-- 改善 CurseForge 整合包导入时的资源获取体验。
-```
+**✅ 完整支持**：会尽量提供支持，但请先确保使用最新版本。
 
-正文围绕玩家能感受到的功能变化、问题修复，以及需要采取的升级操作展开。测试结果、构建过程和服务接入配置记录在 Actions 与开发文档中。发布前会校验摘要标签、非空摘要及正文。
+**⚠️ 理论能跑，酌情提供社区支持**：这些平台通常可以运行，但无法保证所有功能正常。遇到问题时，社区会视情况协助。升级到受支持的系统版本可以获得更完整的支持。
 
-## 服务配置
+**❌ 不支持**：这些平台基本无法正常使用，甚至可能无法启动。请升级系统后再运行 PCL CE。
 
-本地明文备份使用项目根目录的 `.env.local`，变量名见 `.env.example`。本地构建使用 `PCL_MS_CLIENT_ID` 与 `PCL_CURSEFORGE_API_KEY`；发布工作流对应的仓库 Secret 分别是 `PCL_MS_CLIENT_ID` 与 `CURSEFORGE_API_KEY`。
+**注**：
+- 社区只为最新版本提供支持。
+- 有些问题与系统环境有关。例如系统组件不完整时，仍需升级系统才能继续获得支持。
+- 建议使用较新的操作系统，以获得更好的体验。
+- 在不受支持的系统上仍可尝试运行，但可能遇到更多问题。
 
-在本仓库的 Actions Secrets 中配置下列值，重新构建后生效：
+## 🔒 许可证
 
-| Secret | 用途 |
-| --- | --- |
-| `PCL_MS_CLIENT_ID` | Microsoft 个人账号的公共客户端 ID，启用设备代码登录 |
-| `CURSEFORGE_API_KEY` | CurseForge 官方资源 API 与文件下载 |
-| `SENTRY_DSN` | 可选的 SU 遥测服务；未配置时不启用遥测 |
-| `LINK_SERVER_ROOTS` | 自建大厅服务根地址，多个地址用 `\|` 分隔；配置后显示大厅入口 |
-| `NAID_CLIENT_ID`、`NAID_CLIENT_SECRET` | 自建大厅需要 Natayark 登录时使用 |
-| `LOBBY_DEFAULT_SECRET` | 自建大厅的默认联机密钥 |
-| `LOBBY_REPORT_ENDPOINT` | 可选的大厅上报接口；未配置时不发送上报 |
-| `TELEMETRY_KEY` | 大厅上报接口的 Bearer 认证密钥 |
-| `LOBBY_PRIVACY_URL` | 自建大厅的隐私政策链接 |
+- `PCL.Launcher/` 和 `PCL.Launcher.Core/` 使用 [自定义许可证](https://github.com/PCL-Community/PCL-CE/blob/dev/PCL.Launcher.Core/LICENCE)
+- `其余所有目录` 使用 [Apache License 2.0](https://github.com/PCL-Community/PCL-CE/blob/dev/LICENSE)
 
-大厅后端保留现有协议。服务根地址需提供 `/api/link/v2/cache.ini` 与 `/api/link/v2/announce.json`，具体格式与上报约定见 `PageToolsGameLink`、`LobbyController`。未配置服务时隐藏大厅入口。
+## 🌟 统计数据
+![Alt](https://repobeats.axiom.co/api/embed/3e46296e6e3a134991a783480fd2f62723bb0353.svg "Repobeats analytics image")
 
-SU 使用独立的 `PCLSU` 用户数据目录，首次运行时复制已有 CE 共享配置及其加密密钥，原数据保留。离线与第三方档案无需上述服务密钥。
+[![Star History Chart](https://api.star-history.com/chart?repos=PCL-Community/PCL-CE&type=date&legend=top-left&sealed_token=Ts-GaAXJ5nb9fJERusrXneo05pfZ83tMhReHJ98nmmlemBTqHS5Ozocdep1MTMdsX-6CRiQH9TqiS1Kk7SxjTfk02eUOxnm25oHff6TLLvrY7pGujOkU1IwjVFQLE-5GJYogutJAyI78jujBlOnpk3J2OKAY1PBhmkyUOzW1C1sdz5BzPbj2eBbJGvDx)](https://www.star-history.com/?repos=PCL-Community%2FPCL-CE&type=date&legend=top-left)
 
-## 许可证与致谢
+**此页浏览量**（总计 / 今日）：[![Hits](https://hits.zkitefly.eu.org/?tag=https://github.com/PCL-Community/PCL-CE)](https://hits.zkitefly.eu.org/?tag=https://github.com/PCL-Community/PCL-CE&web=true)
+## ❤️ 贡献者
 
-- `Plain Craft Launcher 2/` 遵循目录中的[自定义许可证](Plain%20Craft%20Launcher%202/LICENCE)。
-- 其余目录遵循 [Apache License 2.0](LICENSE)。
-- 感谢原作者[龙腾猫跃](https://github.com/Meloong-Git)、[PCL Community](https://github.com/PCL-Community) 和所有上游贡献者。
-- 项目中使用的第三方组件继续遵循各自许可证，相关声明保留于源码和启动器的关于页面。
+[![](https://contrib.rocks/image?repo=PCL-Community/PCL-CE)](https://github.com/PCL-Community/PCL-CE/graphs/contributors)

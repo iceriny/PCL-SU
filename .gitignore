@@ -6,10 +6,6 @@
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
 # User-specific files
-.env
-.env.*
-!.env.example
-
 *.rsuser
 *.suo
 *.user
@@ -350,3 +346,12 @@ MaskFiles/
 # macOS
 
 **/.DS_Store
+# 运行时数据（PCL_PATH 重定向目录），不进版本库
+/.run/
+
+# 本地发布产物
+/dist/
+
+.env
+.env.*
+!.env.example

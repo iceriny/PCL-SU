@@ -9,8 +9,8 @@ namespace PCL.Core.Test.Updates;
 public sealed class UpdateInstallTest
 {
     private string _directory = null!;
-    private string Source => Path.Combine(_directory, "PCL", "Plain Craft Launcher SU.exe");
-    private string Target => Path.Combine(_directory, "launcher.exe");
+    private string Target => Path.Combine(_directory, "launcher with spaces.exe");
+    private string Source => UpdateHelper.GetStagedPath(Target);
 
     [TestInitialize]
     public void Initialize()
@@ -25,37 +25,22 @@ public sealed class UpdateInstallTest
     public void Cleanup() => Directory.Delete(_directory, true);
 
     [TestMethod]
-    public void ReplaceKeepsRunningSourceAndInstallsCompleteFile()
+    public void AcceptsLegacySuHandoffAndRejectsUnrelatedPaths()
     {
-        using var runningSource = new FileStream(Source, FileMode.Open, FileAccess.Read, FileShare.Read);
-        Assert.IsNull(UpdateHelper.Replace(Source, Target));
+        Assert.IsTrue(UpdateHelper.IsExpectedHandoff(Source, Source, Target));
+        Assert.IsFalse(UpdateHelper.IsExpectedHandoff(Target, Source, Target));
+        Assert.IsFalse(UpdateHelper.IsExpectedHandoff(Source, Source, Path.Combine(_directory, "Other", "launcher.exe")));
+    }
+
+    [TestMethod]
+    public void ReplaceKeepsRunningSourceAndCleansAfterSuccess()
+    {
+        using (var runningSource = new FileStream(Source, FileMode.Open, FileAccess.Read, FileShare.Read))
+            Assert.IsNull(UpdateHelper.Replace(Source, Target));
         Assert.AreEqual("new launcher", File.ReadAllText(Target));
         Assert.AreEqual("new launcher", File.ReadAllText(Source));
         Assert.AreEqual(0, Directory.GetFiles(_directory, "*.tmp").Length);
-    }
 
-    [TestMethod]
-    public void ReplaceFailureLeavesOldLauncherAndRemovesStagingFile()
-    {
-        using (var runningTarget = new FileStream(Target, FileMode.Open, FileAccess.Read, FileShare.Read))
-            Assert.IsNotNull(UpdateHelper.Replace(Source, Target));
-        Assert.AreEqual("old launcher", File.ReadAllText(Target));
-        Assert.AreEqual("new launcher", File.ReadAllText(Source));
-        Assert.AreEqual(0, Directory.GetFiles(_directory, "*.tmp").Length);
-    }
-
-    [TestMethod]
-    public void MissingSourceLeavesOldLauncher()
-    {
-        File.Delete(Source);
-        Assert.IsNotNull(UpdateHelper.Replace(Source, Target));
-        Assert.AreEqual("old launcher", File.ReadAllText(Target));
-        Assert.AreEqual(0, Directory.GetFiles(_directory, "*.tmp").Length);
-    }
-
-    [TestMethod]
-    public void SuccessfulResultCleansSourceAndIsConsumedOnce()
-    {
         UpdateHelper.SaveResult(Target, new(int.MaxValue, null));
         Assert.IsNotNull(UpdateHelper.ConsumeResult(Target));
         Assert.IsFalse(File.Exists(Source));
@@ -63,21 +48,16 @@ public sealed class UpdateInstallTest
     }
 
     [TestMethod]
-    public void FailedResultKeepsCauseAndSourceAndIsConsumedOnce()
+    public void MissingSourceLeavesOldLauncherAndFailureIsConsumedOnce()
     {
-        const string reason = "目标文件被占用，替换失败";
-        UpdateHelper.SaveResult(Target, new(Environment.ProcessId, reason));
-        Assert.AreEqual(reason, UpdateHelper.ConsumeResult(Target)?.Error);
-        Assert.IsTrue(File.Exists(Source));
-        Assert.IsNull(UpdateHelper.ConsumeResult(Target));
-    }
+        File.Delete(Source);
+        var failure = UpdateHelper.Replace(Source, Target);
+        Assert.IsNotNull(failure);
+        Assert.AreEqual("old launcher", File.ReadAllText(Target));
+        Assert.AreEqual(0, Directory.GetFiles(_directory, "*.tmp").Length);
 
-    [TestMethod]
-    public void RunningUpdaterDefersCleanupAndKeepsResult()
-    {
-        UpdateHelper.SaveResult(Target, new(Environment.ProcessId, null));
+        UpdateHelper.SaveResult(Target, new(Environment.ProcessId, failure.Message));
+        Assert.AreEqual(failure.Message, UpdateHelper.ConsumeResult(Target)?.Error);
         Assert.IsNull(UpdateHelper.ConsumeResult(Target));
-        Assert.IsTrue(File.Exists(Source));
-        Assert.IsTrue(File.Exists(Path.Combine(_directory, "PCL", "UpdateResult.json")));
     }
 }

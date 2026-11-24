@@ -60,8 +60,10 @@ public static partial class Config
     {
         [ConfigItem<bool>("SystemDebugMode", false)] public partial bool Enabled { get; set; }
         [ConfigItem<int>("SystemDebugAnim", 9)] public partial int AnimationSpeed { get; set; }
+        [ConfigItem<int>("SystemDebugLinuxProtocol", 0)] public partial int LinuxProtocol { get; set; }
         [ConfigItem<bool>("SystemDebugDelay", false)] public partial bool AddRandomDelay { get; set; }
         [ConfigItem<bool>("SystemDebugSkipCopy", false)] public partial bool DontCopy { get; set; }
+        [ConfigItem<bool>("SystemDebugAllowRestrictedFeature", false)] public partial bool AllowRestrictedFeature { get; set; }
     }
 
     /// <summary>
@@ -121,6 +123,10 @@ public static partial class Config
         /// </summary>
         [ConfigItem<UpdateChannel>("SystemUpdateChannel", UpdateChannel.Release, ConfigSource.Local)] public partial UpdateChannel UpdateChannel { get; set; }
             
+        /// <summary>
+        /// Mirror 酱 CDK。
+        /// </summary>
+        [ConfigItem<string>("SystemMirrorChyanKey", "", ConfigSource.SharedEncrypt)] public partial string MirrorChyanKey { get; set; }
     }
 
     /// <summary>
@@ -180,11 +186,6 @@ public static partial class Config
     [ConfigGroup("Preference")] partial class PreferenceConfigGroup
     {
         /// <summary>
-        /// 启动时显示 Logo。
-        /// </summary>
-        [ConfigItem<bool>("UiLauncherLogo", true, ConfigSource.Local)] public partial bool ShowStartupLogo { get; set; }
-
-        /// <summary>
         /// 锁定窗口大小。
         /// </summary>
         [ConfigItem<bool>("UiLockWindowSize", false)] public partial bool LockWindowSize { get; set; }
@@ -198,6 +199,11 @@ public static partial class Config
         /// 标题内容类型。
         /// </summary>
         [ConfigItem<LauncherTitleType>("UiLogoType", LauncherTitleType.Default, ConfigSource.Local)] public partial LauncherTitleType WindowTitleType { get; set; }
+
+        /// <summary>
+        /// macOS 标题栏样式。
+        /// </summary>
+        [ConfigItem<int>("UiMacTitleBarStyle", 0, ConfigSource.Local)] public partial int MacTitleBarStyle { get; set; }
 
         /// <summary>
         /// 窗口标题文本。
@@ -265,9 +271,6 @@ public static partial class Config
             /// </summary>
             [ConfigItem<ColorTheme>("UiLightColor", ColorTheme.MistRose)] public partial ColorTheme LightColor { get; set; }
 
-            /// <summary>
-            /// 默认配色迁移版本。
-            /// </summary>
             [ConfigItem<int>("UiPaletteVersion", 0)] public partial int PaletteVersion { get; set; }
 
             /// <summary>
@@ -335,32 +338,6 @@ public static partial class Config
             /// 视频自动暂停。
             /// </summary>
             [ConfigItem<bool>("UiAutoPauseVideo", true, ConfigSource.Local)] public partial bool AutoPauseVideo { get; set; }
-        }
-
-        /// <summary>
-        /// 高级材质。
-        /// </summary>
-        [ConfigGroup("Blur")] partial class BlurConfigGroup
-        {
-            /// <summary>
-            /// 是否启用。
-            /// </summary>
-            [ConfigItem<bool>("UiBlur", false, ConfigSource.Local)] public partial bool IsEnabled { get; set; }
-
-            /// <summary>
-            /// 模糊半径。
-            /// </summary>
-            [ConfigItem<int>("UiBlurValue", 16, ConfigSource.Local)] public partial int Radius { get; set; }
-
-            /// <summary>
-            /// 采样率。
-            /// </summary>
-            [ConfigItem<int>("UiBlurSamplingRate", 70, ConfigSource.Local)] public partial int SamplingRate { get; set; }
-
-            /// <summary>
-            /// 模糊方法。
-            /// </summary>
-            [ConfigItem<int>("UiBlurType", 0, ConfigSource.Local)] public partial int KernelType { get; set; }
         }
 
         /// <summary>

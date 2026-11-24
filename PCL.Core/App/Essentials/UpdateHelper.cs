@@ -9,16 +9,40 @@ public static class UpdateHelper
 {
     internal sealed record InstallResult(int UpdaterProcessId, string? Error);
 
+    public static string GetStagedPath(string target) =>
+        Path.Combine(Path.GetDirectoryName(target)!, "PCL", "Plain Craft Launcher SU.exe");
+
+    internal static bool IsExpectedHandoff(string runningPath, string source, string target)
+    {
+        var running = Path.GetFullPath(runningPath);
+        var sourcePath = Path.GetFullPath(source);
+        var targetPath = Path.GetFullPath(target);
+        return running.Equals(sourcePath, StringComparison.OrdinalIgnoreCase) &&
+            !running.Equals(targetPath, StringComparison.OrdinalIgnoreCase) &&
+            sourcePath.Equals(GetStagedPath(targetPath), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetResultPath(string target) =>
+        Path.Combine(Path.GetDirectoryName(GetStagedPath(target))!, "UpdateResult.json");
+
     internal static void SaveResult(string target, InstallResult result)
     {
-        var path = Path.Combine(Path.GetDirectoryName(target)!, "PCL", "UpdateResult.json");
-        File.WriteAllText(path, JsonSerializer.Serialize(result));
+        var path = GetResultPath(target);
+        var staging = $"{path}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            File.WriteAllText(staging, JsonSerializer.Serialize(result));
+            File.Move(staging, path, overwrite: true);
+        }
+        finally
+        {
+            File.Delete(staging);
+        }
     }
 
     internal static InstallResult? ConsumeResult(string target)
     {
-        var directory = Path.Combine(Path.GetDirectoryName(target)!, "PCL");
-        var path = Path.Combine(directory, "UpdateResult.json");
+        var path = GetResultPath(target);
         if (!File.Exists(path)) return null;
         var result = JsonSerializer.Deserialize<InstallResult>(File.ReadAllText(path))
             ?? throw new InvalidDataException("更新结果为空");
@@ -32,23 +56,18 @@ public static class UpdateHelper
                 using (updater)
                     if (updater is not null && !updater.WaitForExit(5000)) return null;
             }
-            File.Delete(Path.Combine(directory, "Plain Craft Launcher SU.exe"));
+            File.Delete(GetStagedPath(target));
         }
         File.Delete(path);
         return result;
     }
 
-    /// <summary>
-    /// 更新启动器（替换文件）
-    /// </summary>
-    /// <param name="source">用于替换的来源文件路径</param>
-    /// <param name="target">目标文件路径</param>
+    /// <summary>将完整的更新程序复制到目标目录，然后原子替换原文件。</summary>
     public static Exception? Replace(string source, string target)
     {
         var staging = $"{target}.update.{Guid.NewGuid():N}.tmp";
         try
         {
-            // 来源可能是正在运行的更新进程，先完整复制到目标所在目录再原子替换。
             File.Copy(source, staging);
             File.Replace(staging, target, null);
             return null;

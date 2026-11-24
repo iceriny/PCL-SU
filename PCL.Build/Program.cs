@@ -6,7 +6,7 @@ internal static class Program
     {
         try
         {
-            if (args.Length == 0) throw new ArgumentException("Expected prepare or allocate.");
+            if (args.Length == 0) throw new ArgumentException("Expected prepare, allocate or render-splash.");
             var options = new Dictionary<string, string>(StringComparer.Ordinal);
             for (var index = 1; index < args.Length; index += 2)
             {
@@ -19,6 +19,9 @@ internal static class Program
 
             switch (args[0])
             {
+                case "render-splash":
+                    StartupSplashFrame.Write(Required("--output"));
+                    return 0;
                 case "allocate":
                     Console.WriteLine(BuildPackaging.AllocateReleaseBuild(
                         File.ReadAllText(Required("--history")),

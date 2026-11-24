@@ -109,6 +109,11 @@ public static partial class States
         [ConfigItem<bool>("HintDisableGamePathCheckTip", false)] public partial bool NonAsciiGamePath { get; set; }
 
         /// <summary>
+        /// 启动时的社区版提示。
+        /// </summary>
+        [ConfigItem<bool>("UiLauncherCEHint", true)] public partial bool CEMessage { get; set; }
+
+        /// <summary>
         /// 投影管理首次使用提示。
         /// </summary>
         [ConfigItem<bool>("UiSchematicFirstTimeHintShown", false)] public partial bool SchematicFirstTime { get; set; }
@@ -190,6 +195,17 @@ public static partial class States
         /// </summary>
         [ConfigItem<double>("WindowWidth", 900, ConfigSource.Local)] public partial double WindowWidth { get; set; }
 
+        [ConfigItem<bool>("WindowPositionSaved", false, ConfigSource.Local)]
+        public partial bool WindowPositionSaved { get; set; }
+
+        [ConfigItem<double>("WindowLeft", 0d, ConfigSource.Local)]
+        public partial double WindowLeft { get; set; }
+
+        [ConfigItem<double>("WindowTop", 0d, ConfigSource.Local)]
+        public partial double WindowTop { get; set; }
+
+        [ConfigItem<bool>("WindowMaximized", false, ConfigSource.Local)]
+        public partial bool WindowMaximized { get; set; }
     }
 
     /// <summary>
@@ -226,7 +242,6 @@ public static partial class States
         /// 上个版本。
         /// </summary>
         [ConfigItem<int>("SystemLastVersionReg", 0, ConfigSource.SharedEncrypt)] public partial int LastVersion { get; set; }
-
         [ConfigItem<string>("SystemLastVersionName", "", ConfigSource.SharedEncrypt)] public partial string LastVersionName { get; set; }
 
         // [ConfigItem<int>("SystemHighestSavedBetaVersionReg", 0, ConfigSource.SharedEncrypt)] public partial int LastSavedBetaVersion { get; set; }

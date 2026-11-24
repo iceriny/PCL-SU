@@ -1,0 +1,20 @@
+<Label xmlns="https://github.com/avaloniaui" xmlns:shape="using:PCL.UI.Controls"
+       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+       x:Class="PCL.UI.Controls.MyTextButton"
+       Focusable="False">
+    <Label.Styles>
+        <StyleInclude Source="avares://PCL.Launcher/UI/Styles/Controls/MyTextButton.axaml" />
+    </Label.Styles>
+    <Grid>
+        <TextBlock x:Name="LabText"
+                   VerticalAlignment="Center" />
+		<shape:SuperellipseBorder x:Name="BorUnderline"
+                Height="0.5"
+                VerticalAlignment="Bottom"
+                Background="{Binding Foreground, ElementName=LabText}"
+                Opacity="{Binding Opacity, ElementName=LabText}"/>
+        <shape:SuperellipseBorder x:Name="FocusRing"
+                Classes="FocusRing"
+                IsHitTestVisible="False" />
+    </Grid>
+</Label>

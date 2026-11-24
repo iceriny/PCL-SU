@@ -4,14 +4,16 @@ using PCL.Core.App.Localization;
 
 namespace PCL.Core.Utils.Validate;
 
-public class StringLengthValidator(int min = 0, int max = int.MaxValue) : AbstractValidator<string>
+public class StringLengthValidator(
+    int min = 0,
+    int max = int.MaxValue) : AbstractValidator<string>
 {
-    public int Min { get; set; } = min;
-    public int Max { get; set; } = max;
-
     public StringLengthValidator() : this(0)
     {
     }
+
+    public int Min { get; set; } = min;
+    public int Max { get; set; } = max;
 
     private void _BuildRules()
     {

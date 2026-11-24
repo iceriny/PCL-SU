@@ -33,7 +33,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: 10.0.403
+          dotnet-version: 11.0.100
 
       - name: Prepare release version
         id: release
@@ -50,11 +50,11 @@ jobs:
           [[ "$RELEASE_REF" == "refs/heads/dev" ]]
           gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" > "$RUNNER_TEMP/release-history.json"
           dotnet build PCL.Build/PCL.Build.csproj --configuration Release --nologo --verbosity quiet
-          tool="PCL.Build/bin/Release/net10.0/PCL.Build.dll"
+          tool="PCL.Build/bin/Release/net11.0/PCL.Build.dll"
           build="$(dotnet "$tool" allocate --history "$RUNNER_TEMP/release-history.json")"
           prepared="$RUNNER_TEMP/release-prepared"
           test -s release-notes/current.md
-          dotnet "$tool" prepare --metadata 'Plain Craft Launcher 2/metadata.json' --notes release-notes --output "$prepared" --state "$RUNNER_TEMP/release-build-state" --build "$build" --history "$RUNNER_TEMP/release-history.json"
+          dotnet "$tool" prepare --metadata 'PCL.Launcher/Resources/metadata.json' --notes release-notes --output "$prepared" --state "$RUNNER_TEMP/release-build-state" --build "$build" --history "$RUNNER_TEMP/release-history.json"
           RELEASE_VERSION="$(tr -d '\r\n' < "$prepared/version.txt")"
           PREPARED_DIRECTORY="$prepared"
           export RELEASE_VERSION PREPARED_DIRECTORY

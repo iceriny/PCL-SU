@@ -5,7 +5,9 @@ using PCL.Core.App.Localization;
 
 namespace PCL.Core.Utils.Validate;
 
-public class RegexValidator(string pattern = "", string? errorMessage = null) : AbstractValidator<string>
+public class RegexValidator(
+    string pattern = "",
+    string? errorMessage = null) : AbstractValidator<string>
 {
     public RegexValidator() : this(string.Empty)
     {

@@ -7,24 +7,22 @@ namespace PCL.Core.Utils.Validate;
 
 public class HttpAndUncValidator(bool allowNullOrEmpty) : AbstractValidator<string>
 {
-    public bool AllowsNullOrEmpty { get; set; } = allowNullOrEmpty;
-
     public HttpAndUncValidator() : this(false)
     {
     }
+
+    public bool AllowsNullOrEmpty { get; set; } = allowNullOrEmpty;
 
     private void _BuildRules()
     {
         RuleFor(x => x)
             .Must(x =>
             {
-                if (AllowsNullOrEmpty && string.IsNullOrEmpty(x))
-                {
-                    return true;
-                }
+                if (AllowsNullOrEmpty && string.IsNullOrEmpty(x)) return true;
 
                 return x.IsMatch(RegexPatterns.HttpUri) || x.IsMatch(RegexPatterns.UncPath);
-            }).WithMessage(_ => Lang.Text("Common.Validate.InvalidUrl"));
+            })
+            .WithMessage(_ => Lang.Text("Common.Validate.InvalidUrl"));
     }
 
     protected override bool PreValidate(ValidationContext<string> context, ValidationResult result)

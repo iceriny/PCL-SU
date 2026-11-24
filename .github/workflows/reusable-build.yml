@@ -52,7 +52,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: 10.0.403
+          dotnet-version: 11.0.100
 
       - name: Download prepared release metadata
         if: ${{ inputs.release-metadata-artifact != '' }}
@@ -65,7 +65,7 @@ jobs:
         env:
           REQUIRE_MS_CLIENT_ID: ${{ inputs.require-ms-client-id }}
           REQUIRE_CURSEFORGE_KEY: ${{ inputs.require-curseforge-key }}
-          PCL_WRITE_SECRET: '1'
+          PCL_WRITE_SECRET: ${{ inputs.release-metadata-artifact != '' && '1' || '' }}
           PCL_MS_CLIENT_ID: ${{ secrets.PCL_MS_CLIENT_ID }}
           PCL_CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
           PCL_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
@@ -87,40 +87,28 @@ jobs:
           if ($env:REQUIRE_CURSEFORGE_KEY -eq 'true' -and [string]::IsNullOrWhiteSpace($env:PCL_CURSEFORGE_API_KEY)) {
             throw 'Set the CURSEFORGE_API_KEY repository secret before publishing a release.'
           }
-          $publishDirectory = Join-Path 'artifacts/publish' $env:BUILD_ARCHITECTURE
-          $publishArguments = @(
-            'publish', 'Plain Craft Launcher 2/Plain Craft Launcher 2.csproj',
-            '--configuration', $env:BUILD_CONFIGURATION,
-            "-p:Platform=$env:BUILD_ARCHITECTURE", '-p:UseSharedCompilation=false',
-            '--no-self-contained', '--output', $publishDirectory
-          )
-          if (-not [string]::IsNullOrWhiteSpace($env:BUILD_METADATA)) {
-            $publishArguments += "-p:PclBuildMetadata=$env:BUILD_METADATA"
+          $publishArguments = @{
+            Architecture = $env:BUILD_ARCHITECTURE
+            Configuration = $env:BUILD_CONFIGURATION
+            BuildMetadata = $env:BUILD_METADATA
+            ExpectedVersion = $env:EXPECTED_VERSION
           }
           if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_METADATA_ARTIFACT)) {
-            $releaseNotesPath = Join-Path (Get-Location) 'artifacts/build/release-metadata/notes'
-            $publishArguments += "-p:PclReleaseNotesPath=$releaseNotesPath"
+            $publishArguments.ReleaseNotesPath = Join-Path (Get-Location) 'artifacts/build/release-metadata/notes'
           }
-          dotnet @publishArguments
-          if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
+          ./scripts/Publish-Windows.ps1 @publishArguments
 
           $assetName = "PCL_SU_$($env:BUILD_CONFIGURATION)_$($env:BUILD_ARCHITECTURE).exe"
           $asset = Join-Path 'artifacts' $assetName
-          Copy-Item -LiteralPath (Join-Path $publishDirectory 'Plain Craft Launcher 2.exe') -Destination $asset
-          if (-not [string]::IsNullOrWhiteSpace($env:EXPECTED_VERSION) -and
-              [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path -LiteralPath $asset)).ProductVersion -ne $env:EXPECTED_VERSION) {
-            throw 'Published binary informational version does not match the prepared release'
-          }
           $binaryBytes = [IO.File]::ReadAllBytes($asset)
           $binaryText = [Text.Encoding]::Unicode.GetString($binaryBytes)
           $binaryTextOdd = [Text.Encoding]::Unicode.GetString($binaryBytes, 1, $binaryBytes.Length - 1)
           foreach ($value in @($env:PCL_MS_CLIENT_ID, $env:PCL_CURSEFORGE_API_KEY)) {
-            if (-not [string]::IsNullOrWhiteSpace($value) -and -not $binaryText.Contains($value) -and -not $binaryTextOdd.Contains($value)) {
+            if ($env:PCL_WRITE_SECRET -eq '1' -and -not [string]::IsNullOrWhiteSpace($value) -and -not $binaryText.Contains($value) -and -not $binaryTextOdd.Contains($value)) {
               throw 'A configured service credential was not embedded'
             }
           }
           $hash = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLowerInvariant()
-          Set-Content -LiteralPath "$asset.sha256" -Value ("$hash  $assetName" + [char]10) -Encoding utf8NoBOM -NoNewline
           "Asset: $assetName; SHA256: $hash" >> $env:GITHUB_STEP_SUMMARY
           "Microsoft login configured: $(-not [string]::IsNullOrWhiteSpace($env:PCL_MS_CLIENT_ID))" >> $env:GITHUB_STEP_SUMMARY
           "CurseForge official API configured: $(-not [string]::IsNullOrWhiteSpace($env:PCL_CURSEFORGE_API_KEY))" >> $env:GITHUB_STEP_SUMMARY

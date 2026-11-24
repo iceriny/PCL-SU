@@ -30,11 +30,9 @@ public static class MojangUtils
     /// <param name="xstsToken">XSTS 令牌</param>
     /// <param name="userHash">Xbox User Hash</param>
     /// <returns><see cref="MojangResponse"/></returns>
-    public static async Task<MojangResponse?> AuthenticateAsync(string xstsToken, string userHash, CancellationToken token,
-        string? clientId = null)
+    public static async Task<MojangResponse?> AuthenticateAsync(string xstsToken, string userHash, CancellationToken token)
     {
         using var response = await HttpRequest.CreatePost(MojangAuthenticateEndpoint)
-            .WithHeader("Accept", "application/json")
             .WithContent(new StringContent(
                 JsonSerializer.Serialize(new MojangIdentityToken
                 {
@@ -42,8 +40,7 @@ public static class MojangUtils
                 }
                 ), Encoding.UTF8, "application/json")
             ).SendAsync(cancellationToken: token).ConfigureAwait(false);
-        await MinecraftServiceException.EnsureSuccessAsync(response, MinecraftServiceOperation.LoginWithXbox, token, clientId)
-            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
         return await response.AsJsonAsync<MojangResponse>(cancellationToken: token).ConfigureAwait(false);
     }
 
@@ -55,11 +52,9 @@ public static class MojangUtils
     public static async Task<bool> CheckLicenseAsync(SafeProfile profile, CancellationToken token)
     {
         using var response = await HttpRequest.Create(LicenseEndpoint)
-            .WithHeader("Accept", "application/json")
             .WithAuthentication(profile.TokenType, profile.AccessToken)
             .SendAsync(cancellationToken: token).ConfigureAwait(false);
-        await MinecraftServiceException.EnsureSuccessAsync(response, MinecraftServiceOperation.Entitlements, token)
-            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
         var result = await response.AsJsonAsync<JsonObject>(cancellationToken: token).ConfigureAwait(false);
         return result?["items"] is JsonArray items && items.Any(item =>
             item?["name"]?.ToString() is "product_minecraft" or "game_minecraft");
@@ -71,14 +66,12 @@ public static class MojangUtils
     public static async Task<MojangProfile> GetProfileAsync(SafeProfile profile, CancellationToken token)
     {
         using var response = await HttpRequest.Create(ProfileEndpont)
-            .WithHeader("Accept", "application/json")
             .WithAuthentication(profile.TokenType, profile.AccessToken)
             .SendAsync(cancellationToken: token).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.NotFound)
             throw new IdentityModelAuthenticationException("profile_not_created",
                 "The Microsoft account has not created a Minecraft Java profile yet.");
-        await MinecraftServiceException.EnsureSuccessAsync(response, MinecraftServiceOperation.Profile, token)
-            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
         return await response.AsJsonAsync<MojangProfile>(cancellationToken: token).ConfigureAwait(false)
                ?? throw new InvalidOperationException("Minecraft profile response was empty.");
     }

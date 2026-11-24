@@ -15,37 +15,41 @@ public class FolderNameValidator(
     bool ignoreSameNameInParentFolder = false)
     : FileSystemValidator
 {
+    public FolderNameValidator() : this(null)
+    {
+    }
+
     public bool UseMinecraftCharCheck { get; set; } = useMinecraftCharCheck;
     public bool IgnoreCase { get; set; } = ignoreCase;
     public bool IgnoreSameNameInParentFolder { get; set; } = ignoreSameNameInParentFolder;
     public string? ParentFolder { get; set; } = parentFolder;
 
-    public FolderNameValidator() : this(null)
-    {
-    }
-
     private void _BuildRules()
     {
         RuleFor(x => x)
-            .Must(x => !string.IsNullOrWhiteSpace(x)).WithMessage(_ => Lang.Text("Common.Validate.Empty"))
-            .Must(x => !x.StartsWith(' ')).WithMessage(_ => Lang.Text("Common.Validate.FolderName.StartsWithSpace"))
-            .Must(x => !x.EndsWith(' ')).WithMessage(_ => Lang.Text("Common.Validate.FolderName.EndsWithSpace"))
-            .Must(x => !x.EndsWith('.')).WithMessage(_ => Lang.Text("Common.Validate.FolderName.EndsWithDot"))
+            .Must(x => !string.IsNullOrWhiteSpace(x))
+            .WithMessage(_ => Lang.Text("Common.Validate.Empty"))
+            .Must(x => !x.StartsWith(' '))
+            .WithMessage(_ => Lang.Text("Common.Validate.FolderName.StartsWithSpace"))
+            .Must(x => !x.EndsWith(' '))
+            .WithMessage(_ => Lang.Text("Common.Validate.FolderName.EndsWithSpace"))
+            .Must(x => !x.EndsWith('.'))
+            .WithMessage(_ => Lang.Text("Common.Validate.FolderName.EndsWithDot"))
             .Custom((fileName, context) =>
             {
-                var invalidChar = CheckInvalidStrings(fileName, UseMinecraftCharCheck ? ["!;"] : []);
+                var invalidChar = CheckInvalidStrings(
+                    fileName,
+                    UseMinecraftCharCheck ? ["!;"] : []);
                 if (invalidChar is not null)
-                {
-                    context.AddFailure(Lang.Text("Common.Validate.FolderName.InvalidChar", invalidChar));
-                }
+                    context.AddFailure(
+                        Lang.Text("Common.Validate.FolderName.InvalidChar", invalidChar));
             })
             .Custom((fileName, context) =>
             {
                 var reservedWord = CheckReservedWord(fileName, []);
                 if (reservedWord is not null)
-                {
-                    context.AddFailure(Lang.Text("Common.Validate.FolderName.ReservedWord", reservedWord));
-                }
+                    context.AddFailure(
+                        Lang.Text("Common.Validate.FolderName.ReservedWord", reservedWord));
             })
             .Must(x => !x.IsMatch(RegexPatterns.Ntfs83FileName))
             .WithMessage(_ => Lang.Text("Common.Validate.FolderName.SpecialFormat"))
@@ -57,10 +61,14 @@ public class FolderNameValidator(
                 if (!dirInfo.Exists) return true;
                 if (IgnoreSameNameInParentFolder) return true;
 
-                return !dirInfo.EnumerateDirectories().Select(f => f.Name).Contains(x,
-                    IgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-
-            }).WithMessage(_ => Lang.Text("Common.Validate.FolderName.Duplicate"));
+                return !dirInfo
+                    .EnumerateDirectories()
+                    .Select(f => f.Name)
+                    .Contains(
+                        x,
+                        IgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+            })
+            .WithMessage(_ => Lang.Text("Common.Validate.FolderName.Duplicate"));
     }
 
     protected override bool PreValidate(ValidationContext<string> context, ValidationResult result)

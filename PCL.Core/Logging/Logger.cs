@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -12,356 +11,588 @@ using System.Threading.Tasks;
 
 namespace PCL.Core.Logging;
 
+/// <summary>
+///     Buffered, single-file-rotating log writer.
+///     Producers only build a <see cref="LogEntry" /> and push it into a bounded channel, so logging
+///     costs no allocation on the calling thread beyond the message itself. A single background pump
+///     drains the channel, formats whole batches and writes them to disk. The pump never faults: an
+///     I/O failure rebuilds the stream and, on repeated failure, discards batches during a short
+///     cooldown instead of letting the channel fill up and permanently degrade into the drop path.
+/// </summary>
 public sealed class Logger : IAsyncDisposable
 {
     private const int MaxBatchLines = 198;
-    private const int BufferSize = 64 * 1024;
-    private static readonly TimeSpan BatchWindow = TimeSpan.FromMilliseconds(20);
-    private static readonly TimeSpan DisposeTimeout = TimeSpan.FromSeconds(3);
-    private static readonly object EmergencyWriteLock = new();
+    private const int StreamBufferSize = 64 * 1024;
+    private const int BatchInitialCapacity = 16 * 1024;
+    private const int MaxBatchCapacity = 1024 * 1024;
+    private const int NotDisposed = 0;
+    private const int Disposing = 1;
+    private static readonly TimeSpan _DisposeTimeout = TimeSpan.FromSeconds(3);
 
-    public Logger(LoggerConfiguration configuration)
-    {
-        ArgumentNullException.ThrowIfNull(configuration);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(configuration.QueueCapacity);
-        ArgumentOutOfRangeException.ThrowIfNegative(configuration.ImportantLogWriteTimeoutMilliseconds);
-        Configuration = configuration;
-        _minimumLevel = (int)configuration.MinLogLevel.RealLevel();
-        _logChannel = Channel.CreateBounded<LogEntry>(new BoundedChannelOptions(configuration.QueueCapacity)
+    private readonly TaskCompletionSource _disposeDone =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private readonly List<string> _files = [];
+
+    private readonly Channel<LogEntry> _logChannel = Channel.CreateBounded<LogEntry>(
+        new BoundedChannelOptions(2048)
         {
             SingleReader = true,
             SingleWriter = false,
             FullMode = BoundedChannelFullMode.Wait,
+            // Otherwise TryWrite could run the whole write path inline on the calling thread.
             AllowSynchronousContinuations = false
         });
+
+    // Processor
+    private readonly Task _processingTask;
+    private readonly Lock _stateLock = new();
+    private FileStream? _currentFile;
+
+    // Data stream
+    private StreamWriter? _currentStream;
+
+    private int _disposeState;
+
+    // Stats
+    private long _droppedCount;
+    private int _minRealLevel;
+    private long _writeBlockedUntilTicks;
+
+    /// <summary>
+    ///     Creates the log directory, opens the first file and starts the background pump.
+    /// </summary>
+    /// <param name="configuration">
+    ///     Writer configuration; only the initial
+    ///     <see cref="LoggerConfiguration.MinLogLevel" /> is read, later updates go through
+    ///     <see cref="SetMinLevel" />.
+    /// </param>
+    public Logger(LoggerConfiguration configuration)
+    {
+        Configuration = configuration;
+        _minRealLevel = (int)configuration.MinLogLevel.RealLevel();
         _CreateNewFile();
         _processingTask = _ProcessLogQueueAsync();
     }
 
-    private StreamWriter? _currentStream;
-    private FileStream? _currentFile;
-    private string? _lastMainLogPath;
-    private readonly List<string> _files = [];
-    private readonly object _stateLock = new();
-    private long _droppedCount;
-    private long _emergencyCount;
     public long DroppedLogCount => Interlocked.Read(ref _droppedCount);
-    public long EmergencyLogCount => Interlocked.Read(ref _emergencyCount);
-    private readonly Task _processingTask;
-    private readonly Channel<LogEntry> _logChannel;
-    private readonly CancellationTokenSource _writeCancellation = new();
-    private readonly TaskCompletionSource _disposeDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private int _disposeState;
-    private int _minimumLevel;
-    private long _writeBlockedUntil;
-    private Task? _shutdownTask;
 
-    public ReadOnlyCollection<string> CurrentLogFiles
+    /// <summary>
+    ///     Snapshot of the log files created by this instance that still exist on disk, oldest first. A
+    ///     new
+    ///     array is returned on every access, so the result is safe to enumerate while the pump rotates
+    ///     and
+    ///     deletes files.
+    /// </summary>
+    public IReadOnlyList<string> CurrentLogFiles
     {
         get
         {
             lock (_stateLock)
             {
-                // 调用方沿用 Last() 获取主日志；应急文件加入集合后仍保留该约定。
-                var files = _files.Where(path => path != _lastMainLogPath).ToList();
-                if (_lastMainLogPath is not null && _files.Contains(_lastMainLogPath)) files.Add(_lastMainLogPath);
-                return files.AsReadOnly();
+                return [.. _files];
             }
         }
     }
 
+    /// <summary>The configuration this instance was created with.</summary>
     public LoggerConfiguration Configuration { get; }
 
-    public LogLevel MinimumLogLevel
+    /// <summary>
+    ///     Completes the channel, waits up to three seconds for the pump to drain, then closes the stream.
+    ///     The method is idempotent and never throws: it is reached from the synchronous shutdown path,
+    ///     where
+    ///     an escaping exception or an unbounded wait would prevent the process from exiting.
+    /// </summary>
+    public async ValueTask DisposeAsync()
     {
-        get => (LogLevel)Volatile.Read(ref _minimumLevel);
-        set => Volatile.Write(ref _minimumLevel, (int)value.RealLevel());
+        if (Interlocked.Exchange(ref _disposeState, Disposing) != NotDisposed)
+        {
+            await _disposeDone.Task.ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            // Close the write gate; the pump exits on its own once the queue is drained.
+            _logChannel.Writer.TryComplete();
+
+            try
+            {
+                await _processingTask.WaitAsync(_DisposeTimeout).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                _WriteErrorLog(
+                    $"Log pump did not finish within {_DisposeTimeout.TotalSeconds:0}s: {e}");
+            }
+
+            StreamWriter? stream;
+            FileStream? file;
+            lock (_stateLock)
+            {
+                stream = _currentStream;
+                file = _currentFile;
+                _currentStream = null;
+                _currentFile = null;
+            }
+
+            if (stream is not null)
+                try
+                {
+                    await stream.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+
+            if (file is not null)
+                try
+                {
+                    await file.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+        }
+        finally
+        {
+            _disposeDone.TrySetResult();
+        }
     }
 
-    public bool IsEnabled(LogLevel level) => (int)level.RealLevel() >= Volatile.Read(ref _minimumLevel);
+    /// <summary>
+    ///     Reports whether entries of the given level reach the writer (file and optional console).
+    ///     Filtering
+    ///     never suppresses the <see cref="ActionLevel" /> side effects (hints, message boxes, fatal
+    ///     exits).
+    ///     The level is normalized through <see cref="LogLevelExtensions.RealLevel" /> because enum values
+    ///     carry an <see cref="ActionLevel" /> offset that changes with the build configuration.
+    /// </summary>
+    public bool IsEnabled(LogLevel level)
+    {
+        return (int)level.RealLevel() >= Volatile.Read(ref _minRealLevel);
+    }
 
+    /// <summary>
+    ///     Changes the minimum level written by this logger. Entries already queued are not affected.
+    /// </summary>
+    public void SetMinLevel(LogLevel level)
+    {
+        Volatile.Write(ref _minRealLevel, (int)level.RealLevel());
+    }
+
+    /// <summary>
+    ///     Opens the next log file, registers it in <see cref="CurrentLogFiles" />, closes the previous
+    ///     stream and trims the retention window. Rotation happens once per
+    ///     <see cref="LoggerConfiguration.MaxFileSize" />,
+    ///     so closing the old handle synchronously here is cheaper than racing a fire-and-forget task.
+    /// </summary>
     private void _CreateNewFile()
     {
         lock (_stateLock)
         {
-            _writeCancellation.Token.ThrowIfCancellationRequested();
             var now = DateTime.Now;
-            var nameFormat = (Configuration.FileNameFormat ?? $"Launch-{now.ToString("yyyy-M-d", CultureInfo.InvariantCulture)}-{{0}}") + ".log";
-            var filename = nameFormat.Replace("{0}", now.ToString("HHmmssfff", CultureInfo.InvariantCulture));
+            var nameFormat = $"{Configuration.FileNameFormat
+                ?? $"Launch-{now.ToString("yyyy-M-d", CultureInfo.InvariantCulture)}-{{0}}"}.log";
+            var fileName = nameFormat.Replace(
+                "{0}",
+                now.ToString("HHmmssfff", CultureInfo.InvariantCulture));
+            var filePath = Path.Combine(Configuration.StoreFolder, fileName);
+
+            var lastStream = _currentStream;
+            var lastFile = _currentFile;
+            _currentStream = null;
+            _currentFile = null;
+
             Directory.CreateDirectory(Configuration.StoreFolder);
-            var file = _OpenNewFile(Path.Combine(Configuration.StoreFolder, filename));
-            var stream = new StreamWriter(file, new UTF8Encoding(false), BufferSize);
-            // 旧文件在轮转前已刷新；同步关闭后再清理，避免后台清理任务与文件句柄竞争。
-            try { _currentStream?.Dispose(); } catch (Exception) { }
-            try { _currentFile?.Dispose(); } catch (Exception) { }
+            var file = _OpenNewFile(filePath);
             _currentFile = file;
-            _currentStream = stream;
-            _lastMainLogPath = file.Name;
+            _currentStream = new StreamWriter(file, new UTF8Encoding(false), StreamBufferSize);
+
             _files.Add(file.Name);
+
+            // Close the old handles before retention runs, otherwise the files stay locked.
+            try
+            {
+                lastStream?.Dispose();
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+
+            try
+            {
+                lastFile?.Dispose();
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
         }
+
+        if (!Configuration.AutoDeleteOldFile) return;
+
         _RunRetention();
+
+        // Retention may have deleted files this instance created; keep the public list truthful so
+        // callers never receive a path that no longer exists.
+        lock (_stateLock)
+        {
+            _files.RemoveAll(static path => !File.Exists(path));
+        }
     }
 
+    /// <summary>
+    ///     Opens the file without ever overwriting an existing one. The default name has millisecond
+    ///     resolution, so a very small <see cref="LoggerConfiguration.MaxFileSize" /> can produce two
+    ///     rotations inside the same millisecond; <see cref="FileMode.Create" /> would silently truncate
+    ///     the
+    ///     earlier file in that case, so a numeric suffix is appended instead.
+    /// </summary>
     private static FileStream _OpenNewFile(string path)
     {
         var extension = Path.GetExtension(path);
         var stem = path[..^extension.Length];
-        for (var suffix = 0; ; suffix++)
+        for (var suffix = 0; suffix < 100; suffix++)
         {
             var candidate = suffix == 0 ? path : $"{stem}-{suffix}{extension}";
             try
             {
-                return new FileStream(candidate, new FileStreamOptions
-                {
-                    Mode = FileMode.CreateNew,
-                    Access = FileAccess.Write,
-                    Share = FileShare.Read,
-                    BufferSize = BufferSize,
-                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan
-                });
+                return new FileStream(
+                    candidate,
+                    new FileStreamOptions
+                    {
+                        Mode = FileMode.CreateNew,
+                        Access = FileAccess.Write,
+                        Share = FileShare.Read,
+                        BufferSize = StreamBufferSize,
+                        // Without Asynchronous every WriteAsync would block a thread-pool thread.
+                        Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+                    });
             }
             catch (IOException) when (File.Exists(candidate))
             {
-                // 同毫秒轮转或固定文件名冲突时，保留已有日志并尝试下一个后缀。
+                // Name taken by an existing file; try the next suffix.
             }
         }
+
+        throw new IOException($"Unable to create a unique log file name for '{path}'.");
     }
 
+    /// <summary>
+    ///     Deletes the oldest log files beyond <see cref="LoggerConfiguration.MaxKeepOldFile" />.
+    ///     Ordering is newest first, so the file currently being written is never a candidate.
+    /// </summary>
     private void _RunRetention()
     {
-        if (!Configuration.AutoDeleteOldFile) return;
         try
         {
-            string? active;
-            lock (_stateLock) active = _lastMainLogPath;
-            var emergency = Path.GetFullPath(Path.Combine(Configuration.StoreFolder, "Emergency.log"));
-            var files = Directory.GetFiles(Configuration.StoreFolder, "*.log")
-                .Select(static path => new FileInfo(path)).ToArray();
-            var protectedCount = files.Count(file => file.FullName.Equals(active, StringComparison.OrdinalIgnoreCase)
-                || file.FullName.Equals(emergency, StringComparison.OrdinalIgnoreCase));
-            foreach (var file in files.Where(file => !file.FullName.Equals(active, StringComparison.OrdinalIgnoreCase)
-                         && !file.FullName.Equals(emergency, StringComparison.OrdinalIgnoreCase))
-                     .OrderByDescending(static file => file.CreationTimeUtc)
-                     .Skip(Math.Max(0, Configuration.MaxKeepOldFile - protectedCount)))
-            {
-                try { file.Delete(); }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
-            }
-            lock (_stateLock) _files.RemoveAll(static path => !File.Exists(path));
+            var files = Directory
+                .GetFiles(
+                    Configuration.StoreFolder,
+                    "*.log",
+                    SearchOption.TopDirectoryOnly)
+                .Select(static x => new FileInfo(x))
+                .OrderByDescending(static x => x.CreationTimeUtc)
+                .Skip(Math.Max(1, Configuration.MaxKeepOldFile))
+                .ToArray();
+
+            foreach (var file in files)
+                try
+                {
+                    file.Delete();
+                }
+                catch (IOException)
+                {
+                    // ignored
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // ignored
+                }
         }
-        catch (Exception ex) { _Diagnostic($"Log retention failed: {ex.Message}"); }
+        catch (Exception e)
+        {
+            _WriteErrorLog($"Failed to clean up old log files: {e}");
+        }
     }
 
-    public void Trace(string message) => Log(LogLevel.Trace, message);
-    public void Debug(string message) => Log(LogLevel.Debug, message);
-    public void Info(string message) => Log(LogLevel.Info, message);
-    public void Warn(string message) => Log(LogLevel.Warning, message);
-    public void Error(string message) => Log(LogLevel.Error, message);
-    public void Fatal(string message) => Log(LogLevel.Fatal, message);
+    /// <summary>
+    ///     Writes a trace-level message. Prefer the lifecycle context or <c>LogWrapper</c> so the
+    ///     source is recorded.
+    /// </summary>
+    public void Trace(string message)
+    {
+        _Write(LogLevel.Trace, message);
+    }
 
-    /// <summary>兼容已格式化日志；按 Info 等级应用过滤与溢出策略。</summary>
-    public void Log(string message) => Enqueue(LogEntry.Create(LogLevel.Info, message, preformatted: true));
+    /// <summary>
+    ///     Writes a debug-level message. Prefer the lifecycle context or <c>LogWrapper</c> so the
+    ///     source is recorded.
+    /// </summary>
+    public void Debug(string message)
+    {
+        _Write(LogLevel.Debug, message);
+    }
 
-    internal void Log(LogLevel level, string message, string? source = null, Exception? exception = null)
-        => Enqueue(LogEntry.Create(level, message, source, exception));
+    /// <summary>
+    ///     Writes an info-level message. Prefer the lifecycle context or <c>LogWrapper</c> so the
+    ///     source is recorded.
+    /// </summary>
+    public void Info(string message)
+    {
+        _Write(LogLevel.Info, message);
+    }
 
+    /// <summary>
+    ///     Writes a warning-level message. Prefer the lifecycle context or <c>LogWrapper</c> so the
+    ///     source is recorded.
+    /// </summary>
+    public void Warn(string message)
+    {
+        _Write(LogLevel.Warning, message);
+    }
+
+    /// <summary>
+    ///     Writes an error-level message. Prefer the lifecycle context or <c>LogWrapper</c> so the
+    ///     source is recorded.
+    /// </summary>
+    public void Error(string message)
+    {
+        _Write(LogLevel.Error, message);
+    }
+
+    /// <summary>
+    ///     Writes a fatal-level message. Prefer the lifecycle context or <c>LogWrapper</c> so the
+    ///     source is recorded.
+    /// </summary>
+    public void Fatal(string message)
+    {
+        _Write(LogLevel.Fatal, message);
+    }
+
+    /// <summary>
+    ///     Captures the current thread and task identity and enqueues the entry.
+    /// </summary>
+    private void _Write(LogLevel level, string message)
+    {
+        Enqueue(
+            new LogEntry
+            {
+                Level = level,
+                Message = message,
+                Time = DateTime.Now,
+                ThreadName = Thread.CurrentThread.Name,
+                ThreadId = Environment.CurrentManagedThreadId,
+                TaskId = Task.CurrentId ?? 0
+            });
+    }
+
+    /// <summary>
+    ///     Enqueues an entry with an explicit source and exception, used by the
+    ///     <c>Microsoft.Extensions.Logging</c> adapter.
+    /// </summary>
+    internal void Log(
+        LogLevel level,
+        string message,
+        string? sourceName = null,
+        Exception? exception = null)
+    {
+        Enqueue(
+            new LogEntry
+            {
+                Level = level,
+                Message = message,
+                Time = DateTime.Now,
+                SourceName = sourceName,
+                ThreadName = Thread.CurrentThread.Name,
+                ThreadId = Environment.CurrentManagedThreadId,
+                TaskId = Task.CurrentId ?? 0,
+                Exception = exception
+            });
+    }
+
+    /// <summary>
+    ///     Pushes the entry into the bounded channel. When the channel is full the entry is dropped and
+    ///     counted; the drop is reported with an exponentially decreasing rate so a log storm cannot turn
+    ///     into a feedback loop of console writes.
+    /// </summary>
     internal void Enqueue(in LogEntry entry)
     {
-        if (Volatile.Read(ref _disposeState) != 0 || !IsEnabled(entry.Level)) return;
+        if (Volatile.Read(ref _disposeState) != NotDisposed) return;
+        if (!IsEnabled(entry.Level)) return;
         if (_logChannel.Writer.TryWrite(entry)) return;
-        if ((int)entry.Level.RealLevel() < (int)LogLevel.Warning)
-        {
-            var dropped = Interlocked.Increment(ref _droppedCount);
-            if ((dropped & (dropped - 1)) == 0) _Diagnostic($"Log queue full: {dropped} entries dropped.");
-            return;
-        }
 
-        // 关键日志只在固定时限内背压。消费者退出或停滞时直接写应急文件，不堆积异步任务。
-        if (Configuration.ImportantLogWriteTimeoutMilliseconds > 0)
-        {
-            using var timeout = new CancellationTokenSource(Configuration.ImportantLogWriteTimeoutMilliseconds);
-            try
-            {
-                _logChannel.Writer.WriteAsync(entry, timeout.Token).AsTask().GetAwaiter().GetResult();
-                return;
-            }
-            catch (OperationCanceledException) { }
-            catch (ChannelClosedException) { }
-        }
-        var content = new StringBuilder();
-        LogEntryFormatter.Append(content, in entry);
-        content.AppendLine();
-        _WriteEmergency(content, 1);
+        _ReportDrop(Interlocked.Increment(ref _droppedCount));
     }
 
+    /// <summary>
+    ///     Reports a drop only for counts that are powers of two (1, 2, 4, 8, ...), bounding both the
+    ///     number
+    ///     of console writes and their cost while the consumer is behind.
+    /// </summary>
+    private static void _ReportDrop(long count)
+    {
+        if ((count & (count - 1)) != 0) return;
+        try
+        {
+            Console.Error.WriteLine($"[Logger] Log channel is full, {count} entries dropped.");
+        }
+        catch (Exception)
+        {
+            // ignored
+        }
+    }
+
+    /// <summary>
+    ///     The consumer loop. Drains everything currently available, appending formatted lines into a
+    ///     reused
+    ///     builder, and flushes when the batch is full or the channel runs empty. When the channel is
+    ///     empty
+    ///     it blocks on <see cref="ChannelReader{T}.WaitToReadAsync" />, so an idle launcher performs zero
+    ///     wake-ups, and it exits only once the writer is completed and fully drained.
+    /// </summary>
     private async Task _ProcessLogQueueAsync()
     {
-        var batch = new StringBuilder(16 * 1024);
-        var important = new StringBuilder();
-        var count = 0;
-        var importantCount = 0;
-        var batchStart = 0L;
+        var reader = _logChannel.Reader;
+        var batch = new StringBuilder(BatchInitialCapacity);
+        var lineCount = 0;
 
         try
         {
             while (true)
             {
-                if (count == 0 && !await _logChannel.Reader.WaitToReadAsync().ConfigureAwait(false)) break;
-                while (_logChannel.Reader.TryRead(out var entry))
+                while (reader.TryRead(out var entry))
                 {
-                    if (count == 0) batchStart = Stopwatch.GetTimestamp();
-                    var start = batch.Length;
-                    LogEntryFormatter.Append(batch, in entry);
-                    batch.AppendLine();
-                    if ((int)entry.Level.RealLevel() >= (int)LogLevel.Warning)
+                    if (Configuration.ConsoleOutput)
                     {
-                        important.Append(batch, start, batch.Length - start);
-                        importantCount++;
+                        var line = LogEntryFormatter.Format(in entry);
+                        batch.Append(line).AppendLine();
+                        try
+                        {
+                            Console.WriteLine(line);
+                        }
+                        catch (Exception)
+                        {
+                            // 控制台不可用时仍然继续写文件。
+                        }
                     }
-                    if (++count >= MaxBatchLines) await FlushAsync().ConfigureAwait(false);
-                }
-                if (count == 0) continue;
+                    else
+                    {
+                        LogEntryFormatter.Append(batch, in entry);
+                        batch.AppendLine();
+                    }
 
-                var remaining = BatchWindow - Stopwatch.GetElapsedTime(batchStart);
-                if (remaining > TimeSpan.Zero)
-                {
-                    // 只为已有批次短暂等候新条目；超时令牌会移除此次等待，不留下悬挂的读取任务。
-                    using var timeout = new CancellationTokenSource(remaining);
-                    try
-                    {
-                        if (await _logChannel.Reader.WaitToReadAsync(timeout.Token).ConfigureAwait(false)) continue;
-                    }
-                    catch (OperationCanceledException) { }
+                    if (++lineCount < MaxBatchLines) continue;
+
+                    await _FlushAsync(batch).ConfigureAwait(false);
+                    lineCount = 0;
                 }
-                await FlushAsync().ConfigureAwait(false);
+
+                if (lineCount > 0)
+                {
+                    await _FlushAsync(batch).ConfigureAwait(false);
+                    lineCount = 0;
+                }
+
+                if (!await reader.WaitToReadAsync().ConfigureAwait(false)) break;
             }
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            _Diagnostic($"Log consumer stopped: {ex.Message}");
-            _logChannel.Writer.TryComplete(ex);
+            // The pump must never fault: a dead pump fills the channel and turns every later log
+            // into a drop.
+            _WriteErrorLog($"Log pump terminated unexpectedly: {e}");
         }
         finally
         {
-            if (count != 0) await FlushAsync().ConfigureAwait(false);
-            while (_logChannel.Reader.TryRead(out var entry))
-            {
-                if ((int)entry.Level.RealLevel() >= (int)LogLevel.Warning)
+            if (batch.Length > 0)
+                try
                 {
-                    var remaining = new StringBuilder();
-                    LogEntryFormatter.Append(remaining, in entry);
-                    remaining.AppendLine();
-                    _WriteEmergency(remaining, 1);
+                    await _FlushAsync(batch).ConfigureAwait(false);
                 }
-                else Interlocked.Increment(ref _droppedCount);
-            }
-        }
-
-        async Task FlushAsync()
-        {
-            if (!await _WriteBatchAsync(batch).ConfigureAwait(false))
-            {
-                if (importantCount > 0) _WriteEmergency(important, importantCount);
-                Interlocked.Add(ref _droppedCount, count - importantCount);
-            }
-            batch.Clear();
-            important.Clear();
-            if (batch.Capacity > 1024 * 1024) batch.Capacity = 16 * 1024;
-            if (important.Capacity > 1024 * 1024) important.Capacity = 16 * 1024;
-            count = importantCount = 0;
+                catch (Exception)
+                {
+                    // ignored
+                }
         }
     }
 
+    /// <summary>
+    ///     Writes and clears the batch, shrinking an oversized buffer back to the initial capacity so a
+    ///     single large burst does not keep a megabyte-sized builder alive for the rest of the session.
+    /// </summary>
+    private async Task _FlushAsync(StringBuilder batch)
+    {
+        if (batch.Length == 0) return;
+
+        if (!await _WriteBatchAsync(batch).ConfigureAwait(false))
+            _WriteErrorLog(
+                $"LogCycle: {batch.Length} chars discarded while the log file is unavailable.");
+
+        batch.Clear();
+        if (batch.Capacity > MaxBatchCapacity) batch.Capacity = BatchInitialCapacity;
+    }
+
+    /// <summary>
+    ///     Attempts the batch at most twice. A failed stream cannot be retried in place because its
+    ///     internal
+    ///     state is already broken, so the first failure disposes and reopens it. Two consecutive failures
+    ///     start a one second cooldown during which batches are discarded without touching the disk.
+    /// </summary>
     private async Task<bool> _WriteBatchAsync(StringBuilder batch)
     {
-        if (_writeCancellation.IsCancellationRequested) return false;
-        if (Stopwatch.GetTimestamp() < Volatile.Read(ref _writeBlockedUntil)) return false;
+        if (Stopwatch.GetTimestamp() < Volatile.Read(ref _writeBlockedUntilTicks)) return false;
+
         for (var attempt = 0; attempt < 2; attempt++)
-        {
             try
             {
-                if (_currentStream is null || _currentFile?.Length >= Configuration.MaxFileSize) _CreateNewFile();
-                var stream = _currentStream ?? throw new IOException("Log stream unavailable.");
-                await stream.WriteAsync(batch, _writeCancellation.Token).ConfigureAwait(false);
-                await stream.FlushAsync(_writeCancellation.Token).ConfigureAwait(false);
+                await _WriteOnceAsync(batch).ConfigureAwait(false);
                 return true;
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                _Diagnostic($"Log write failed (attempt {attempt + 1}): {ex.Message}");
-                lock (_stateLock)
-                {
-                    try { _currentStream?.Dispose(); } catch (Exception) { }
-                    try { _currentFile?.Dispose(); } catch (Exception) { }
-                    _currentStream = null;
-                    _currentFile = null;
-                }
-                if (_writeCancellation.IsCancellationRequested) break;
+                _WriteErrorLog($"LogCycle Error (attempt {attempt + 1}): {e}");
+                if (attempt == 0) _ResetStream();
             }
-        }
-        Volatile.Write(ref _writeBlockedUntil, Stopwatch.GetTimestamp() + Stopwatch.Frequency);
+
+        Volatile.Write(ref _writeBlockedUntilTicks, Stopwatch.GetTimestamp() + Stopwatch.Frequency);
         return false;
     }
 
-    private void _WriteEmergency(StringBuilder content, int count)
+    /// <summary>
+    ///     Rotates the file when the current one reached the size limit and writes the batch.
+    ///     Rotation is checked against the on-disk length before writing, so a file may exceed the limit
+    ///     by
+    ///     at most one batch.
+    /// </summary>
+    private async Task _WriteOnceAsync(StringBuilder batch)
     {
-        try
+        var stream = _currentStream ?? throw new IOException("Log stream is not available.");
+
+        if (_currentFile is { } file && file.Length >= Configuration.MaxFileSize)
         {
-            lock (EmergencyWriteLock)
-            {
-                Directory.CreateDirectory(Configuration.StoreFolder);
-                var path = Path.GetFullPath(Path.Combine(Configuration.StoreFolder, "Emergency.log"));
-                if (File.Exists(path) && new FileInfo(path).Length >= Configuration.MaxFileSize)
-                {
-                    var archive = Path.Combine(Configuration.StoreFolder, $"Emergency-{DateTime.UtcNow:HHmmssfff}-{Guid.NewGuid():N}.log");
-                    File.Move(path, archive);
-                    lock (_stateLock) _files.Add(Path.GetFullPath(archive));
-                }
-                File.AppendAllText(path, content.ToString(), new UTF8Encoding(false));
-                lock (_stateLock) { if (!_files.Contains(path)) _files.Add(path); }
-                Interlocked.Add(ref _emergencyCount, count);
-            }
-            _RunRetention();
+            _CreateNewFile();
+            stream = _currentStream ?? throw new IOException("Log stream is not available.");
         }
-        catch (Exception ex)
-        {
-            Interlocked.Add(ref _droppedCount, count);
-            _Diagnostic($"Emergency log write failed: {ex.Message}\n{content}");
-        }
+
+        await stream.WriteAsync(batch, CancellationToken.None).ConfigureAwait(false);
+        await stream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
-    private static void _Diagnostic(string message)
+    /// <summary>
+    ///     Drops the current stream and opens a fresh file. Does nothing once disposal started, so a
+    ///     failing
+    ///     pump cannot resurrect a log file after <see cref="DisposeAsync" /> closed it.
+    /// </summary>
+    private void _ResetStream()
     {
-        try { Console.Error.WriteLine($"[Logger] {message}"); } catch (Exception) { }
-    }
+        if (Volatile.Read(ref _disposeState) != NotDisposed) return;
 
-    public async ValueTask DisposeAsync()
-    {
-        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
-        {
-            await _disposeDone.Task.ConfigureAwait(false);
-            return;
-        }
-        try
-        {
-            _logChannel.Writer.TryComplete();
-            // 收尾包含队列排空、取得状态锁和关闭流。仅此一个后台任务可越过退出预算继续清理。
-            _shutdownTask = Task.Run(_ShutdownAsync);
-            try { await _shutdownTask.WaitAsync(DisposeTimeout).ConfigureAwait(false); }
-            catch (Exception ex)
-            {
-                _Diagnostic($"Log shutdown interrupted: {ex.Message}");
-                _ = _writeCancellation.CancelAsync();
-            }
-        }
-        finally { _disposeDone.TrySetResult(); }
-    }
-
-    private async Task _ShutdownAsync()
-    {
-        try { await _processingTask.ConfigureAwait(false); }
-        catch (Exception ex) { _Diagnostic($"Log consumer failed during shutdown: {ex.Message}"); }
         StreamWriter? stream;
         FileStream? file;
         lock (_stateLock)
@@ -371,9 +602,53 @@ public sealed class Logger : IAsyncDisposable
             _currentStream = null;
             _currentFile = null;
         }
-        try { if (stream is not null) await stream.DisposeAsync().ConfigureAwait(false); }
-        catch (Exception ex) { _Diagnostic($"Log stream close failed: {ex.Message}"); }
-        try { if (file is not null) await file.DisposeAsync().ConfigureAwait(false); }
-        catch (Exception ex) { _Diagnostic($"Log file close failed: {ex.Message}"); }
+
+        try
+        {
+            stream?.Dispose();
+        }
+        catch (Exception)
+        {
+            // ignored
+        }
+
+        try
+        {
+            file?.Dispose();
+        }
+        catch (Exception)
+        {
+            // ignored
+        }
+
+        try
+        {
+            _CreateNewFile();
+        }
+        catch (Exception e)
+        {
+            _WriteErrorLog($"Failed to reopen the log file: {e}");
+        }
+    }
+
+    /// <summary>
+    ///     Appends a diagnostic line to <c>Error.log</c> next to the log files. Used by the pump itself,
+    ///     so it
+    ///     must never throw.
+    /// </summary>
+    private void _WriteErrorLog(string content)
+    {
+        try
+        {
+            Directory.CreateDirectory(Configuration.StoreFolder);
+            File.AppendAllText(
+                Path.Combine(Configuration.StoreFolder, "Error.log"),
+                $"[{DateTime.Now:HH:mm:ss.fff}] {content}{Environment.NewLine}",
+                Encoding.UTF8);
+        }
+        catch (Exception)
+        {
+            // Nothing left to fall back to.
+        }
     }
 }

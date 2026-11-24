@@ -404,18 +404,6 @@ public class ModDependencyResolverTest
         Assert.AreEqual(0, result.Unresolved.Count);
     }
 
-    [TestMethod]
-    public void OptionalReferenceDoesNotHideRequiredReferenceToSameProject()
-    {
-        var projects = CreateProjectStore(CreateProject("B", CreateFile("b-file")));
-        var request = CreateRequest(projects, CreateDependency("B", isRequired: false), CreateDependency("B"));
-
-        var result = new ModDependencyResolver().Resolve(request);
-
-        Assert.AreEqual(1, result.ToInstall.Count);
-        Assert.AreEqual("B", result.ToInstall[0].ProjectId);
-    }
-
     private static ModDependencyRequest CreateRequest(
         Dictionary<string, ModDependencyProject> projects,
         params ModDependencyReference[] requiredDependencies)

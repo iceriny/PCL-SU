@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -23,6 +23,8 @@ public partial class ProfileService
 {
     private static readonly ProfileManagement<McProfile> _profiles = new();
     private static readonly object _saveLock = new();
+    private static readonly object _loadStateLock = new();
+    private static bool _loadStarted;
     private static bool _canPersist = true;
 
     public static IReadOnlyList<McProfile> Profiles => _profiles.GetAll();
@@ -34,7 +36,25 @@ public partial class ProfileService
     [LifecycleStart]
     private static Task _Start()
     {
-        Load();
+        lock (_loadStateLock)
+        {
+            if (!_loadStarted)
+            {
+                _loadStarted = true;
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        Load();
+                    }
+                    catch (Exception ex)
+                    {
+                        Context.Error("后台加载档案失败", ex);
+                    }
+                });
+            }
+        }
+
         return Task.CompletedTask;
     }
 
@@ -46,8 +66,15 @@ public partial class ProfileService
 
     public static void Load()
     {
-        if (_profiles.IsLoaded) return;
+        lock (_loadStateLock)
+        {
+            if (!_profiles.IsLoaded)
+                _LoadCore();
+        }
+    }
 
+    private static void _LoadCore()
+    {
         var encryptedProvider = ConfigService.GetProvider(ConfigSource.SharedEncrypt);
         var hasConfiguredProfiles = encryptedProvider.GetValue<string>("Profile", out var configured);
         if (!hasConfiguredProfiles && ConfigService.GetProvider(ConfigSource.Shared).GetValue<string>("Profile", out var rawProfile))
@@ -261,6 +288,8 @@ public partial class ProfileService
         return profile;
     }
 
+    public static bool HasMicrosoftProfile => Profiles.Any(p => p.ProfileType == ProfileType.Microsoft);
+
     private static async Task<IAuthenticateProvider> _CreateProviderAsync(ProfileType profileType,
         AuthenticationRequest request, McProfile? existing, CancellationToken token)
     {
@@ -295,7 +324,7 @@ public partial class ProfileService
 
     private static void _EnsureLoaded()
     {
-        if (!IsLoaded) Load();
+        Load();
     }
 
     private static bool _TryLoad(string? json)
@@ -335,9 +364,9 @@ public partial class ProfileService
         migrated = null;
         var candidates = new[]
         {
-            Path.Combine(Paths.OldSharedData, "profiles.json"),
+            Path.Combine(Paths.SharedData, "profiles.json"),
             Path.Combine(Paths.CommunitySharedData, "profiles.json"),
-            Path.Combine(Paths.SharedData, "profiles.json")
+            Path.Combine(Paths.OldSharedData, "profiles.json")
         };
         var path = candidates.FirstOrDefault(File.Exists);
         if (path is null) return true;

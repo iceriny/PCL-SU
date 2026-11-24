@@ -16,50 +16,39 @@ public class DynamicCacheConfigStorage : ConfigStorage
 
     protected override bool OnAccess<TKey, TValue>(StorageAction action, ref TKey key, [NotNullWhen(true)] ref TValue value, object? context)
     {
-        lock (_cache)
+        ConfigStorage? storage;
+        if (context is null) storage = _nullContextCache;
+        else _cache.TryGetValue(context, out storage);
+        if (storage is null)
         {
-            ConfigStorage? storage;
-            if (context is null) storage = _nullContextCache;
-            else _cache.TryGetValue(context, out storage);
-            if (storage is null)
+            try
             {
-                try
-                {
-                    storage = StorageFactory(context);
-                    if (context is null) _nullContextCache = storage;
-                    else _cache[context] = storage;
-                }
-                catch (Exception ex)
-                {
-                    throw new Exception("Failed to invoke storage factory", ex);
-                }
+                storage = StorageFactory(context);
+                if (context is null) _nullContextCache = storage;
+                else _cache[context] = storage;
             }
-            return storage.Access(action, ref key, ref value, context);
+            catch (Exception ex)
+            {
+                throw new Exception("Failed to invoke storage factory", ex);
+            }
         }
+        return storage.Access(action, ref key, ref value, context);
     }
 
     protected override void OnStop()
     {
-        lock (_cache)
-        {
-            foreach (var item in _cache.Values) item.Stop();
-            _cache.Clear();
-            _nullContextCache?.Stop();
-            _nullContextCache = null;
-        }
+        foreach (var item in _cache.Values) item.Stop();
+        _cache.Clear();
     }
 
     public bool InvalidateCache(object context)
     {
-        lock (_cache)
+        var result = _cache.TryGetValue(context, out var center);
+        if (result)
         {
-            var result = _cache.TryGetValue(context, out var center);
-            if (result)
-            {
-                center?.Stop();
-                _cache.Remove(context);
-            }
-            return result;
+            center?.Stop();
+            _cache.Remove(context);
         }
+        return result;
     }
 }

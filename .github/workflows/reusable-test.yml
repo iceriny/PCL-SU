@@ -34,7 +34,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: 10.0.403
+          dotnet-version: 11.0.100
 
       - name: Download prepared release metadata
         if: ${{ inputs.release-metadata-artifact != '' }}
@@ -46,13 +46,19 @@ jobs:
       - name: Run regression tests
         run: |
           $resultsDirectory = Join-Path $env:RUNNER_TEMP 'PCLSU-TestResults'
-          $testRoot = Join-Path $env:RUNNER_TEMP 'PCLSU-TestRoot'
-          $testArguments = @{ ResultsDirectory = $resultsDirectory; TestRoot = $testRoot }
-          if (-not [string]::IsNullOrWhiteSpace($env:BUILD_METADATA)) { $testArguments.BuildMetadata = $env:BUILD_METADATA }
+          $env:PCL_DATA_DIR = Join-Path $env:RUNNER_TEMP 'PCLSU-TestRoot'
+          $testArguments = @(
+            'test', 'PCL.Core.Test/PCL.Core.Test.csproj', '--configuration', 'CI',
+            '-p:Platform=x64', '--results-directory', $resultsDirectory,
+            '--logger', 'trx;LogFileName=PCLSU-Regression.trx'
+          )
+          if ($env:BUILD_METADATA) { $testArguments += "-p:PclBuildMetadata=$env:BUILD_METADATA" }
           if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_METADATA_ARTIFACT)) {
-            $testArguments.ReleaseNotesPath = Join-Path (Get-Location) 'artifacts/build/release-metadata/notes'
+            $notesPath = Join-Path (Get-Location) 'artifacts/build/release-metadata/notes'
+            $testArguments += "-p:PclReleaseNotesPath=$notesPath"
           }
-          ./scripts/Invoke-RegressionTests.ps1 @testArguments
+          dotnet @testArguments
+          if ($LASTEXITCODE -ne 0) { throw 'Regression tests failed.' }
 
       - name: Upload regression results
         if: always()

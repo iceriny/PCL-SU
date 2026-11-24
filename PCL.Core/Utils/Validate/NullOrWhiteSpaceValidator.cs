@@ -8,6 +8,7 @@ public class NullOrWhiteSpaceValidator : AbstractValidator<string>
     public NullOrWhiteSpaceValidator()
     {
         RuleFor(x => x)
-            .Must(x => !string.IsNullOrWhiteSpace(x)).WithMessage(_ => Lang.Text("Common.Validate.Empty"));
+            .Must(x => !string.IsNullOrWhiteSpace(x))
+            .WithMessage(_ => Lang.Text("Common.Validate.Empty"));
     }
 }
