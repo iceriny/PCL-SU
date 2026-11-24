@@ -152,7 +152,7 @@ public partial class PageHomepageNewsView : UserControl
             ToolTip.SetTip(image, item.ImageAltText);
         grid.Children.Add(image);
 
-        var titleBorder = new Border
+        var titleBorder = new SuperellipseBorder
         {
             Background = FindBrush("ColorBrushBackground"),
             ClipToBounds = true,

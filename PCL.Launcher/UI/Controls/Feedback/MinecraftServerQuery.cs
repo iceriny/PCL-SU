@@ -22,7 +22,7 @@ public class MinecraftServerQuery : Grid
     private readonly MyButton _btnServerQuery;
 
     private readonly MyTextBox _labServerIp;
-    private readonly Border _serverInfo;
+    private readonly SuperellipseBorder _serverInfo;
 
     public MinecraftServerQuery()
     {
@@ -57,7 +57,7 @@ public class MinecraftServerQuery : Grid
         {
             Name = "PanMcServer"
         };
-        _serverInfo = new Border
+        _serverInfo = new SuperellipseBorder
         {
             Name = "ServerInfo",
             Margin = new Thickness(0d, 7d, 0d, 0d),

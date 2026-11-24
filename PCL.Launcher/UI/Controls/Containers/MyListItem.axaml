@@ -1,4 +1,4 @@
-<Grid xmlns="https://github.com/avaloniaui"
+<Grid xmlns="https://github.com/avaloniaui" xmlns:shape="using:PCL.UI.Controls"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       x:Class="PCL.UI.Controls.MyListItem"
       Height="42"
@@ -23,7 +23,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border x:Name="RectBackElement"
+        <shape:SuperellipseBorder x:Name="RectBackElement"
                 Grid.ColumnSpan="99"
                 Grid.RowSpan="99"
                 Background="{DynamicResource ColorBrush7}"
@@ -34,7 +34,7 @@
                 IsHitTestVisible="False"
                 Opacity="0" />
 
-        <Border x:Name="RectCheckElement"
+        <shape:SuperellipseBorder x:Name="RectCheckElement"
                 Grid.Column="0"
                 Grid.RowSpan="4"
                 Width="5"
@@ -82,7 +82,7 @@
                    TextTrimming="CharacterEllipsis" />
     </Grid>
 
-    <Border x:Name="FocusRingElement"
+    <shape:SuperellipseBorder x:Name="FocusRingElement"
             Margin="-2"
             Classes="FocusRing"
             IsHitTestVisible="False"

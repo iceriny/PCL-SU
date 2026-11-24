@@ -345,7 +345,7 @@ public sealed partial class ThemeService
     public static void ApplyGrayResources()
     {
         var cache = CurrentTheme == ColorTheme.MistRose
-            ? _CalculateGrays(CurrentTone, IsDarkMode ? 0.03 : 0.007, IsDarkMode ? 310 : 334)
+            ? _CalculateGrays(CurrentTone, IsDarkMode ? 0.015 : 0.003, IsDarkMode ? 310 : 334)
             : IsDarkMode ? DarkGrayCache : LightGrayCache;
         foreach (var c in cache) c.Apply();
     }
@@ -360,7 +360,7 @@ public sealed partial class ThemeService
         foreach (var c in colors) c.Apply();
 
         var title = CurrentTheme == ColorTheme.MistRose
-            ? (IsDarkMode ? LabColor.FromRgb(130, 76, 114) : LabColor.FromRgb(146, 90, 130)).ToCatColor("Title")
+            ? (IsDarkMode ? LabColor.FromRgb(99, 78, 92) : LabColor.FromRgb(126, 103, 119)).ToCatColor("Title")
             : Array.Find(colors, color => color.Suffix == "3")!;
         var backend = ApplicationRuntime.GetService<IThemeBackend>();
         backend?.SetBrushResource("ColorBrushTitle", title.Alpha, title.Red, title.Green, title.Blue);

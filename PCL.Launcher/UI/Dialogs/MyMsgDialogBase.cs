@@ -125,7 +125,7 @@ public abstract class MyMsgDialogBase : UserControl
         main.Children.Add(_footerHost);
         main.Children.Add(panBtn);
 
-        var card = new Border
+        var card = new SuperellipseBorder
         {
             CornerRadius = new CornerRadius(DialogTheme.CardCornerRadius),
             BorderThickness = new Thickness(0d),

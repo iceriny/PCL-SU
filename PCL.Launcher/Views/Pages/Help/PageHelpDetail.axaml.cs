@@ -124,7 +124,7 @@ public partial class PageHelpDetail : MyPageRight, IRefreshable
             Text = text,
             TextWrapping = TextWrapping.Wrap
         };
-        var card = new Border
+        var card = new SuperellipseBorder
         {
             Child = body,
             Padding = new Thickness(18),

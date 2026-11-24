@@ -44,13 +44,13 @@
                         <Grid RowDefinitions="*,Auto">
                             <Panel Grid.Row="0"
                                    MinHeight="28">
-                                <Border x:Name="PART_BorderElement"
+                                <ui:SuperellipseBorder x:Name="PART_BorderElement"
                                         Background="{TemplateBinding Background}"
                                         BorderBrush="{TemplateBinding BorderBrush}"
                                         BorderThickness="{TemplateBinding BorderThickness}"
                                         CornerRadius="{TemplateBinding CornerRadius}" />
 
-                                <ScrollViewer Name="PART_ScrollViewer"
+                                <ui:MyScrollViewer Name="PART_ScrollViewer"
                                               Margin="8.5,0,0,0"
                                               Cursor="IBeam"
                                               HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
@@ -79,9 +79,9 @@
                                                        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                        VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                                     </Panel>
-                                </ScrollViewer>
+                                </ui:MyScrollViewer>
 
-                                <Border Margin="{TemplateBinding Padding}"
+                                <ui:SuperellipseBorder Margin="{TemplateBinding Padding}"
                                         IsHitTestVisible="False"
                                         HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                         VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
@@ -105,7 +105,7 @@
                                             </MultiBinding>
                                         </TextBlock.IsVisible>
                                     </TextBlock>
-                                </Border>
+                                </ui:SuperellipseBorder>
                             </Panel>
 
                             <TextBlock Name="PART_Error"

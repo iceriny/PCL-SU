@@ -215,7 +215,7 @@ public partial class MyExtraButton : Grid
         if (color is null)
             return;
 
-        var shape = new Border
+        var shape = new SuperellipseBorder
         {
             CornerRadius = new CornerRadius(1000d),
             BorderThickness = new Thickness(0.001d),

@@ -116,7 +116,7 @@ public partial class PageSelectLeft : MyPageLeft, IRefreshable
                     "Select.Folder.ImportModpack.ToolTip",
                     () => { _ = PageSelectLeftViewModel.InstallModpack(); }));
             PanList.Children.Add(
-                new Border
+                new SuperellipseBorder
                 {
                     Height = 10
                 });

@@ -54,7 +54,7 @@ public class MyCard : Grid
 
     private static int _uuidSeed;
 
-    private readonly Border _mainBorder;
+    private readonly SuperellipseBorder _mainBorder;
     private readonly Grid _mainGrid;
 
     public readonly int uuid = Interlocked.Increment(ref _uuidSeed);
@@ -77,7 +77,7 @@ public class MyCard : Grid
         };
         ContainerTheme.BindDynamic(MainChrome, CardShadow.ColorProperty, "ColorObject1");
         Children.Insert(0, MainChrome);
-        _mainBorder = new Border
+        _mainBorder = new SuperellipseBorder
         {
             CornerRadius = new CornerRadius(5d),
             IsHitTestVisible = true
@@ -236,7 +236,7 @@ public class MyCard : Grid
         }
 
         stack.Children.Add(
-            new Border
+            new SuperellipseBorder
             {
                 Height = 18d
             }); // 下边距，同时适应折叠

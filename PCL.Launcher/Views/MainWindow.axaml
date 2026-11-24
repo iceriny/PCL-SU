@@ -23,11 +23,11 @@
         <ui:MyDropShadow x:Name="ShadowHost"
                          Color="#21000000"
                          ShadowRadius="10"
-                         CornerRadius="6"
-                         CenterTransparent="True">
-            <Border x:Name="PanBack"
+                         CenterTransparent="True"
+                         CornerRadius="{Binding CornerRadius, ElementName=PanBack}">
+            <ui:SuperellipseBorder x:Name="PanBack"
                     Margin="10"
-                    CornerRadius="6"
+                    CornerRadius="12"
                     ClipToBounds="True">
                 <Grid x:Name="PanForm"
                       RowDefinitions="Auto,*">
@@ -42,7 +42,7 @@
                     </Grid>
                     <shell:TitleBar x:Name="TitleBar"
                                     Grid.Row="0" />
-                    <Border x:Name="RectLeftBackground"
+                    <ui:SuperellipseBorder x:Name="RectLeftBackground"
                             Grid.Row="1"
                             Width="0"
                             HorizontalAlignment="Left"
@@ -75,9 +75,9 @@
                            ZIndex="2"
                            IsVisible="False"
                            Opacity="0">
-                        <Border x:Name="BorDialogMask"
+                        <ui:SuperellipseBorder x:Name="BorDialogMask"
                                 Background="#00000000" />
-                        <ScrollViewer x:Name="SclDialogHost"
+                        <ui:MyScrollViewer x:Name="SclDialogHost"
                                       MinWidth="400"
                                       HorizontalAlignment="Center"
                                       VerticalAlignment="Center"
@@ -87,10 +87,10 @@
                             <Panel x:Name="PanDialogHost"
                                    HorizontalAlignment="Stretch"
                                    VerticalAlignment="Center" />
-                        </ScrollViewer>
+                        </ui:MyScrollViewer>
                     </Panel>
                 </Grid>
-            </Border>
+            </ui:SuperellipseBorder>
         </ui:MyDropShadow>
     </Grid>
 </Window>

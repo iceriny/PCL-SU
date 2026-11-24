@@ -70,7 +70,7 @@
                   VerticalAlignment="Center"
                   Height="27"
                   Margin="13,0">
-                <Border x:Name="TabSelectionIndicator"
+                <controls:SuperellipseBorder x:Name="TabSelectionIndicator"
                         Height="27"
                         HorizontalAlignment="Left"
                         VerticalAlignment="Center"
@@ -78,10 +78,10 @@
                         Background="White"
                         IsHitTestVisible="False"
                         ZIndex="0">
-                    <Border.RenderTransform>
+                    <controls:SuperellipseBorder.RenderTransform>
                         <TranslateTransform />
-                    </Border.RenderTransform>
-                </Border>
+                    </controls:SuperellipseBorder.RenderTransform>
+                </controls:SuperellipseBorder>
                 <StackPanel x:Name="PanTitleTabs"
                             Orientation="Horizontal"
                             HorizontalAlignment="Left"

@@ -14,7 +14,7 @@ namespace PCL.UI.Controls;
 ///     PCL 标准按钮：外层 <see cref="Border" /> 负责命中测试与焦点，内层 <c>PanFore</c> 承载边框、底色与缩放。
 ///     颜色取自核心 <c>ColorBrush*</c> 动态资源；动画关闭时直接落到终值。
 /// </summary>
-public partial class MyButton : Border
+public partial class MyButton : SuperellipseBorder
 {
     public delegate void ClickEventHandler(object? sender, PointerReleasedEventArgs? e);
 

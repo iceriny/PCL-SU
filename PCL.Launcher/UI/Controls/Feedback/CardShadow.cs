@@ -5,10 +5,9 @@ using Avalonia.Media;
 namespace PCL.UI.Controls;
 
 /// <summary>
-///     卡片阴影层：使用 <see cref="Border.BoxShadow" /> 绘制圆角阴影。
-///     九宫格角刷会把圆角外的方形渐变块透进半透明卡片，这里直接让阴影跟随 Border 的圆角轮廓。
+///     使用卡片的超椭圆轮廓绘制阴影。
 /// </summary>
-public sealed class CardShadow : Border
+public sealed class CardShadow : SuperellipseBorder
 {
     public static readonly StyledProperty<Color> ColorProperty =
         AvaloniaProperty.Register<CardShadow, Color>(

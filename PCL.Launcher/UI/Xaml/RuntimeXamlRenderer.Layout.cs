@@ -153,7 +153,7 @@ public static partial class RuntimeXamlRenderer
             StyleScope styleScope,
             IReadOnlyDictionary<string, string> styles)
         {
-            var border = new Border();
+            var border = new SuperellipseBorder();
             ApplyCommon(border, element, styles);
 
             var backgroundElement = FindPropertyElement(element, "Background");
@@ -206,7 +206,7 @@ public static partial class RuntimeXamlRenderer
             StyleScope styleScope,
             IReadOnlyDictionary<string, string> styles)
         {
-            var scrollViewer = new ScrollViewer();
+            var scrollViewer = new MyScrollViewer();
             ApplyCommon(scrollViewer, element, styles);
             scrollViewer.Content = ConvertSingleChild(element, styleScope);
             if (GetProp(element, styles, "HorizontalScrollBarVisibility") is { } horizontal

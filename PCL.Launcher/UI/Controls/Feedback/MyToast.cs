@@ -17,7 +17,7 @@ namespace PCL.UI.Controls;
 ///     同一提示重复出现时抖动强调并重新计时；入场/退场、强调抖动、高度展开与进度条收缩
 ///     由 新动画引擎 驱动的五组动画负责。
 /// </summary>
-public class MyToast : Border
+public class MyToast : SuperellipseBorder
 {
     /// <summary>判定为拖动而非点击的最小水平位移（像素）。</summary>
     private const double DragDeadzone = 4d;
@@ -536,10 +536,7 @@ public class MyToast : Border
 
     private void _OnRootGridSizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        _rootGrid.Clip = new RectangleGeometry(
-            new Rect(0d, 0d, e.NewSize.Width, e.NewSize.Height),
-            8d,
-            8d);
+        _rootGrid.Clip = SuperellipseGeometry.Create(new Rect(e.NewSize), CornerRadius);
     }
 
     #endregion

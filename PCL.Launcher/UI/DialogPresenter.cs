@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using PCL.Core.UI.Dialogs;
 using PCL.UI.Dialogs;
+using PCL.UI.Controls;
 
 namespace PCL.UI;
 
@@ -31,7 +32,7 @@ public sealed class DialogPresenter : IDialogPresenter
     private ScrollViewer? _dialogScroll;
     private Panel? _host;
     private Panel? _layer;
-    private Border? _mask;
+    private SuperellipseBorder? _mask;
     private EventHandler<PointerPressedEventArgs>? _maskDragHandler;
 
     /// <summary>淡出动画未按时结束时的兜底定时器，防止遮罩一直挡住界面。</summary>
@@ -161,8 +162,8 @@ public sealed class DialogPresenter : IDialogPresenter
             ?? layer.FindControl<Panel>(DialogHostName);
         _dialogScroll = window.FindControl<ScrollViewer>(DialogScrollName)
             ?? layer.FindControl<ScrollViewer>(DialogScrollName);
-        _mask = window.FindControl<Border>("BorDialogMask")
-            ?? layer.FindControl<Border>("BorDialogMask");
+        _mask = window.FindControl<SuperellipseBorder>("BorDialogMask")
+            ?? layer.FindControl<SuperellipseBorder>("BorDialogMask");
         if (_mask is not null)
         {
             _maskDragHandler ??= (_, e) =>

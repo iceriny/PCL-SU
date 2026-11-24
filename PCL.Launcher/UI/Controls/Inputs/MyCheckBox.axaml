@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:shape="using:PCL.UI.Controls"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PCL.UI.Controls.MyCheckBox"
              Background="Transparent"
@@ -16,7 +16,7 @@
                    HorizontalAlignment="Left"
                    VerticalAlignment="Center"
                    IsHitTestVisible="False" />
-        <Border x:Name="ShapeBorderElement"
+        <shape:SuperellipseBorder x:Name="ShapeBorderElement"
                 Width="18"
                 Height="18"
                 Margin="1,0,0,0"
@@ -40,7 +40,7 @@
                                 ScaleY="0" />
             </Path.RenderTransform>
         </Path>
-        <Border x:Name="ShapeIndeterminateElement"
+        <shape:SuperellipseBorder x:Name="ShapeIndeterminateElement"
                 Width="10"
                 Height="10"
                 Margin="5,0,0,0"
@@ -50,12 +50,12 @@
                 RenderTransformOrigin="0.5,0.5"
                 Background="{Binding BorderBrush, ElementName=ShapeBorderElement}"
                 IsHitTestVisible="False">
-            <Border.RenderTransform>
+            <shape:SuperellipseBorder.RenderTransform>
                 <ScaleTransform ScaleX="0"
                                 ScaleY="0" />
-            </Border.RenderTransform>
-        </Border>
-        <Border x:Name="FocusRing"
+            </shape:SuperellipseBorder.RenderTransform>
+        </shape:SuperellipseBorder>
+        <shape:SuperellipseBorder x:Name="FocusRing"
                 Classes="FocusRing"
                 IsHitTestVisible="False" />
     </Grid>

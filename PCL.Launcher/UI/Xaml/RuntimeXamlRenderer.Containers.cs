@@ -253,11 +253,11 @@ public static partial class RuntimeXamlRenderer
             return searchBox;
         }
 
-        private Border ConvertSeparator(
+        private SuperellipseBorder ConvertSeparator(
             XElement element,
             IReadOnlyDictionary<string, string> styles)
         {
-            var separator = new Border
+            var separator = new SuperellipseBorder
             {
                 Height = 1d,
                 Background = ParseBrush(GetProp(element, styles, "Background"))

@@ -16,7 +16,7 @@
                     Value="8,0,40,0" />
             <Setter Property="Template">
                 <ControlTemplate>
-                    <Border x:Name="PART_MenuItemBorder"
+                    <ui:SuperellipseBorder x:Name="PART_MenuItemBorder"
                             Height="26"
                             Padding="{TemplateBinding Padding}"
                             Background="{TemplateBinding Background}">
@@ -33,10 +33,10 @@
                                        Foreground="{TemplateBinding Foreground}"
                                        TextTrimming="CharacterEllipsis" />
                         </Grid>
-                    </Border>
+                    </ui:SuperellipseBorder>
                 </ControlTemplate>
             </Setter>
-            <Style Selector="^:pointerover /template/ Border#PART_MenuItemBorder">
+            <Style Selector="^:pointerover /template/ ui|SuperellipseBorder#PART_MenuItemBorder">
                 <Setter Property="Background"
                         Value="{DynamicResource ColorBrush6}" />
             </Style>
@@ -70,6 +70,24 @@
                 Value="0" />
         <Setter Property="Margin"
                 Value="0,0,4,4" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ui:SuperellipseBorder Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="{TemplateBinding CornerRadius}"
+                                        Padding="{TemplateBinding Padding}"
+                                        ClipToBounds="True">
+                    <ui:MyScrollViewer>
+                        <ItemsPresenter Name="PART_ItemsPresenter"
+                                        ItemsPanel="{TemplateBinding ItemsPanel}"
+                                        Margin="0,4"
+                                        KeyboardNavigation.TabNavigation="Continue"
+                                        Grid.IsSharedSizeScope="True" />
+                    </ui:MyScrollViewer>
+                </ui:SuperellipseBorder>
+            </ControlTemplate>
+        </Setter>
     </Style>
 
     <Style Selector="ContextMenu.NoScroll">
@@ -77,7 +95,7 @@
                 Value="FlipX,FlipY,SlideX,SlideY" />
         <Setter Property="Template">
             <ControlTemplate>
-                <Border Background="{TemplateBinding Background}"
+                <ui:SuperellipseBorder Background="{TemplateBinding Background}"
                         BorderBrush="{TemplateBinding BorderBrush}"
                         BorderThickness="{TemplateBinding BorderThickness}"
                         Padding="{TemplateBinding Padding}"
@@ -88,7 +106,25 @@
                                     ItemsPanel="{TemplateBinding ItemsPanel}"
                                     KeyboardNavigation.TabNavigation="Continue"
                                     Grid.IsSharedSizeScope="True" />
-                </Border>
+                </ui:SuperellipseBorder>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="ToolTip">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ui:SuperellipseBorder Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="{TemplateBinding CornerRadius}"
+                                        Padding="{TemplateBinding Padding}">
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      TextBlock.LetterSpacing="{TemplateBinding LetterSpacing}"
+                                      TextBlock.TextWrapping="Wrap" />
+                </ui:SuperellipseBorder>
             </ControlTemplate>
         </Setter>
     </Style>

@@ -1,12 +1,12 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="using:PCL.UI.Controls">
-    <Style Selector="Border.WindowSurface">
+    <Style Selector="ui|SuperellipseBorder.WindowSurface">
         <Setter Property="Background"
                 Value="{DynamicResource ColorBrushTransparentBackground}" />
     </Style>
 
-    <Style Selector="Border.WindowSurface.Opaque">
+    <Style Selector="ui|SuperellipseBorder.WindowSurface.Opaque">
         <Setter Property="Background"
                 Value="{DynamicResource ColorBrushBackground}" />
     </Style>
@@ -107,7 +107,7 @@
                 Value="Wrap" />
     </Style>
 
-    <Style Selector="Border.Card">
+    <Style Selector="ui|SuperellipseBorder.Card">
         <Setter Property="Background"
                 Value="{DynamicResource ColorBrushTransparentBackground}" />
         <Setter Property="BorderThickness"
@@ -117,7 +117,7 @@
         <Setter Property="BoxShadow"
                 Value="0 0 3 0 #12000000" />
     </Style>
-    <Style Selector="Border.PageListItem">
+    <Style Selector="ui|SuperellipseBorder.PageListItem">
         <Setter Property="Background"
                 Value="Transparent" />
         <Setter Property="CornerRadius"
@@ -127,11 +127,11 @@
         <Setter Property="Margin"
                 Value="4,1" />
     </Style>
-    <Style Selector="Border.PageListItem:pointerover">
+    <Style Selector="ui|SuperellipseBorder.PageListItem:pointerover">
         <Setter Property="Background"
                 Value="{DynamicResource ColorBrushBg1}" />
     </Style>
-    <Style Selector="Border.PageListItem.Checked">
+    <Style Selector="ui|SuperellipseBorder.PageListItem.Checked">
         <Setter Property="Background"
                 Value="{DynamicResource ColorBrush7}" />
     </Style>
@@ -204,7 +204,7 @@
                 Value="13" />
     </Style>
 
-    <Style Selector="Border.FocusRing">
+    <Style Selector="ui|SuperellipseBorder.FocusRing">
         <Setter Property="IsVisible"
                 Value="False" />
         <Setter Property="Margin"
@@ -216,33 +216,33 @@
         <Setter Property="CornerRadius"
                 Value="4" />
     </Style>
-    <Style Selector="ui|MyButton:focus-visible Border#FocusRing,
-                     ui|MyIconButton:focus-visible Border#FocusRing,
-                     ui|MyTextButton:focus-visible Border#FocusRing,
-                     ui|MyIconTextButton:focus-visible Border#FocusRing,
-                     ui|MyExtraButton:focus-visible Border#FocusRing,
-                     ui|MyExtraTextButton:focus-visible Border#FocusRing,
-                     ui|MyRadioButton:focus-visible Border#FocusRing,
-                     ui|MyCheckBox:focus-visible Border#FocusRing,
-                     ui|MyRadioBox:focus-visible Border#FocusRing,
-                     ui|MySlider:focus-visible Border#FocusRing,
-                     ui|MyListItem:focus-visible Border.FocusRing">
+    <Style Selector="ui|MyButton:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyIconButton:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyTextButton:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyIconTextButton:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyExtraButton:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyExtraTextButton:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyRadioButton:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyCheckBox:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyRadioBox:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MySlider:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyListItem:focus-visible ui|SuperellipseBorder.FocusRing">
         <Setter Property="IsVisible"
                 Value="True" />
     </Style>
-    <Style Selector="ui|MyIconButton:focus-visible Border#FocusRing,
-                     ui|MyExtraButton:focus-visible Border#FocusRing">
+    <Style Selector="ui|MyIconButton:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyExtraButton:focus-visible ui|SuperellipseBorder#FocusRing">
         <Setter Property="CornerRadius"
                 Value="1000" />
     </Style>
-    <Style Selector="ui|MyButton:focus-visible Border#FocusRing,
-                     ui|MyTextButton:focus-visible Border#FocusRing,
-                     ui|MyListItem:focus-visible Border.FocusRing">
+    <Style Selector="ui|MyButton:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyTextButton:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyListItem:focus-visible ui|SuperellipseBorder.FocusRing">
         <Setter Property="CornerRadius"
                 Value="3" />
     </Style>
-    <Style Selector="ui|MyIconTextButton:focus-visible Border#FocusRing,
-                     ui|MyRadioButton:focus-visible Border#FocusRing">
+    <Style Selector="ui|MyIconTextButton:focus-visible ui|SuperellipseBorder#FocusRing,
+                     ui|MyRadioButton:focus-visible ui|SuperellipseBorder#FocusRing">
         <Setter Property="CornerRadius"
                 Value="13.5" />
     </Style>

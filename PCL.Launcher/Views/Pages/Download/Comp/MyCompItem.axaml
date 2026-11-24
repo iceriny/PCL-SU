@@ -27,7 +27,7 @@
         <RowDefinition Height="1.1*" />
     </Grid.RowDefinitions>
 
-    <Border x:Name="RectBack"
+    <ui:SuperellipseBorder x:Name="RectBack"
             Grid.ColumnSpan="99"
             Grid.RowSpan="99"
             CornerRadius="3"
@@ -37,31 +37,28 @@
             IsHitTestVisible="False"
             Opacity="0"
             RenderTransformOrigin="0.5,0.5">
-        <Border.RenderTransform>
+        <ui:SuperellipseBorder.RenderTransform>
             <ScaleTransform ScaleX="0.8"
                             ScaleY="0.8" />
-        </Border.RenderTransform>
-    </Border>
+        </ui:SuperellipseBorder.RenderTransform>
+    </ui:SuperellipseBorder>
 
-    <Border Grid.Column="1"
+    <ui:SuperellipseBorder Grid.Column="1"
             Grid.Row="1"
             Grid.RowSpan="3"
             Width="50"
             Height="50"
             HorizontalAlignment="Right"
             VerticalAlignment="Center"
-            IsHitTestVisible="False">
-        <Border.Clip>
-            <RectangleGeometry Rect="0,0,50,50"
-                               RadiusX="6"
-                               RadiusY="6" />
-        </Border.Clip>
+            IsHitTestVisible="False"
+            CornerRadius="6"
+            ClipToBounds="True">
         <ui:MyImage x:Name="PathLogo"
                     CornerRadius="6"
                     FallbackSource="avares://PCL.Launcher/Assets/Images/Icons/NoIcon.png"
                     Stretch="Uniform"
                     IsHitTestVisible="False" />
-    </Border>
+    </ui:SuperellipseBorder>
 
     <StackPanel Grid.Column="3"
                 Grid.ColumnSpan="2"

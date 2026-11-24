@@ -326,10 +326,9 @@ public class MyImage : Image
         if (width > 0d
             && height > 0d
             && cornerRadius is { TopLeft: >= 0d, TopRight: >= 0d })
-            Clip = new RectangleGeometry(
-                new Rect(0d, 0d, width, height),
-                cornerRadius.TopLeft,
-                cornerRadius.TopRight);
+            Clip = SuperellipseGeometry.Create(new Rect(0d, 0d, width, height), cornerRadius);
+        else
+            Clip = null;
     }
 
     // =======================================

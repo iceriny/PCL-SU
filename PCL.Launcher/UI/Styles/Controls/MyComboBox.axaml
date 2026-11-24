@@ -40,7 +40,7 @@
                 <ControlTemplate>
                     <DataValidationErrors>
                         <Grid>
-                            <Border x:Name="Background"
+                            <ui:SuperellipseBorder x:Name="Background"
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding Foreground}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
@@ -107,23 +107,23 @@
                                    IsLightDismissEnabled="True"
                                    InheritsTransform="True">
                                 <Grid x:Name="PanPopup">
-                                    <Border Background="{DynamicResource ColorBrushWhite}"
+                                    <ui:SuperellipseBorder Background="{DynamicResource ColorBrushWhite}"
                                             CornerRadius="3" />
-                                    <Border x:Name="dropDownBorder"
+                                    <ui:SuperellipseBorder x:Name="dropDownBorder"
                                             Width="{Binding Width, RelativeSource={RelativeSource TemplatedParent}}"
                                             MaxHeight="{TemplateBinding MaxDropDownHeight}"
                                             Background="Transparent"
                                             BorderBrush="{TemplateBinding Foreground}"
                                             BorderThickness="1"
                                             CornerRadius="3">
-                                        <ScrollViewer HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                                        <ui:MyScrollViewer HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
                                                       IsScrollChainingEnabled="False"
                                                       VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"
                                                       IsDeferredScrollingEnabled="{TemplateBinding (ScrollViewer.IsDeferredScrollingEnabled)}">
                                             <ItemsPresenter Name="PART_ItemsPresenter"
                                                             ItemsPanel="{TemplateBinding ItemsPanel}" />
-                                        </ScrollViewer>
-                                    </Border>
+                                        </ui:MyScrollViewer>
+                                    </ui:SuperellipseBorder>
                                 </Grid>
                             </Popup>
                         </Grid>
@@ -131,7 +131,7 @@
                 </ControlTemplate>
             </Setter>
 
-            <Style Selector="^:empty /template/ Border#dropDownBorder">
+            <Style Selector="^:empty /template/ ui|SuperellipseBorder#dropDownBorder">
                 <Setter Property="MinHeight"
                         Value="26" />
             </Style>

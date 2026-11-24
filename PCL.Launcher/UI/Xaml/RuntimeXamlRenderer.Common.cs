@@ -183,7 +183,7 @@ public static partial class RuntimeXamlRenderer
                     ApplyTextBlockProperties(textBlock, element, styles);
                     break;
 
-                case Border border:
+                case SuperellipseBorder border:
                     ApplyBorderProperties(border, element, styles);
                     break;
 
@@ -243,7 +243,7 @@ public static partial class RuntimeXamlRenderer
         }
 
         private void ApplyBorderProperties(
-            Border border,
+            SuperellipseBorder border,
             XElement element,
             IReadOnlyDictionary<string, string> styles)
         {

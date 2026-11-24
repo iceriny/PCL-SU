@@ -84,6 +84,6 @@ internal sealed class ListItemLogoImage : MyImage
         var radius = Math.Max(
             Math.Max(cornerRadius.TopLeft, cornerRadius.TopRight),
             Math.Max(cornerRadius.BottomLeft, cornerRadius.BottomRight));
-        Clip = new RectangleGeometry(new Rect(0d, 0d, width, height), radius, radius);
+        Clip = SuperellipseGeometry.Create(new Rect(0d, 0d, width, height), new CornerRadius(radius));
     }
 }

@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:shape="using:PCL.UI.Controls"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PCL.UI.Controls.MyRadioBox"
              Background="Transparent"
@@ -34,7 +34,7 @@
                      HorizontalAlignment="Center"
                      VerticalAlignment="Center" />
         </Grid>
-        <Border x:Name="FocusRing"
+        <shape:SuperellipseBorder x:Name="FocusRing"
                 Classes="FocusRing"
                 IsHitTestVisible="False" />
     </Grid>

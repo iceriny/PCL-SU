@@ -16,7 +16,7 @@ namespace PCL.UI.Controls;
 ///     与右侧文本共用一套前景色，悬停/按下/禁用时与背景一起做颜色插值。
 ///     文本支持 <see cref="Inlines" /> 富文本；<see cref="ColorType" /> 决定常态前景色。
 /// </summary>
-public partial class MyIconTextButton : Border
+public partial class MyIconTextButton : SuperellipseBorder
 {
     public delegate void ClickEventHandler(object? sender, RouteEventArgs e);
 

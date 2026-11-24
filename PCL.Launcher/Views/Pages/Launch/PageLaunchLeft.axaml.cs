@@ -64,7 +64,7 @@ public partial class PageLaunchLeft : MyPageLeft, IShellShortcutTarget
         ThemeService.ColorModeChanged += (_, _) => RefreshProgressGradient();
         ThemeService.ColorThemeChanged += _ => RefreshProgressGradient();
 
-        this.FindControl<Border>("HintBorder")!.Clip = new CombinedGeometry(
+        this.FindControl<SuperellipseBorder>("HintBorder")!.Clip = new CombinedGeometry(
             GeometryCombineMode.Exclude,
             new RectangleGeometry(new Rect(0d, 0d, 1000d, 1000d)),
             new RectangleGeometry(new Rect(94d, 0d, 72d, 10d)));

@@ -6,7 +6,6 @@ using PCL.UI.Controls;
 using AvaloniaEllipse = Avalonia.Controls.Shapes.Ellipse;
 using AvaloniaLine = Avalonia.Controls.Shapes.Line;
 using AvaloniaPath = Avalonia.Controls.Shapes.Path;
-using AvaloniaRectangle = Avalonia.Controls.Shapes.Rectangle;
 
 namespace PCL.UI.Xaml;
 
@@ -63,7 +62,7 @@ public static partial class RuntimeXamlRenderer
                 return ellipse;
             }
 
-            var rectangle = new AvaloniaRectangle
+            var rectangle = new SuperellipseRectangle
             {
                 Fill = fill,
                 Stroke = stroke,

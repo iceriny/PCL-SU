@@ -11,11 +11,11 @@
         <Setter Property="Foreground"
                 Value="{DynamicResource ColorBrush1}" />
     </Style>
-	<Style Selector="ui|MyTextButton Border#BorUnderline">
+	<Style Selector="ui|MyTextButton ui|SuperellipseBorder#BorUnderline">
 		<Setter Property="IsVisible"
                 Value="False" />
 	</Style>
-    <Style Selector="ui|MyTextButton.link Border#BorUnderline">
+    <Style Selector="ui|MyTextButton.link ui|SuperellipseBorder#BorUnderline">
 		<Setter Property="IsVisible"
                 Value="True" />
     </Style>

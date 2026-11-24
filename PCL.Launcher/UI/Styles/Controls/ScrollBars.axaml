@@ -17,7 +17,7 @@
                     Value="False" />
             <Setter Property="Template">
                 <ControlTemplate>
-                    <Border Background="{TemplateBinding Background}" />
+                    <ui:SuperellipseBorder Background="{TemplateBinding Background}" />
                 </ControlTemplate>
             </Setter>
         </ControlTheme>
@@ -27,7 +27,7 @@
                       TargetType="Thumb">
             <Setter Property="Template">
                 <ControlTemplate>
-                    <Border Background="{TemplateBinding Background}"
+                    <ui:SuperellipseBorder Background="{TemplateBinding Background}"
                             CornerRadius="3"
                             Margin="2" />
                 </ControlTemplate>
@@ -50,7 +50,7 @@
                         Value="8" />
                 <Setter Property="Template">
                     <ControlTemplate>
-                        <Border Background="{DynamicResource ColorBrushSemiTransparent}"
+                        <ui:SuperellipseBorder Background="{DynamicResource ColorBrushSemiTransparent}"
                                 CornerRadius="2">
                             <Track Name="PART_Track"
                                    Minimum="{TemplateBinding Minimum}"
@@ -73,7 +73,7 @@
                                            Background="{TemplateBinding Foreground}" />
                                 </Track.Thumb>
                             </Track>
-                        </Border>
+                        </ui:SuperellipseBorder>
                     </ControlTemplate>
                 </Setter>
             </Style>
@@ -94,7 +94,7 @@
                         Value="8" />
                 <Setter Property="Template">
                     <ControlTemplate>
-                        <Border Background="{DynamicResource ColorBrushSemiTransparent}"
+                        <ui:SuperellipseBorder Background="{DynamicResource ColorBrushSemiTransparent}"
                                 CornerRadius="2">
                             <Track Name="PART_Track"
                                    Minimum="{TemplateBinding Minimum}"
@@ -116,7 +116,7 @@
                                            Background="{TemplateBinding Foreground}" />
                                 </Track.Thumb>
                             </Track>
-                        </Border>
+                        </ui:SuperellipseBorder>
                     </ControlTemplate>
                 </Setter>
             </Style>

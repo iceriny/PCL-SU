@@ -1,24 +1,24 @@
-<Border xmlns="https://github.com/avaloniaui"
+<shape:SuperellipseBorder xmlns="https://github.com/avaloniaui" xmlns:shape="using:PCL.UI.Controls"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="PCL.UI.Controls.MyButton">
-    <Border.Styles>
+    <shape:SuperellipseBorder.Styles>
         <StyleInclude Source="avares://PCL.Launcher/UI/Styles/Controls/MyButton.axaml" />
-    </Border.Styles>
+    </shape:SuperellipseBorder.Styles>
     <Grid>
-        <Border x:Name="PanFore"
+        <shape:SuperellipseBorder x:Name="PanFore"
                 RenderTransformOrigin="0.5,0.5">
-            <Border.RenderTransform>
+            <shape:SuperellipseBorder.RenderTransform>
                 <ScaleTransform />
-            </Border.RenderTransform>
+            </shape:SuperellipseBorder.RenderTransform>
             <TextBlock x:Name="LabText"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        FontSize="13"
                        IsHitTestVisible="False"
                        TextTrimming="None" />
-        </Border>
-        <Border x:Name="FocusRing"
+        </shape:SuperellipseBorder>
+        <shape:SuperellipseBorder x:Name="FocusRing"
                 Classes="FocusRing"
                 IsHitTestVisible="False" />
     </Grid>
-</Border>
+</shape:SuperellipseBorder>

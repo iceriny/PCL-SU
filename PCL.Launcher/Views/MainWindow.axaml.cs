@@ -59,7 +59,6 @@ public partial class MainWindow : Window
         PageLeftHost.SizeChanged += (_, _) => ScheduleLeftWidthUpdate();
         LocalizationService.LanguageChanged += OnLanguageChangedForLeftWidth;
 
-        ApplyRoundedWindowClip();
         AddHandler(
             PointerPressedEvent,
             OnResizePointerPressed,
@@ -212,10 +211,8 @@ public partial class MainWindow : Window
 
         ShadowHost.ShadowRadius = 0d;
         ShadowHost.Color = Colors.Transparent;
-        ShadowHost.CornerRadius = default;
         PanBack.Margin = default;
         PanBack.CornerRadius = default;
-        PanBack.Clip = null;
         Cursor = null;
 
         _titleBar.UseSystemCaptionButtons();
@@ -232,20 +229,6 @@ public partial class MainWindow : Window
         _titleBar.SetSystemTitleBarLayout(
             extended ? WindowDecorationMargin.Top : null,
             extended ? leadingInset : 0d);
-    }
-
-    private void ApplyRoundedWindowClip()
-    {
-        PanBack.SizeChanged += (_, e) =>
-        {
-            if (_useSystemWindowChrome) return;
-            PanBack.Clip = new RectangleGeometry
-            {
-                Rect = new Rect(e.NewSize),
-                RadiusX = 6d,
-                RadiusY = 6d
-            };
-        };
     }
 
     private void OnResizePointerPressed(object? sender, PointerPressedEventArgs e)

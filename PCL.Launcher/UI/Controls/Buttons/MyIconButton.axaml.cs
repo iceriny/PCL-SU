@@ -18,7 +18,7 @@ namespace PCL.UI.Controls;
 ///     底色保持透明；Custom 主题按 <see cref="Foreground" /> 计算透明度。
 ///     从父容器移除时由 <see cref="AniDispose" /> 先缩放收起再移除。
 /// </summary>
-public partial class MyIconButton : Border
+public partial class MyIconButton : SuperellipseBorder
 {
     public delegate void ClickEventHandler(object? sender, EventArgs e);
 

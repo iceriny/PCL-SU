@@ -284,7 +284,7 @@
                                      Command="{Binding SaveHeadCommand}"
                                      Text="{loc:Loc Tools.Test.Avatar.Save}" />
                     </Grid>
-                    <Border x:Name="BorderSkinPreview"
+                    <ui:SuperellipseBorder x:Name="BorderSkinPreview"
                             Margin="0,15,0,0"
                             Padding="10"
                             HorizontalAlignment="Center"
@@ -294,7 +294,7 @@
                                Height="80"
                                Source="{Binding GeneratedHead}"
                                Stretch="Uniform" />
-                    </Border>
+                    </ui:SuperellipseBorder>
                 </StackPanel>
             </ui:MyCard>
         </StackPanel>

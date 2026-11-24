@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PCL.UI.Controls;
 using PCL.UI.Xaml;
 
 namespace PCL.Test;
@@ -90,6 +91,7 @@ public sealed class RuntimeXamlRendererTest
                     <TextBlock Text="b" />
                 </UniformGrid>
                 <Polygon Points="0,0 10,0 10,10" Fill="#112233" />
+                <Border CornerRadius="4" Background="#112233" />
             </StackPanel>
             """;
 
@@ -99,7 +101,7 @@ public sealed class RuntimeXamlRendererTest
             result.Success,
             result.Error ?? string.Join("；", result.Warnings));
         var panel = (StackPanel)result.Controls[0];
-        Assert.AreEqual(5, panel.Children.Count);
+        Assert.AreEqual(6, panel.Children.Count);
         CollectionAssert.DoesNotContain(
             result.Warnings,
             "不支持的元素：ItemsControl");
@@ -107,6 +109,8 @@ public sealed class RuntimeXamlRendererTest
         Assert.IsTrue(panel.Children[1] is ProgressBar);
         Assert.IsTrue(panel.Children[2] is Expander);
         Assert.IsTrue(panel.Children[3] is UniformGrid);
+        Assert.IsInstanceOfType<SuperellipseBorder>(panel.Children[5]);
+        Assert.AreEqual(4d, ((SuperellipseBorder)panel.Children[5]).CornerRadius.TopLeft);
     }
 
     private static string? FindText(Control? control)
@@ -166,4 +170,5 @@ public sealed class RuntimeXamlRendererTest
             _ => []
         };
     }
+
 }

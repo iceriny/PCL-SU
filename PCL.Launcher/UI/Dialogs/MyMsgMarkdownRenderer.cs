@@ -160,7 +160,7 @@ internal static class MyMsgMarkdownRenderer
         };
         DialogTheme.BindBrush(code, TextBlock.ForegroundProperty, "ColorBrush1");
 
-        var border = new Border
+        var border = new SuperellipseBorder
         {
             CornerRadius = new CornerRadius(4d),
             Padding = new Thickness(8d, 6d),
@@ -235,7 +235,7 @@ internal static class MyMsgMarkdownRenderer
             DialogTheme.BodyFontSize,
             FontWeight.Normal);
 
-        var bar = new Border
+        var bar = new SuperellipseBorder
         {
             BorderThickness = new Thickness(3d, 0d, 0d, 0d),
             Padding = new Thickness(10d, 2d, 0d, 2d),
@@ -247,7 +247,7 @@ internal static class MyMsgMarkdownRenderer
 
     private static Control RenderRule()
     {
-        var line = new Border
+        var line = new SuperellipseBorder
         {
             Height = 1d,
             Margin = new Thickness(0d, 4d)
@@ -502,7 +502,7 @@ internal static class MyMsgMarkdownRenderer
             if (child is TextBlock block)
                 block.TextAlignment = alignment;
 
-        var border = new Border
+        var border = new SuperellipseBorder
         {
             Padding = new Thickness(7d, 5d, 7d, 5d),
             BorderThickness = new Thickness(0d, 0d, 0d, 1d),
@@ -605,7 +605,7 @@ internal static class MyMsgMarkdownRenderer
             TextBlock.ForegroundProperty,
             "ColorBrushGray3");
 
-        var placeholder = new Border
+        var placeholder = new SuperellipseBorder
         {
             Padding = new Thickness(10d, 8d),
             CornerRadius = new CornerRadius(4d),
@@ -633,7 +633,7 @@ internal static class MyMsgMarkdownRenderer
     private static async Task LoadImageAsync(
         MarkdownImage image,
         TextBlock placeholderText,
-        Border placeholder,
+        SuperellipseBorder placeholder,
         string source,
         string alt)
     {

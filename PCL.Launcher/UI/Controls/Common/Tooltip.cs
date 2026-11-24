@@ -43,7 +43,7 @@ public sealed class Tooltip
 
     private static Control? _target;
     private static Popup? _flyout;
-    private static Border? _shell;
+    private static SuperellipseBorder? _shell;
     private static ScaleTransform? _scaler;
     private static bool _closing;
 
@@ -285,7 +285,7 @@ public sealed class Tooltip
     private static void _BuildUi()
     {
         _scaler = new ScaleTransform(ScaleClosed, ScaleClosed);
-        _shell = new Border
+        _shell = new SuperellipseBorder
         {
             BorderThickness = new Thickness(0d),
             CornerRadius = new CornerRadius(8d),

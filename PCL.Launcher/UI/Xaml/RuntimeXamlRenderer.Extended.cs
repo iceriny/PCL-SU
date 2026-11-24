@@ -147,7 +147,7 @@ public static partial class RuntimeXamlRenderer
             StyleScope styleScope,
             IReadOnlyDictionary<string, string> styles)
         {
-            var progress = new ProgressBar
+            var progress = new SuperellipseProgressBar
             {
                 Minimum = ParseDouble(GetProp(element, styles, "Minimum")) ?? 0d,
                 Maximum = ParseDouble(GetProp(element, styles, "Maximum")) ?? 100d,

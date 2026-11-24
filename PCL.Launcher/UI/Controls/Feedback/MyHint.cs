@@ -15,7 +15,7 @@ namespace PCL.UI.Controls;
 /// 内联提示条：左侧色条按 <see cref="Theme" /> 取红/黄/蓝三档颜色，正文支持 <see cref="Inlines" />
 /// 富文本；可选的关闭按钮会写入 <see cref="RelativeSetup" /> 对应的配置项并收起提示条。
 /// </summary>
-public class MyHint : Border
+public class MyHint : SuperellipseBorder
 {
     public enum Themes
     {

@@ -208,7 +208,7 @@
                       HorizontalAlignment="Center"
                       IsVisible="False"
                       Opacity="0">
-                    <Border x:Name="HintBorder"
+                    <ui:SuperellipseBorder x:Name="HintBorder"
                             Margin="0,8,0,0"
                             BorderThickness="1"
                             CornerRadius="3"

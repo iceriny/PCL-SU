@@ -5,6 +5,7 @@ using Avalonia.Media.Imaging;
 using PCL.Core.App;
 using PCL.Core.Logging;
 using PCL.Core.UI.Theme;
+using PCL.UI.Controls;
 
 namespace PCL.Views.Shell;
 
@@ -41,7 +42,7 @@ public sealed class BackgroundLayer
     private readonly Panel _formPan;
     private readonly Panel _host;
     private readonly Image _legacyImage;
-    private readonly Border _surface;
+    private readonly SuperellipseBorder _surface;
 
     private Bitmap? _bitmap;
     private string? _currentPath;
@@ -55,7 +56,7 @@ public sealed class BackgroundLayer
         _host = image.Parent as Panel ?? formPan;
 
         // 原有 Image 只用于定位宿主；实际背景改用 Border + ImageBrush，以支持平铺与切换动画。
-        _surface = new Border
+        _surface = new SuperellipseBorder
         {
             IsVisible = false,
             IsHitTestVisible = false
@@ -305,7 +306,12 @@ public sealed class BackgroundLayer
     {
         var tone = ThemeService.CurrentTone;
         var (hue, _, _) = ThemeService.GetCurrentThemeArgs();
-        var darkLight = ThemeService.IsDarkMode ? 0.2d : 1d;
+        var dark = ThemeService.IsDarkMode;
+        var mistRose = ThemeService.CurrentTheme == ColorTheme.MistRose;
+        var edgeLight = mistRose ? (dark ? 0.24d : 0.968d) : (dark ? 0.168d : 0.84d);
+        var centerLight = mistRose ? (dark ? 0.27d : 0.991d) : (dark ? 0.192d : 0.96d);
+        var edgeChroma = mistRose ? (dark ? 0.014d : 0.008d) : tone.C5;
+        var centerChroma = mistRose ? (dark ? 0.009d : 0.003d) : tone.C7;
         var brush = new LinearGradientBrush
         {
             StartPoint = new RelativePoint(0.9d, 0d, RelativeUnit.Relative),
@@ -313,13 +319,13 @@ public sealed class BackgroundLayer
         };
         brush.GradientStops.Add(
             new GradientStop(
-                ToColor(LabColor.FromLch(0.84d * darkLight, tone.C5, hue - 15d)),
+                ToColor(LabColor.FromLch(edgeLight, edgeChroma, hue - 15d)),
                 -0.1d));
         brush.GradientStops.Add(
-            new GradientStop(ToColor(LabColor.FromLch(0.96d * darkLight, tone.C7, hue)), 0.4d));
+            new GradientStop(ToColor(LabColor.FromLch(centerLight, centerChroma, hue)), 0.4d));
         brush.GradientStops.Add(
             new GradientStop(
-                ToColor(LabColor.FromLch(0.84d * darkLight, tone.C5, hue + 15d)),
+                ToColor(LabColor.FromLch(edgeLight, edgeChroma, hue + 15d)),
                 1.1d));
         return brush;
     }

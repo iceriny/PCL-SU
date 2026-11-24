@@ -1,4 +1,4 @@
-<Grid xmlns="https://github.com/avaloniaui"
+<Grid xmlns="https://github.com/avaloniaui" xmlns:shape="using:PCL.UI.Controls"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:svg="using:PCL.UI.Controls.SvgIcon"
       x:Class="PCL.UI.Controls.MyExtraButton"
@@ -15,7 +15,7 @@
         <ScaleTransform ScaleX="0"
                         ScaleY="0" />
     </Grid.RenderTransform>
-    <Border x:Name="PanClick"
+    <shape:SuperellipseBorder x:Name="PanClick"
             CornerRadius="1000"
             Background="Transparent" />
     <Grid x:Name="PanScale"
@@ -25,10 +25,10 @@
         <Grid.RenderTransform>
             <ScaleTransform />
         </Grid.RenderTransform>
-        <Border x:Name="PanColor"
+        <shape:SuperellipseBorder x:Name="PanColor"
                 CornerRadius="1000"
                 BoxShadow="0 0 10 0 #33000000" />
-        <Border x:Name="PanProgress"
+        <shape:SuperellipseBorder x:Name="PanProgress"
                 CornerRadius="1000"
                 ClipToBounds="True"
                 IsVisible="False"
@@ -48,7 +48,7 @@
                          IconBrush="{Binding Fill, ElementName=Path}" />
         </Grid>
     </Grid>
-    <Border x:Name="FocusRing"
+    <shape:SuperellipseBorder x:Name="FocusRing"
             Classes="FocusRing"
             IsHitTestVisible="False" />
 </Grid>

@@ -88,7 +88,7 @@ public static partial class RuntimeXamlRenderer
                     styleScope.Resolve("List", element),
                     inheritedStyles),
                 "section" => ConvertDocumentSection(element, styleScope, inheritedStyles),
-                _ => ConvertElement(element, styleScope) ?? new Border()
+                _ => ConvertElement(element, styleScope) ?? new SuperellipseBorder()
             };
         }
 
@@ -344,7 +344,7 @@ public static partial class RuntimeXamlRenderer
                     styleScope) is { } templated)
                 return templated;
 
-            var border = new Border
+            var border = new SuperellipseBorder
             {
                 Background = ParseBrush(GetProp(element, styles, "Background"))
                     ?? ParseBrush("{DynamicResource ColorBrush6}"),

@@ -371,9 +371,9 @@ public partial class MyListItem : Grid, IMyRadio
 
     public Grid PanBack => PanBackElement;
 
-    public Border RectBack => RectBackElement;
+    public SuperellipseBorder RectBack => RectBackElement;
 
-    public Border RectCheck => RectCheckElement;
+    public SuperellipseBorder RectCheck => RectCheckElement;
 
     public TextBlock LabTitle => LabTitleElement;
 

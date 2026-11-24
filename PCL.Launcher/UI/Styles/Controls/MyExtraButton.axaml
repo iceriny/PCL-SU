@@ -1,7 +1,7 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="using:PCL.UI.Controls">
-    <Style Selector="ui|MyExtraButton Border#PanColor">
+    <Style Selector="ui|MyExtraButton ui|SuperellipseBorder#PanColor">
         <Setter Property="Background"
                 Value="{DynamicResource ColorBrush3}" />
     </Style>

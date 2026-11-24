@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:shape="using:PCL.UI.Controls"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:svg="using:PCL.UI.Controls.SvgIcon"
              x:Class="PCL.UI.Controls.MyRadioButton"
@@ -10,7 +10,7 @@
              MaxHeight="27">
     <!-- 圆角药丸 + 可选图标（Path 或 SvgIcon）+ 文本；配色与缩放由代码驱动。 -->
     <Grid>
-        <Border x:Name="PanBackElement"
+        <shape:SuperellipseBorder x:Name="PanBackElement"
                 CornerRadius="13.5"
                 MinHeight="27"
                 MaxHeight="27"
@@ -40,8 +40,8 @@
                            VerticalAlignment="Center"
                            Foreground="White" />
             </StackPanel>
-        </Border>
-        <Border x:Name="FocusRing"
+        </shape:SuperellipseBorder>
+        <shape:SuperellipseBorder x:Name="FocusRing"
                 Classes="FocusRing"
                 IsHitTestVisible="False" />
     </Grid>

@@ -24,7 +24,7 @@
         <ColumnDefinition Width="6" />
     </Grid.ColumnDefinitions>
 
-    <Border x:Name="RectBack"
+    <ui:SuperellipseBorder x:Name="RectBack"
             Grid.RowSpan="99"
             Grid.ColumnSpan="99"
             Background="{DynamicResource ColorBrush7}"
@@ -34,23 +34,20 @@
             IsHitTestVisible="False"
             Opacity="0" />
 
-    <Border Grid.Row="1"
+    <ui:SuperellipseBorder Grid.Row="1"
             Grid.RowSpan="2"
             Grid.Column="1"
             Width="34"
             Height="34"
             HorizontalAlignment="Right"
             VerticalAlignment="Center"
-            IsHitTestVisible="False">
-        <Border.Clip>
-            <RectangleGeometry Rect="0,0,34,34"
-                               RadiusX="6"
-                               RadiusY="6" />
-        </Border.Clip>
+            IsHitTestVisible="False"
+            CornerRadius="6"
+            ClipToBounds="True">
         <Image x:Name="ServerIcon"
                Stretch="UniformToFill"
                ClipToBounds="True" />
-    </Border>
+    </ui:SuperellipseBorder>
 
     <TextBlock x:Name="ServerName"
                Grid.Row="1"

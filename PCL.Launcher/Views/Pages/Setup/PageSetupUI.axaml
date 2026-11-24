@@ -35,7 +35,7 @@
                                      Value="{Binding LauncherOpacity, Mode=TwoWay}" />
                     </Grid>
 
-                    <Border x:Name="PanLauncherHide"
+                    <ui:SuperellipseBorder x:Name="PanLauncherHide"
                             Margin="0,5,0,12"
                             CornerRadius="4"
                             IsVisible="{Binding LauncherHideVisible}"
@@ -55,7 +55,7 @@
                                          ColorType="Highlight"
                                          Text="{loc:Loc Setup.Ui.Basic.GetSnapshot}" />
                         </StackPanel>
-                    </Border>
+                    </ui:SuperellipseBorder>
 
                     <Grid Height="28"
                           Margin="0,0,0,7">

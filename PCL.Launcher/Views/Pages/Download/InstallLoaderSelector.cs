@@ -1033,7 +1033,7 @@ internal sealed class InstallLoaderSelector : IDisposable
             or InstallLoaderKind.LegacyFabric
             or InstallLoaderKind.LabyMod)
             body.Children.Add(
-                new Border
+                new SuperellipseBorder
                 {
                     Height = 18d
                 });

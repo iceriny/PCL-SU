@@ -81,9 +81,9 @@ internal static class TagPanelHelper
         return label;
     }
 
-    private static Border CreateBubble(TextBlock label)
+    private static SuperellipseBorder CreateBubble(TextBlock label)
     {
-        var bubble = new Border
+        var bubble = new SuperellipseBorder
         {
             Background = DefaultBackground,
             Padding = new Thickness(3d, 1d, 3d, 1d),
