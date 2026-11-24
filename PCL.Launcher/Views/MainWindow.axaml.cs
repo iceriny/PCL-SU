@@ -31,7 +31,9 @@ public partial class MainWindow : Window
     private bool _useSystemWindowChrome;
     private double _titleBarLeadingInset;
 
-    public MainWindow()
+    public MainWindow() : this(null) { }
+
+    internal MainWindow(WindowsStartupSplash? splash)
     {
         InitializeComponent();
         PanBack.Margin = new Thickness(SurfaceShadow.GetPadding(ShadowHost.Elevation));
@@ -43,6 +45,15 @@ public partial class MainWindow : Window
 
         _ = new WindowStateStore(this);
         ApplyDebugWindowSize();
+        if (splash?.ScreenCenter is { } center
+            && Screens.ScreenFromPoint(new PixelPoint(center.X, center.Y)) is { } screen)
+        {
+            var size = PixelSize.FromSize(new Size(Width, Height), screen.Scaling);
+            var area = screen.WorkingArea;
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Position = new PixelPoint(area.X + Math.Max(0, (area.Width - size.Width) / 2),
+                area.Y + Math.Max(0, (area.Height - size.Height) / 2));
+        }
 
         _titleBar = TitleBar;
         _extraButtons = PanExtraButtons;
@@ -94,7 +105,16 @@ public partial class MainWindow : Window
             LifecycleState.Running,
             () => Dispatcher.UIThread.Post(() => PageRouter.Navigate(MainTab.Launch)));
 
-        var effects = new StartupEffects(this, _titleBar, _background, _extraButtons);
+        if (splash is not null)
+        {
+            Closed += (_, _) => splash.Dispose();
+            PropertyChanged += (_, e) =>
+            {
+                if (e.Property == WindowStateProperty && WindowState == WindowState.Minimized)
+                    splash.Finish(false);
+            };
+        }
+        var effects = new StartupEffects(this, _titleBar, _background, _extraButtons, splash);
         Lifecycle.When(LifecycleState.WindowCreated, effects.Run);
 
         try

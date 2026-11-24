@@ -25,6 +25,19 @@ public sealed partial class SingleInstanceService
     private static readonly string _FallbackLockFilePath =
         Path.Combine(Paths.Temp, "instance.lock");
 
+    /// <summary>供早期启动界面判断是否已有启动器；实例归属仍由启动阶段获取文件锁决定。</summary>
+    public static bool HasOtherInstance()
+    {
+        return HasAnotherOwner(_PrimaryLockFilePath) || HasAnotherOwner(_FallbackLockFilePath);
+
+        static bool HasAnotherOwner(string path)
+        {
+            return File.Exists(path)
+                && _TryReadProcessId(path) is { } owner
+                && _IsSameProcess(owner, includeCurrent: false);
+        }
+    }
+
     private static void _TryRpc(string processId, string content)
     {
         var pipeName = $"{RpcService.PipePrefix}@{processId}";
@@ -214,10 +227,10 @@ public sealed partial class SingleInstanceService
         }
     }
 
-    private static bool _IsSameProcess(string processId)
+    private static bool _IsSameProcess(string processId, bool includeCurrent = true)
     {
         if (!int.TryParse(processId, out var pid) || pid <= 0) return false;
-        if (pid == Basics.CurrentProcessId) return true;
+        if (pid == Basics.CurrentProcessId) return includeCurrent;
 
         try
         {

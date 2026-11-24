@@ -7,6 +7,7 @@ using PCL.Core.UI;
 using PCL.Navigation;
 using PCL.UI;
 using PCL.Views;
+using PCL.Views.Shell;
 
 namespace PCL;
 
@@ -15,6 +16,15 @@ internal static class Program
     /// <summary>程序启动点。</summary>
     [STAThread]
     public static void Main(string[] args)
+    {
+        // 双击启动时，小窗和服务初始化并行。后台子命令沿用原来的无窗口入口。
+        using var splash = OperatingSystem.IsWindows() && args.Length == 0
+            ? WindowsStartupSplash.Start(SingleInstanceService.HasOtherInstance)
+            : null;
+        Run(args, splash);
+    }
+
+    private static void Run(string[] args, WindowsStartupSplash? splash)
     {
         var platform = PlatformDetector.Detect();
 
@@ -36,7 +46,7 @@ internal static class Program
 
         MainWindowService.Loading = () =>
         {
-            var window = new MainWindow();
+            var window = new MainWindow(splash);
             var context = new WindowContext(window);
             window.InitializeContext(context);
             return context.Host;

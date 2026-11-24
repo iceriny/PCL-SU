@@ -2,6 +2,8 @@ using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Rendering.Composition;
+using Avalonia.Threading;
 using PCL.Core.App;
 using PCL.Core.App.Configuration;
 using PCL.Core.App.Localization;
@@ -14,11 +16,12 @@ using PCL.UI.Controls;
 
 namespace PCL.Views.Shell;
 
-public sealed class StartupEffects(
+internal sealed class StartupEffects(
     Window window,
     TitleBar titleBar,
     BackgroundLayer background,
-    ExtraButtonsPanel extraButtons)
+    ExtraButtonsPanel extraButtons,
+    WindowsStartupSplash? splash)
 {
     private bool _hasRun;
 
@@ -32,10 +35,10 @@ public sealed class StartupEffects(
 
         try
         {
+            PrepareWindowAnimation();
             UiLogBridge.Install();
             GameFolders.ApplySelectedFolder(States.Game.SelectedFolder);
             LauncherCommon.ModeDebug = Config.Debug.Enabled;
-            PrepareWindowAnimation();
             ApplyLockWindowSize();
             titleBar.RefreshTitleAppearance();
             background.Refresh();
@@ -65,10 +68,19 @@ public sealed class StartupEffects(
         if (window.Content is not Control root)
         {
             window.Opacity = target;
+            splash?.Finish(false);
             return;
         }
 
         root.Opacity = 1d;
+        if (splash is not null)
+        {
+            var animate = splash.MotionEnabled && !AnimationService.IsInstant;
+            window.Opacity = animate ? target * 0.06 : target;
+            window.RequestAnimationFrame(time => _ = RevealFromSplashAsync(root, splash, animate));
+            return;
+        }
+
         if (!AnimationService.IsEnabled)
         {
             window.Opacity = target;
@@ -107,6 +119,32 @@ public sealed class StartupEffects(
                     true)
             },
             "Startup Window Show");
+    }
+
+    private async Task RevealFromSplashAsync(Control root, WindowsStartupSplash startupSplash, bool animate)
+    {
+        try
+        {
+            // 此批次完成时，渲染线程已绘制主窗内容，可以开始两个窗口的交叉淡化。
+            if (ElementComposition.GetElementVisual(root) is { } visual)
+                await Dispatcher.UIThread.AwaitWithPriority(
+                    visual.Compositor.RequestCompositionBatchCommitAsync().Rendered, DispatcherPriority.Loaded);
+
+            if (animate && window.IsVisible)
+                AnimationService.Run(new OpacityAnimation(window, WindowTargetOpacity - window.Opacity,
+                    180, ease: new FluentEaseOut()), "Startup Window Show");
+            else
+                ApplyWindowOpacity();
+        }
+        catch (Exception ex)
+        {
+            ApplyWindowOpacity();
+            LogWrapper.Debug("UI", $"启动窗口过渡失败：{ex.Message}");
+        }
+        finally
+        {
+            startupSplash.Finish(animate);
+        }
     }
 
     private void ApplyLockWindowSize()
