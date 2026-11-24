@@ -19,7 +19,8 @@ public class SuperellipseBorder : Decorator
     public static readonly StyledProperty<BackgroundSizing> BackgroundSizingProperty =
         Border.BackgroundSizingProperty.AddOwner<SuperellipseBorder>();
     public static readonly StyledProperty<double> ElevationProperty =
-        AvaloniaProperty.Register<SuperellipseBorder, double>(nameof(Elevation), validate: SurfaceShadow.IsValidElevation);
+        AvaloniaProperty.Register<SuperellipseBorder, double>(
+            nameof(Elevation), SurfaceElevation.Base, validate: SurfaceShadow.IsValidElevation);
 
     private Geometry? _contentClip;
     private (Size Size, CornerRadius Corners, Thickness Stroke, BackgroundSizing Sizing)? _shapeKey;
@@ -102,33 +103,50 @@ public class SuperellipseBorder : Decorator
 
         var corners = SuperellipseGeometry.Fit(CornerRadius, rect.Size);
         _shadow.Draw(context, rect, corners, Elevation);
+        var shortSide = Math.Min(rect.Width, rect.Height);
         if (!SuperellipseGeometry.HasCorners(corners) && thickness.IsUniform &&
             BackgroundSizing == BackgroundSizing.CenterBorder)
         {
-            var width = Math.Min(Math.Min(rect.Width, rect.Height), thickness.Left);
+            var width = Math.Min(shortSide, thickness.Left);
             var bounds = rect.Deflate(width / 2);
             var pen = BorderBrush is not null && width > 0 ? new Pen(BorderBrush, width) : null;
             context.DrawRectangle(Background, pen, bounds);
             return;
         }
 
+        var usePen = thickness.IsUniform && thickness.Left > 0 && thickness.Left < shortSide;
         var key = (rect.Size, corners, thickness, BackgroundSizing);
         if (_shapeKey != key)
         {
             _shapeKey = key;
-            var outer = SuperellipseGeometry.Create(rect, corners, default);
-            var inner = SuperellipseGeometry.Create(rect, corners, thickness);
-            _stroke = thickness == default ? null : new CombinedGeometry(GeometryCombineMode.Exclude, outer, inner);
+            var useRing = !usePen && thickness != default;
+            var outer = useRing || BackgroundSizing == BackgroundSizing.OuterBorderEdge
+                ? SuperellipseGeometry.Create(rect, corners, default) : null;
+            var inner = useRing || BackgroundSizing == BackgroundSizing.InnerBorderEdge
+                ? SuperellipseGeometry.Create(rect, corners, thickness) : null;
+            var centerline = usePen || BackgroundSizing is not (BackgroundSizing.InnerBorderEdge or BackgroundSizing.OuterBorderEdge)
+                ? SuperellipseGeometry.Create(rect, corners, new Thickness(
+                    thickness.Left / 2, thickness.Top / 2, thickness.Right / 2, thickness.Bottom / 2)) : null;
+            // A single stroke keeps the width constant along the curve's normal.
+            _stroke = usePen ? centerline : useRing ? new CombinedGeometry(GeometryCombineMode.Exclude, outer!, inner!) : null;
             _fill = BackgroundSizing switch
             {
                 BackgroundSizing.InnerBorderEdge => inner,
                 BackgroundSizing.OuterBorderEdge => outer,
-                _ => SuperellipseGeometry.Create(rect, corners, new Thickness(
-                    thickness.Left / 2, thickness.Top / 2, thickness.Right / 2, thickness.Bottom / 2))
+                _ => centerline
             };
         }
 
+        var outline = usePen && BorderBrush is not null ? new Pen(BorderBrush, thickness.Left) : null;
+        if (usePen && ReferenceEquals(_stroke, _fill))
+        {
+            if (Background is not null || outline is not null)
+                context.DrawGeometry(Background, outline, _fill!);
+            return;
+        }
+
         if (Background is not null) context.DrawGeometry(Background, null, _fill!);
-        if (BorderBrush is not null && _stroke is not null) context.DrawGeometry(BorderBrush, null, _stroke);
+        if (BorderBrush is not null && _stroke is not null)
+            context.DrawGeometry(usePen ? null : BorderBrush, outline, _stroke);
     }
 }

@@ -36,16 +36,16 @@
         </Ellipse>
         <Popup x:Name="PopupElement"
                Placement="Bottom"
-               VerticalOffset="8"
+               WindowManagerAddShadowHint="False"
                IsLightDismissEnabled="False"
                IsOpen="False">
             <shape:SuperellipseBorder x:Name="HintBorderElement"
                     MaxWidth="500"
-                    Margin="0,0,4,4"
+                    Margin="{x:Static shape:SurfaceElevation.FloatingPadding}"
                     Padding="7,5"
                     BorderThickness="1.5"
                     CornerRadius="{x:Static shape:CornerRadii.Standard}"
-                    Elevation="2.5">
+                    Elevation="{x:Static shape:SurfaceElevation.Floating}">
                 <TextBlock x:Name="TextHintElement"
                            FontSize="12"
                            TextWrapping="Wrap" />

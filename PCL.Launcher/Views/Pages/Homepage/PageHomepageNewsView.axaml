@@ -2,7 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="using:PCL.UI.Controls"
              xmlns:loc="using:PCL.Core.UI"
-             x:Class="PCL.Views.Pages.Homepage.PageHomepageNewsView">
+             x:Class="PCL.Views.Pages.Homepage.PageHomepageNewsView"
+             ClipToBounds="False">
     <Grid MinWidth="150">
         <ui:WaterfallPanel x:Name="PanNews"
                            Margin="0,0,0,10"

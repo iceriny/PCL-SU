@@ -22,6 +22,7 @@ public class MinecraftInstallLoaderCardsView : UserControl
 
     public MinecraftInstallLoaderCardsView()
     {
+        ClipToBounds = false;
         var panel = new StackPanel();
         foreach (var titleKey in TitleKeys)
         {

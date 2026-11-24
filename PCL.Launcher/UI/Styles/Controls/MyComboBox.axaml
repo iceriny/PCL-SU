@@ -102,20 +102,22 @@
                                    PlacementTarget="Background"
                                    WindowManagerAddShadowHint="False"
                                    IsOpen="{TemplateBinding IsDropDownOpen, Mode=TwoWay}"
-                                   MinWidth="{Binding Bounds.Width, RelativeSource={RelativeSource TemplatedParent}}"
-                                   MaxHeight="{TemplateBinding MaxDropDownHeight}"
                                    IsLightDismissEnabled="True"
                                    InheritsTransform="True">
-                                <Grid x:Name="PanPopup">
+                                <Grid x:Name="PanPopup"
+                                      Margin="{x:Static ui:SurfaceElevation.FloatingPadding}"
+                                      MinWidth="{Binding Bounds.Width, RelativeSource={RelativeSource TemplatedParent}}">
                                     <ui:SuperellipseBorder Background="{DynamicResource ColorBrushWhite}"
-                                            CornerRadius="{x:Static ui:CornerRadii.Standard}" />
+                                            CornerRadius="{x:Static ui:CornerRadii.Standard}"
+                                            Elevation="{x:Static ui:SurfaceElevation.Floating}" />
                                     <ui:SuperellipseBorder x:Name="dropDownBorder"
                                             Width="{Binding Width, RelativeSource={RelativeSource TemplatedParent}}"
                                             MaxHeight="{TemplateBinding MaxDropDownHeight}"
                                             Background="Transparent"
                                             BorderBrush="{TemplateBinding Foreground}"
                                             BorderThickness="1"
-                                            CornerRadius="{x:Static ui:CornerRadii.Standard}">
+                                            CornerRadius="{x:Static ui:CornerRadii.Standard}"
+                                            ClipToBounds="True">
                                         <ui:MyScrollViewer HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
                                                       IsScrollChainingEnabled="False"
                                                       VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"

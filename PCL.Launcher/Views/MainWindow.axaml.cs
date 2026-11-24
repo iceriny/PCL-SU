@@ -210,7 +210,7 @@ public partial class MainWindow : Window
         WindowDecorations = WindowDecorations.Full;
         CanMaximize = false;
 
-        ShadowHost.Elevation = 0d;
+        ShadowHost.Elevation = SurfaceElevation.Base;
         PanBack.Margin = default;
         PanBack.CornerRadius = default;
         Cursor = null;

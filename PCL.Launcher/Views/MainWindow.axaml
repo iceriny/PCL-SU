@@ -21,7 +21,7 @@
     <Grid x:Name="PanRoot"
           Background="Transparent">
         <ui:MyDropShadow x:Name="ShadowHost"
-                         Elevation="8"
+                         Elevation="{x:Static ui:SurfaceElevation.Overlay}"
                          CornerRadius="{Binding CornerRadius, ElementName=PanBack}">
             <ui:SuperellipseBorder x:Name="PanBack"
                     CornerRadius="{x:Static ui:CornerRadii.Window}"
@@ -45,7 +45,7 @@
                             HorizontalAlignment="Left"
                             Background="{DynamicResource ColorBrushTransparentBackground}"
                             IsHitTestVisible="False"
-                            Elevation="0.55" />
+                            Elevation="{x:Static ui:SurfaceElevation.Surface}" />
                     <Grid x:Name="PanMain"
                           Grid.Row="1"
                           ColumnDefinitions="Auto,*">

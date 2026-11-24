@@ -70,24 +70,37 @@
                 Value="0" />
         <Setter Property="Margin"
                 Value="0,0,4,4" />
+        <Setter Property="WindowManagerAddShadowHint"
+                Value="False" />
         <Setter Property="Template">
             <ControlTemplate>
-                <ui:SuperellipseBorder Background="{TemplateBinding Background}"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                        CornerRadius="{TemplateBinding CornerRadius}"
-                                        Padding="{TemplateBinding Padding}"
-                                        ClipToBounds="True">
-                    <ui:MyScrollViewer>
-                        <ItemsPresenter Name="PART_ItemsPresenter"
-                                        ItemsPanel="{TemplateBinding ItemsPanel}"
-                                        Margin="0,4"
-                                        KeyboardNavigation.TabNavigation="Continue"
-                                        Grid.IsSharedSizeScope="True" />
-                    </ui:MyScrollViewer>
-                </ui:SuperellipseBorder>
+                <ui:MyDropShadow Elevation="{x:Static ui:SurfaceElevation.Floating}"
+                                 CornerRadius="{TemplateBinding CornerRadius}"
+                                 Padding="{x:Static ui:SurfaceElevation.FloatingPadding}">
+                    <ui:SuperellipseBorder Background="{TemplateBinding Background}"
+                                          BorderBrush="{TemplateBinding BorderBrush}"
+                                          BorderThickness="{TemplateBinding BorderThickness}"
+                                          CornerRadius="{TemplateBinding CornerRadius}"
+                                          Padding="{TemplateBinding Padding}"
+                                          ClipToBounds="True">
+                        <ui:MyScrollViewer>
+                            <ItemsPresenter Name="PART_ItemsPresenter"
+                                            ItemsPanel="{TemplateBinding ItemsPanel}"
+                                            Margin="0,4"
+                                            KeyboardNavigation.TabNavigation="Continue"
+                                            Grid.IsSharedSizeScope="True" />
+                        </ui:MyScrollViewer>
+                    </ui:SuperellipseBorder>
+                </ui:MyDropShadow>
             </ControlTemplate>
         </Setter>
+    </Style>
+
+    <Style Selector="ContextMenu[Placement=Pointer]">
+        <Setter Property="HorizontalOffset"
+                Value="{x:Static ui:SurfaceElevation.FloatingOffset}" />
+        <Setter Property="VerticalOffset"
+                Value="{x:Static ui:SurfaceElevation.FloatingOffset}" />
     </Style>
 
     <Style Selector="ContextMenu.NoScroll">
@@ -101,7 +114,9 @@
                         Padding="{TemplateBinding Padding}"
                         MaxWidth="{TemplateBinding MaxWidth}"
                         HorizontalAlignment="{TemplateBinding HorizontalAlignment}"
-                        CornerRadius="{TemplateBinding CornerRadius}">
+                        CornerRadius="{TemplateBinding CornerRadius}"
+                        Margin="{x:Static ui:SurfaceElevation.FloatingPadding}"
+                        Elevation="{x:Static ui:SurfaceElevation.Floating}">
                     <ItemsPresenter Name="PART_ItemsPresenter"
                                     ItemsPanel="{TemplateBinding ItemsPanel}"
                                     KeyboardNavigation.TabNavigation="Continue"

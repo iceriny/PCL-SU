@@ -651,6 +651,7 @@ public partial class MySlider : UserControl
 
         PopupElement.PlacementTarget = this;
         PopupElement.Placement = PlacementMode.Bottom;
+        PopupElement.VerticalOffset = 8d - SurfaceElevation.FloatingPadding.Top;
 
         ActualThemeVariantChanged += OnActualThemeVariantChanged;
         PointerEntered += OnPointerEntered;

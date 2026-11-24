@@ -4,6 +4,7 @@
              x:Class="PCL.Views.Pages.Download.InstallLoaderCard"
              x:Name="Root"
              x:CompileBindings="True"
+             ClipToBounds="False"
              HorizontalContentAlignment="Stretch">
     <ui:MyCard x:Name="CardRoot"
                Title="{Binding Title, ElementName=Root}"

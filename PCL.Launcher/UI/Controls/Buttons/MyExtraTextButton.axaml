@@ -23,7 +23,7 @@
             <ScaleTransform />
         </Grid.RenderTransform>
         <shape:SuperellipseBorder x:Name="PanColor"
-                Elevation="3" />
+                Elevation="{x:Static shape:SurfaceElevation.Floating}" />
         <StackPanel Orientation="Horizontal"
                     Margin="20,0">
             <Grid x:Name="IconHost"

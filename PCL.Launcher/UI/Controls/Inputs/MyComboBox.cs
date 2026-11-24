@@ -216,6 +216,8 @@ public class MyComboBox : ComboBox
         _contentPresenter = e.NameScope.Find("PART_ContentPresenter") as ContentPresenter
             ?? this.GetVisualDescendants().OfType<ContentPresenter>().FirstOrDefault();
         _popup = e.NameScope.Find<Popup>("PART_Popup");
+        if (_popup?.Child is Grid { Name: "PanPopup" } popupPanel)
+            _popup.VerticalOffset -= popupPanel.Margin.Top;
         _dropDownGlyph = e.NameScope.Find<Path>("DropDownGlyph");
         RefreshGlyphRotation(false);
 

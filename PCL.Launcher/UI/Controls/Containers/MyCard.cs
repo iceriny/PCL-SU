@@ -19,9 +19,6 @@ namespace PCL.UI.Controls;
 /// </summary>
 public class MyCard : Grid
 {
-    private const double IdleElevation = 0.85d;
-    private const double HoverElevation = 3d;
-
     private const int TitleColorTime = 90;
     private const int ElevationTime = 120;
     private const int ThemeColorTime = 300;
@@ -71,7 +68,7 @@ public class MyCard : Grid
         _mainBorder = new SuperellipseBorder
         {
             CornerRadius = CornerRadii.Standard,
-            Elevation = IdleElevation,
+            Elevation = SurfaceElevation.Surface,
             IsHitTestVisible = true
         };
         Children.Add(_mainBorder);
@@ -134,7 +131,7 @@ public class MyCard : Grid
         set => SetValue(BackgroundBrushProperty, value);
     }
 
-    /// <summary>是否启用鼠标悬停反馈（阴影浓度 90 ms 过渡）。</summary>
+    /// <summary>是否启用鼠标悬停时的高度和标题颜色过渡。</summary>
     public bool HasMouseAnimation { get; set; } = true;
 
     /// <summary>是否启用内容高度改变动画。折叠栏开合期间会被临时关闭，避免与父卡片的高度动画互相干扰。</summary>
@@ -813,7 +810,7 @@ public class MyCard : Grid
 
     private void AnimateShadow(bool hover)
     {
-        var elevation = hover ? HoverElevation : IdleElevation;
+        var elevation = hover ? SurfaceElevation.Raised : SurfaceElevation.Surface;
 
         if (!ContainerAnimation.CanAnimate(this))
         {

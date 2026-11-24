@@ -73,7 +73,7 @@ public class MyToast : SuperellipseBorder
         HorizontalAlignment = HorizontalAlignment.Right;
         CornerRadius = CornerRadii.Standard;
         BorderThickness = new Thickness(0d);
-        Elevation = 5d;
+        Elevation = SurfaceElevation.Floating;
 
         _toastIcon = new SvgIconControl
         {

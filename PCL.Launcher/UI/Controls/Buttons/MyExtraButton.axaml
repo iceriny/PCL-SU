@@ -27,7 +27,7 @@
         </Grid.RenderTransform>
         <shape:SuperellipseBorder x:Name="PanColor"
                 CornerRadius="1000"
-                Elevation="3" />
+                Elevation="{x:Static shape:SurfaceElevation.Floating}" />
         <shape:SuperellipseBorder x:Name="PanProgress"
                 CornerRadius="1000"
                 ClipToBounds="True"

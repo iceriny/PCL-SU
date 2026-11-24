@@ -16,9 +16,6 @@ namespace PCL.Views.Pages.Launch;
 /// </summary>
 public sealed class MySkin : Grid
 {
-    private const double IdleElevation = 1d;
-    private const double HoverElevation = 3d;
-
     private readonly Image _imgBack = new()
     {
         Width = 48d,
@@ -37,8 +34,8 @@ public sealed class MySkin : Grid
         VerticalAlignment = VerticalAlignment.Center
     };
 
-    private readonly DropShadowEffect _shadow = SurfaceShadow.CreateSilhouette(IdleElevation);
-    private double _shadowElevation = IdleElevation;
+    private readonly DropShadowEffect _shadow = SurfaceShadow.CreateSilhouette(SurfaceElevation.Surface);
+    private double _shadowElevation = SurfaceElevation.Surface;
 
     private bool _isMouseDown;
 
@@ -77,7 +74,7 @@ public sealed class MySkin : Grid
             AnimationService.Run(
                 new DoubleAnimation(
                     MoveShadow,
-                    HoverElevation - _shadowElevation,
+                    SurfaceElevation.Raised - _shadowElevation,
                     200,
                     100),
                 "Skin Shadow");
@@ -87,7 +84,7 @@ public sealed class MySkin : Grid
             AnimationService.Run(
                 new DoubleAnimation(
                     MoveShadow,
-                    IdleElevation - _shadowElevation,
+                    SurfaceElevation.Surface - _shadowElevation,
                     200),
                 "Skin Shadow");
             _isMouseDown = false;

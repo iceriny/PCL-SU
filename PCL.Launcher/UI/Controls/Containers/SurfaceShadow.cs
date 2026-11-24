@@ -13,7 +13,8 @@ internal sealed class SurfaceShadow
     private (Rect Bounds, CornerRadius Corners)? _outlineKey;
     private Point[] _outline = [];
 
-    public static bool IsValidElevation(double elevation) => double.IsFinite(elevation) && elevation >= 0;
+    public static bool IsValidElevation(double elevation) =>
+        elevation is >= SurfaceElevation.Base and <= SurfaceElevation.Overlay;
 
     public static double GetPadding(double elevation) => elevation > 0 ? Profile.At(elevation).Padding : 0;
 
@@ -73,12 +74,14 @@ internal sealed class SurfaceShadow
 
         public static Profile At(double elevation)
         {
-            var h = Math.Clamp(elevation, 0, 16);
+            var h = Math.Clamp(elevation, SurfaceElevation.Base, SurfaceElevation.Overlay);
             var strength = Math.Min(1, h);
+            // The penumbra widens quickly near the receiving plane and more gradually higher up.
+            var spread = Math.Sqrt(h * SurfaceElevation.Overlay);
             return new Profile(
-                new Layer(new Vector(0, 0.10 * h), 0.95 + 0.11 * h, strength * 0.15 / (1 + 0.14 * h)),
-                new Layer(new Vector(0.20 * h, 0.41 * h), 1 + 0.39 * h, strength * (0.065 + 0.008 * h)),
-                new Layer(new Vector(0, 0.06 * h), 1.25 + 0.47 * h, strength * 0.075));
+                new Layer(new Vector(0, 0.10 * h), 0.95 + 0.11 * spread, strength * 0.15 / (1 + 0.14 * h)),
+                new Layer(new Vector(0.20 * h, 0.41 * h), 1 + 0.39 * spread, strength * (0.065 + 0.008 * h)),
+                new Layer(new Vector(0, 0.06 * h), 1.25 + 0.47 * spread, strength * 0.075));
         }
     }
 

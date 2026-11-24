@@ -129,7 +129,7 @@ public abstract class MyMsgDialogBase : UserControl
         {
             CornerRadius = CornerRadii.Standard,
             BorderThickness = new Thickness(0d),
-            Elevation = 7d,
+            Elevation = SurfaceElevation.Overlay,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Child = main
         };
