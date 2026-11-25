@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using PCL.Core.App;
@@ -186,17 +185,7 @@ public static class UpdateManager
                 if (!actualHash.Equals(version.Sha256, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException(Lang.Text("Update.Error.Sha256Mismatch", version.Sha256, actualHash));
 
-                var startInfo = new ProcessStartInfo(fileName)
-                {
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    CreateNoWindow = true
-                };
-                startInfo.ArgumentList.Add("update");
-                startInfo.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                startInfo.ArgumentList.Add(Basics.ExecutablePath);
-                startInfo.ArgumentList.Add(fileName);
-                startInfo.ArgumentList.Add(triggerRestart ? "true" : "false");
-                using var updater = Process.Start(startInfo) ?? throw new InvalidOperationException("未能启动更新进程");
+                UpdateInstaller.Start(Basics.ExecutablePath, fileName, triggerRestart);
             }
 
             _isUpdateWaitingRestart = false;
@@ -207,9 +196,10 @@ public static class UpdateManager
         catch (Exception ex)
         {
             Volatile.Write(ref _lastUpdateError, ex);
-            _isUpdateWaitingRestart = false;
-            LauncherCommon.Log(ex, "[Update] 更新失败");
-            UpdateUi.Current?.ShowHint(Lang.Text("Update.Error.OperationFailed"), NotificationType.Error);
+            _isUpdateWaitingRestart = File.Exists(StagedPath) && ex is not InvalidDataException;
+            LauncherCommon.Log(ex, "[Update] 启动更新失败");
+            UpdateUi.Current?.ShowMessageBox(ex.Message, Lang.Text("Update.Error.UpdateBlocked"),
+                Lang.Text("Common.Action.Confirm"), isWarn: true);
             return false;
         }
         finally

@@ -17,6 +17,12 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (OperatingSystem.IsWindows() && args is ["update", _, _, _, _])
+        {
+            Environment.ExitCode = UpdateInstaller.Run(args);
+            return;
+        }
+
         // 双击启动时，小窗和服务初始化并行。后台子命令沿用原来的无窗口入口。
         using var splash = OperatingSystem.IsWindows() && args.Length == 0
             ? WindowsStartupSplash.Start(SingleInstanceService.HasOtherInstance)

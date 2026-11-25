@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
 
 namespace PCL.Core.App.Essentials;
 
@@ -40,12 +41,18 @@ public static class UpdateHelper
         }
     }
 
-    internal static InstallResult? ConsumeResult(string target)
+    internal static InstallResult? ReadResult(string target)
     {
         var path = GetResultPath(target);
         if (!File.Exists(path)) return null;
-        var result = JsonSerializer.Deserialize<InstallResult>(File.ReadAllText(path))
+        return JsonSerializer.Deserialize<InstallResult>(File.ReadAllText(path))
             ?? throw new InvalidDataException("更新结果为空");
+    }
+
+    internal static InstallResult? ConsumeResult(string target)
+    {
+        var result = ReadResult(target);
+        if (result is null) return null;
         if (result.Error is null)
         {
             if (result.UpdaterProcessId != 0)
@@ -58,19 +65,37 @@ public static class UpdateHelper
             }
             File.Delete(GetStagedPath(target));
         }
-        File.Delete(path);
+        File.Delete(GetResultPath(target));
         return result;
     }
 
     /// <summary>将完整的更新程序复制到目标目录，然后原子替换原文件。</summary>
-    public static Exception? Replace(string source, string target)
+    public static Exception? Replace(string source, string target) => Replace(source, target, null);
+
+    internal static Exception? Replace(string source, string target, Action? beforeCommit)
     {
         var staging = $"{target}.update.{Guid.NewGuid():N}.tmp";
         try
         {
+            if ((File.GetAttributes(target) & FileAttributes.ReadOnly) != 0)
+                throw new UnauthorizedAccessException($"启动器文件为只读：{target}");
             File.Copy(source, staging);
-            File.Replace(staging, target, null);
-            return null;
+            beforeCommit?.Invoke();
+            var elapsed = Stopwatch.StartNew();
+            while (true)
+            {
+                try
+                {
+                    File.Move(staging, target, overwrite: true);
+                    return null;
+                }
+                catch (Exception ex) when (OperatingSystem.IsWindows() &&
+                    ex is IOException or UnauthorizedAccessException &&
+                    (ex.HResult & 0xffff) is 5 or 32 or 33 && elapsed.ElapsedMilliseconds < 5000)
+                {
+                    Thread.Sleep(150);
+                }
+            }
         }
         catch (Exception ex)
         {

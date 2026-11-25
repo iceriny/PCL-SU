@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PCL.Core.App.Essentials;
 
@@ -59,5 +61,39 @@ public sealed class UpdateInstallTest
         UpdateHelper.SaveResult(Target, new(Environment.ProcessId, failure.Message));
         Assert.AreEqual(failure.Message, UpdateHelper.ConsumeResult(Target)?.Error);
         Assert.IsNull(UpdateHelper.ConsumeResult(Target));
+    }
+
+    [TestMethod]
+    public void CancelledHandoffLeavesOriginalAndDiscardsPreparedFile()
+    {
+        var failure = UpdateHelper.Replace(Source, Target, () =>
+        {
+            Assert.AreEqual("old launcher", File.ReadAllText(Target));
+            throw new OperationCanceledException();
+        });
+        Assert.IsInstanceOfType<OperationCanceledException>(failure);
+        Assert.AreEqual("old launcher", File.ReadAllText(Target));
+        Assert.AreEqual(0, Directory.GetFiles(_directory, "*.tmp").Length);
+    }
+
+    [TestMethod]
+    public async Task ReplacesAfterWindowsReleasesTransientFileLock()
+    {
+        if (!OperatingSystem.IsWindows()) Assert.Inconclusive("Windows file sharing test");
+        using var targetLock = File.OpenRead(Target);
+        using var prepared = new ManualResetEventSlim();
+        var install = Task.Run(() => UpdateHelper.Replace(Source, Target, prepared.Set));
+        try
+        {
+            Assert.IsTrue(prepared.Wait(TimeSpan.FromSeconds(5)));
+            await Task.Delay(300);
+            Assert.IsFalse(install.IsCompleted);
+        }
+        finally
+        {
+            targetLock.Dispose();
+        }
+        Assert.IsNull(await install);
+        Assert.AreEqual("new launcher", File.ReadAllText(Target));
     }
 }
