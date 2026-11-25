@@ -25,7 +25,6 @@ public partial class PageHomepageNewsView : UserControl
     private readonly NewsViewModel _viewModel;
     private bool _rebuildPending;
     private bool _reloaded;
-    private ScrollViewer? _scrollViewer;
 
     public PageHomepageNewsView()
     {
@@ -47,25 +46,11 @@ public partial class PageHomepageNewsView : UserControl
 
         AttachedToVisualTree += (_, _) =>
         {
-            _scrollViewer = this.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
-            if (_scrollViewer is not null)
-                _scrollViewer.ScrollChanged += OnScrollChanged;
             if (_reloaded) return;
             _reloaded = true;
             RefreshState();
             ScheduleRebuild();
         };
-        DetachedFromVisualTree += (_, _) =>
-        {
-            if (_scrollViewer is not null)
-                _scrollViewer.ScrollChanged -= OnScrollChanged;
-            _scrollViewer = null;
-        };
-    }
-
-    private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
-    {
-        _panNews.InvalidateMeasure();
     }
 
     public void Reload()
@@ -111,7 +96,7 @@ public partial class PageHomepageNewsView : UserControl
             var newsItem = item;
             var element = new MyVirtualizingElement<MyCard>(() => CreateNewsCard(newsItem))
             {
-                Height = EstimatedCardHeight,
+                EstimatedHeight = EstimatedCardHeight,
                 RecycleOffscreen = true
             };
             element.Recycled += card =>

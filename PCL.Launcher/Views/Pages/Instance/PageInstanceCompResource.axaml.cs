@@ -524,12 +524,9 @@ public partial class PageInstanceCompResource
             AllowFolderNavigation = true,
             PathHint = GetPathHint(entry)
         };
-        var weakItem = new WeakReference<MyLocalModItem>(item);
-        entry.OnCompUpdate += _ =>
-        {
-            if (weakItem.TryGetTarget(out var target))
-                LauncherCommon.RunInUi(target.Refresh);
-        };
+        void RefreshEntry(LocalComp.LocalCompFile _) => LauncherCommon.RunInUi(item.Refresh);
+        item.AttachedToVisualTree += (_, _) => entry.OnCompUpdate += RefreshEntry;
+        item.DetachedFromVisualTree += (_, _) => entry.OnCompUpdate -= RefreshEntry;
 
         item.CheckedChanged += (_, value) =>
         {

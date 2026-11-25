@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -23,6 +24,7 @@ public partial class ServerCard : Grid
     private readonly int _uuid = LauncherCommon.GetUuid();
     private bool _isMouseDown;
     private string? _lastLogoBase64;
+    private int _logoGeneration;
     private string? _stateLast;
 
     public ServerCard()
@@ -67,14 +69,6 @@ public partial class ServerCard : Grid
             _stateLast = null;
             RefreshColor();
         };
-
-        var weakCard = new WeakReference<ServerCard>(this);
-        ViewModel.PropertyChanged += (_, _) =>
-        {
-            if (weakCard.TryGetTarget(out var card))
-                Dispatcher.UIThread.Post(card.ApplyState);
-        };
-        ApplyState();
     }
 
     public new string Name => ViewModel.Name;
@@ -104,7 +98,7 @@ public partial class ServerCard : Grid
     public void UpdateInfo(string name, string address)
     {
         ViewModel.UpdateInfo(name, address);
-        ApplyState();
+        if (this.IsAttachedToVisualTree()) ApplyState();
     }
 
     public Task RefreshAsync(bool withHint = false, CancellationToken token = default)
@@ -185,26 +179,34 @@ public partial class ServerCard : Grid
 
     private async Task SetLogoAsync(string base64)
     {
+        var generation = ++_logoGeneration;
         if (string.IsNullOrWhiteSpace(base64))
         {
-            ServerIcon.Source = DefaultLogo;
+            SetLogo(DefaultLogo);
             return;
         }
 
         try
         {
             var bitmap = await Task.Run(() => DecodeBase64Image(base64));
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (string.Equals(_lastLogoBase64, base64, StringComparison.Ordinal))
-                    ServerIcon.Source = bitmap ?? DefaultLogo;
-            });
+            if (generation == _logoGeneration) SetLogo(bitmap ?? DefaultLogo);
+            else bitmap?.Dispose();
         }
         catch (Exception ex)
         {
             LauncherCommon.Log(ex, "解析服务器图标失败");
-            ServerIcon.Source = DefaultLogo;
+            if (generation == _logoGeneration) SetLogo(DefaultLogo);
         }
+    }
+
+    private void SetLogo(Bitmap? bitmap)
+    {
+        var previous = ServerIcon.Source;
+        ServerIcon.Source = bitmap;
+        if (previous is Bitmap owned
+            && !ReferenceEquals(owned, DefaultLogo)
+            && !ReferenceEquals(owned, bitmap))
+            owned.Dispose();
     }
 
     private static Bitmap? DecodeBase64Image(string base64)
@@ -284,8 +286,28 @@ public partial class ServerCard : Grid
                     : "ColorBrush7");
     }
 
+    private void OnServerChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (this.IsAttachedToVisualTree()) ApplyState();
+        });
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (ViewModel is null) return;
+        ViewModel.PropertyChanged += OnServerChanged;
+        ApplyState();
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        if (ViewModel is not null) ViewModel.PropertyChanged -= OnServerChanged;
+        _logoGeneration++;
+        _lastLogoBase64 = null;
+        SetLogo(null);
         AnimationService.CancelAnimationByName($"ServerCard Color {_uuid}");
         _stateLast = null;
         base.OnDetachedFromVisualTree(e);

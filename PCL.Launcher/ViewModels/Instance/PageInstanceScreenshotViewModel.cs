@@ -19,7 +19,6 @@ public partial class PageInstanceScreenshotViewModel : ViewModelBase
 
     private readonly List<ScreenshotItemViewModel> _files = [];
     private bool _appendLock;
-    private int _appendOffset;
 
     [ObservableProperty] public partial bool ShowContent { get; set; }
 
@@ -35,7 +34,7 @@ public partial class PageInstanceScreenshotViewModel : ViewModelBase
 
     public IReadOnlyList<ScreenshotItemViewModel> AllScreenshots => _files;
 
-    public bool CanAppend => !_appendLock && _appendOffset * 20 < _files.Count;
+    public bool CanAppend => !_appendLock && Screenshots.Count < _files.Count;
 
     /// <summary>绑定当前实例并确保截图目录存在。</summary>
     public void SetInstance(McInstance? instance)
@@ -65,7 +64,6 @@ public partial class PageInstanceScreenshotViewModel : ViewModelBase
         {
             _files.Clear();
             Screenshots.Clear();
-            _appendOffset = 0;
             _appendLock = false;
             SelectedScreenshot = null;
             Error = null;
@@ -125,14 +123,13 @@ public partial class PageInstanceScreenshotViewModel : ViewModelBase
     {
         if (_appendLock || count <= 0)
             return [];
-        var start = _appendOffset * count;
+        var start = Screenshots.Count;
         if (start >= _files.Count)
             return [];
 
         _appendLock = true;
         try
         {
-            _appendOffset++;
             var result = new List<ScreenshotItemViewModel>();
             for (var i = start; i < Math.Min(start + count, _files.Count); i++)
             {

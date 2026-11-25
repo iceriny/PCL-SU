@@ -4,8 +4,6 @@ using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using Avalonia.Threading;
 using PCL.Core.App;
 using PCL.Core.IO.Net.Http;
@@ -44,11 +42,19 @@ public class MyImage : Image
     public static readonly StyledProperty<int> DecodeHeightProperty =
         AvaloniaProperty.Register<MyImage, int>(nameof(DecodeHeight));
 
-    private static readonly ConcurrentDictionary<string, Task<string>> DownloadTasks = new();
+    /// <summary>缩略图槽的逻辑边长；按当前屏幕缩放限制解码后的长边。</summary>
+    public static readonly StyledProperty<double> DecodeBoxSizeProperty =
+        AvaloniaProperty.Register<MyImage, double>(nameof(DecodeBoxSize), validate: size => double.IsFinite(size) && size >= 0);
+
+    private static readonly ConcurrentDictionary<string, Lazy<Task<string>>> DownloadTasks = new();
 
     private string? _actualSource;
+    private string? _directSource;
     private bool _isAttached;
-    private int _loadGeneration;
+    private TopLevel? _scaleRoot;
+    private int _sourceGeneration;
+    private int _decodeGeneration;
+    private ThumbnailCache.Lease? _lease;
 
     /// <summary>
     ///     网络图片缓存的有效期。
@@ -65,19 +71,12 @@ public class MyImage : Image
     /// </summary>
     public string? ActualSource
     {
-        get => _actualSource;
+        get => _actualSource ?? _directSource;
         set
         {
-            if (string.IsNullOrEmpty(value))
-                value = null;
-            if (string.Equals(
-                    _actualSource ?? string.Empty,
-                    value ?? string.Empty,
-                    StringComparison.Ordinal))
-                return;
-
-            _actualSource = value;
-            _ = LoadActualSourceAsync(value);
+            _sourceGeneration++;
+            _directSource = string.IsNullOrEmpty(value) ? null : value;
+            Display(_isAttached ? _directSource : null);
         }
     }
 
@@ -97,6 +96,12 @@ public class MyImage : Image
     {
         get => GetValue(DecodeHeightProperty);
         set => SetValue(DecodeHeightProperty, Math.Max(0, value));
+    }
+
+    public double DecodeBoxSize
+    {
+        get => GetValue(DecodeBoxSizeProperty);
+        set => SetValue(DecodeBoxSizeProperty, value);
     }
 
     /// <summary>
@@ -130,192 +135,181 @@ public class MyImage : Image
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == SourceProperty)
-            Load();
+        if (change.Property == SourceProperty || change.Property == EnableCacheProperty)
+        {
+            _directSource = null;
+            if (_isAttached) Load();
+            else if (_actualSource is not null) Unload();
+        }
         else if (change.Property == CornerRadiusProperty || change.Property == BoundsProperty)
             UpdateClip();
-        else if (change.Property == DecodeWidthProperty || change.Property == DecodeHeightProperty)
-            if (!string.IsNullOrEmpty(_actualSource))
-                _ = LoadActualSourceAsync(_actualSource);
+        else if (change.Property == DecodeWidthProperty || change.Property == DecodeHeightProperty
+                 || change.Property == DecodeBoxSizeProperty)
+        {
+            UpdateScaleSubscription();
+            if (!_isAttached) Display(null);
+            else if (_actualSource is not null) Display(_actualSource);
+        }
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
         _isAttached = true;
-        Load(); // 属性读取顺序修正：在完成 XAML 属性读取后再触发图片加载
+        UpdateScaleSubscription();
+        if (_directSource is not null) Display(_directSource);
+        else Load();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         _isAttached = false;
+        UpdateScaleSubscription();
+        _sourceGeneration++;
+        // 导航会暂时摘下整页；原尺寸图跟随页面保留，下次挂载重新核对文件版本。
+        if (_lease?.Original is null) Display(null);
+        else _decodeGeneration++;
         base.OnDetachedFromVisualTree(e);
+    }
+
+    private void UpdateScaleSubscription()
+    {
+        var root = _isAttached && DecodeBoxSize > 0 ? TopLevel.GetTopLevel(this) : null;
+        if (ReferenceEquals(root, _scaleRoot)) return;
+        if (_scaleRoot is not null) _scaleRoot.ScalingChanged -= OnScalingChanged;
+        _scaleRoot = root;
+        if (root is not null) root.ScalingChanged += OnScalingChanged;
+    }
+
+    private void OnScalingChanged(object? sender, EventArgs args)
+    {
+        if (_actualSource is not null) Display(_actualSource);
     }
 
     private void Load()
     {
-        if (!_isAttached)
-            return;
-
+        var generation = ++_sourceGeneration;
         var source = Source;
         if (string.IsNullOrEmpty(source))
         {
-            ActualSource = null;
+            Display(null);
             return;
         }
 
         if (!source.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
-            ActualSource = source;
+            Display(source);
             return;
         }
 
         var tempPath = GetTempPath(source);
         var tempFile = new FileInfo(tempPath);
         var enableCache = EnableCache;
-        if (enableCache && tempFile.Exists)
+        var hasCachedFile = enableCache && tempFile.Exists;
+        if (hasCachedFile)
         {
-            ActualSource = tempPath;
-            if (DateTime.Now - tempFile.LastWriteTime < fileCacheExpiredTime)
+            var fresh = DateTime.Now - tempFile.LastWriteTime < fileCacheExpiredTime;
+            Display(tempPath, retryDownload: fresh);
+            if (fresh)
                 return; // 无需刷新缓存
         }
-
-        _ = LoadFromNetworkAsync(source, enableCache);
+        else
+            Display(LoadingSource);
+        _ = LoadFromNetworkAsync(source, generation, hasCachedFile);
     }
 
-    private async Task LoadFromNetworkAsync(string url, bool enableCache)
+    private async Task LoadFromNetworkAsync(string url, int generation, bool hasCachedFile)
     {
+        var fallback = FallbackSource;
         try
         {
-            // 下载
-            var loadingSource = LoadingSource;
-            if (!string.IsNullOrEmpty(loadingSource))
-                ActualSource = loadingSource;
-
             var result = await DownloadImageAsync(url).ConfigureAwait(false);
+            if (string.IsNullOrEmpty(result) && !hasCachedFile && !string.IsNullOrEmpty(fallback))
+                result = fallback.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                    ? await DownloadImageAsync(fallback).ConfigureAwait(false) : fallback;
             if (!string.IsNullOrEmpty(result))
-            {
-                SetActualSourceOnUi(result);
-                return;
-            }
-
-            var fallback = FallbackSource;
-            if (!string.IsNullOrEmpty(fallback))
-            {
-                result = await DownloadImageAsync(fallback).ConfigureAwait(false);
-                if (!string.IsNullOrEmpty(result)) SetActualSourceOnUi(result);
-            }
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (generation == _sourceGeneration) Display(result);
+                });
         }
         catch (Exception ex)
         {
-            // 更换备用地址
             LogWrapper.Debug(
                 ex,
                 "MyImage",
                 $"在线图片获取失败（source = {url}, fallback = {FallbackSource}）");
-            var tempPath = GetTempPath(url);
-            var tempFile = new FileInfo(tempPath);
-            if (enableCache && tempFile.Exists)
-                SetActualSourceOnUi(tempPath);
         }
     }
 
-    private void SetActualSourceOnUi(string? source)
+    private void Display(string? source, bool retryDownload = false)
     {
-        if (Dispatcher.UIThread.CheckAccess())
-            ActualSource = source;
-        else
-            Dispatcher.UIThread.Post(() => ActualSource = source);
-    }
-
-    private async Task LoadActualSourceAsync(string? source)
-    {
-        if (source is null)
+        var generation = ++_decodeGeneration;
+        if (string.IsNullOrEmpty(source))
         {
-            SetImageSource(null);
+            _actualSource = null;
+            ReplaceImage(null);
             return;
         }
 
-        var generation = Volatile.Read(ref _loadGeneration);
+        if (_actualSource != source) ReplaceImage(null);
+        _actualSource = source;
+        var box = (int)Math.Ceiling(DecodeBoxSize * (_scaleRoot?.RenderScaling ?? 1d));
+        _ = LoadActualSourceAsync(source, generation, DecodeWidth, DecodeHeight, box, retryDownload);
+    }
+
+    private async Task LoadActualSourceAsync(string source, int generation, int width, int height, int box,
+        bool retryDownload)
+    {
+        var previous = width == 0 && height == 0 && box == 0 ? _lease?.Original : null;
+        ThumbnailCache.Lease? lease = null;
         try
         {
-            var decodeWidth = DecodeWidth;
-            var decodeHeight = DecodeHeight;
-            var bitmap = await Task
-                .Run(() => DecodeBitmap(source, decodeWidth, decodeHeight))
+            lease = await Task
+                .Run(() => generation != Volatile.Read(ref _decodeGeneration) || previous?.IsCurrent() == true
+                    ? null : ThumbnailCache.Shared.Acquire(source, width, height, box))
                 .ConfigureAwait(false);
-            if (generation != Volatile.Read(ref _loadGeneration)
-                || !string.Equals(_actualSource, source, StringComparison.Ordinal))
+            if (lease is null) return;
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                if (bitmap is IDisposable disposable)
-                    disposable.Dispose();
-                return; // 期间地址已改变或控件已卸载，丢弃过期结果
-            }
-
-            SetImageSource(bitmap);
+                if (generation == _decodeGeneration)
+                {
+                    ReplaceImage(lease);
+                    lease = null;
+                }
+            });
         }
         catch (Exception ex)
         {
-            if (generation != Volatile.Read(ref _loadGeneration)
-                || !string.Equals(_actualSource, source, StringComparison.Ordinal))
-                return;
-
-            LogWrapper.Debug(ex, "MyImage", $"加载图片失败（{source}）");
-            try
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                if (source.StartsWith(Paths.Temp, StringComparison.OrdinalIgnoreCase)
-                    && File.Exists(source))
-                    File.Delete(source);
-            }
-            catch
-            {
-                // 缓存文件删除失败不影响显示
-            }
-
-            SetImageSource(null);
+                if (generation != _decodeGeneration) return;
+                LogWrapper.Debug(ex, "MyImage", $"加载图片失败（{source}）");
+                ReplaceImage(null);
+                if (retryDownload && Source is { } url)
+                    _ = LoadFromNetworkAsync(url, _sourceGeneration, false);
+            });
+        }
+        finally
+        {
+            lease?.Dispose();
         }
     }
 
-    /// <summary>释放当前解码结果；再次显示由新的控件实例重新加载。</summary>
+    /// <summary>释放控件对位图的引用，并使已排队的下载和解码结果失效。</summary>
     public void Unload()
     {
-        Interlocked.Increment(ref _loadGeneration);
-        _actualSource = null;
-        SetImageSource(null);
+        _sourceGeneration++;
+        _directSource = null;
+        Display(null);
     }
 
-    private void SetImageSource(IImage? image)
+    private void ReplaceImage(ThumbnailCache.Lease? lease)
     {
-        void Apply()
-        {
-            var previous = base.Source;
-            base.Source = image;
-            if (previous is IDisposable disposable && !ReferenceEquals(previous, image))
-                disposable.Dispose();
-        }
-
-        if (Dispatcher.UIThread.CheckAccess())
-            Apply();
-        else
-            Dispatcher.UIThread.Post(Apply);
-    }
-
-    private static IImage DecodeBitmap(string source, int decodeWidth, int decodeHeight)
-    {
-        using var stream = OpenSource(source);
-        return decodeWidth > 0 ? Bitmap.DecodeToWidth(stream, decodeWidth)
-            : decodeHeight > 0 ? Bitmap.DecodeToHeight(stream, decodeHeight)
-            : new Bitmap(stream);
-    }
-
-    private static Stream OpenSource(string source)
-    {
-        return source.StartsWith("avares://", StringComparison.OrdinalIgnoreCase)
-            ? AssetLoader.Open(new Uri(source, UriKind.Absolute))
-            : File.OpenRead(
-                source.StartsWith("file://", StringComparison.OrdinalIgnoreCase)
-                    ? new Uri(source, UriKind.Absolute).LocalPath
-                    : source);
+        var previous = _lease;
+        base.Source = lease?.Bitmap;
+        _lease = lease;
+        previous?.Dispose();
     }
 
     private void UpdateClip()
@@ -335,16 +329,18 @@ public class MyImage : Image
     // 下载
     // =======================================
 
-    public static Task<string> DownloadImageAsync(string url)
+    public static async Task<string> DownloadImageAsync(string url)
     {
-        return DownloadTasks.GetOrAdd(
-            url,
-            key =>
-            {
-                var task = DownloadImageInternalAsync(key);
-                _ = task.ContinueWith(_ => DownloadTasks.TryRemove(url, out var _));
-                return task;
-            });
+        var download = DownloadTasks.GetOrAdd(url,
+            key => new Lazy<Task<string>>(() => DownloadImageInternalAsync(key)));
+        try
+        {
+            return await download.Value.ConfigureAwait(false);
+        }
+        finally
+        {
+            DownloadTasks.TryRemove(new KeyValuePair<string, Lazy<Task<string>>>(url, download));
+        }
     }
 
     public static string GetTempPath(string url)
@@ -385,7 +381,6 @@ public class MyImage : Image
         {
             try
             {
-                if (File.Exists(tempPath)) File.Delete(tempPath);
                 if (File.Exists(tempDownloadingPath)) File.Delete(tempDownloadingPath);
             }
             catch

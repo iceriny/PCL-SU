@@ -3,8 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
-using Avalonia.VisualTree;
 using PCL.Core.App.Localization;
 using PCL.Core.UI.Hints;
 using PCL.Navigation;
@@ -19,6 +17,9 @@ namespace PCL.Views.Pages.Instance;
 public partial class PageInstanceScreenshot : MyPageRight, IRefreshable
 {
     private const int AppendCount = 20;
+    private const int MaxSpareCards = 8;
+    private readonly Stack<ScreenshotCard> _spareCards = new();
+    private readonly HashSet<string> _shownFiles = new(StringComparer.Ordinal);
 
     public PageInstanceScreenshot()
     {
@@ -68,6 +69,7 @@ public partial class PageInstanceScreenshot : MyPageRight, IRefreshable
     private void RebuildList()
     {
         PanScreenshots.Children.Clear();
+        _shownFiles.IntersectWith(ViewModel.AllScreenshots.Select(item => item.FilePath));
         if (ViewModel.HasScreenshots)
             AppendBatch(AppendCount);
     }
@@ -85,113 +87,99 @@ public partial class PageInstanceScreenshot : MyPageRight, IRefreshable
     {
         foreach (var item in ViewModel.AppendNext(count))
         {
-            var placeholder = new MyVirtualizingElement<MyCard>(() => CreateScreenshotCard(item))
+            var placeholder = new MyVirtualizingElement<ScreenshotCard>(() =>
+            {
+                if (!_spareCards.TryPop(out var card)) card = new ScreenshotCard(this);
+                card.Bind(item, _shownFiles.Add(item.FilePath));
+                return card;
+            })
             {
                 Width = 214d,
-                Height = 170d,
+                EstimatedHeight = 170d,
+                Tag = item,
                 RecycleOffscreen = true
             };
-            placeholder.Recycled += control =>
-            {
-                if (control is MyCard card)
-                    UnloadScreenshotCard(card);
-            };
+            placeholder.Recycled += RecycleCard;
             PanScreenshots.Children.Add(placeholder);
         }
     }
 
-    private MyCard CreateScreenshotCard(ScreenshotItemViewModel item)
+    private void RecycleCard(Control row)
     {
-        var card = new MyCard
+        var card = (ScreenshotCard)row;
+        card.Unbind();
+        if (_spareCards.Count < MaxSpareCards) _spareCards.Push(card);
+    }
+
+    private sealed class ScreenshotCard : MyCard
+    {
+        private readonly MyImage _image = new()
         {
-            Width = 200d,
-            Margin = new Thickness(7d),
-            Tag = item.FilePath
-        };
-        ToolTip.SetTip(card, item.DisplayName);
-        var grid = new Grid
-        {
-            RowDefinitions = new RowDefinitions("9,120,Auto")
-        };
-        var image = new Image
-        {
+            DecodeWidth = 400,
             Stretch = Stretch.Uniform,
             Cursor = new Cursor(StandardCursorType.Hand),
             Margin = new Thickness(4d, 0d)
         };
-        _ = LoadScreenshotImageAsync(card, image, item);
+        private readonly string _fadeKey;
+        private ScreenshotItemViewModel? _item;
 
-        image.PointerPressed += (_, _) =>
+        protected override Type StyleKeyOverride => typeof(MyCard);
+
+        public ScreenshotCard(PageInstanceScreenshot page)
         {
-            ViewModel.SelectedScreenshot = item;
-            item.IsSelected = true;
-            PageInstanceScreenshotViewModel.OpenScreenshot(item);
-        };
-        Grid.SetRow(image, 1);
-        grid.Children.Add(image);
-
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(3d, 5d, 3d, 5d)
-        };
-        Grid.SetRow(buttons, 2);
-        var open = CreateActionButton("Common.Action.Open", "lucide/folder-open");
-        open.Click += (_, _) => PageInstanceScreenshotViewModel.OpenScreenshot(item);
-        buttons.Children.Add(open);
-        var delete = CreateActionButton("Common.Action.Delete", "lucide/trash-2");
-        delete.Click += (_, _) => _ = DeleteAsync(item, card);
-        buttons.Children.Add(delete);
-        var copy = CreateActionButton("Common.Action.Copy", "lucide/copy");
-        copy.Click += (_, _) => _ = CopyAsync(item);
-        buttons.Children.Add(copy);
-        grid.Children.Add(buttons);
-        card.BorderChild = grid;
-        card.Opacity = 0d;
-        AnimationService.Run(
-            new List<IAnimation>
+            Width = 200d;
+            Margin = new Thickness(7d);
+            _fadeKey = $"Screenshot Fade {uuid}";
+            var grid = new Grid { RowDefinitions = new RowDefinitions("9,120,Auto") };
+            _image.PointerPressed += (_, _) =>
             {
-                new OpacityAnimation(card, 1d, 200)
-            });
-        return card;
-    }
+                if (_item is not { } item) return;
+                page.ViewModel.SelectedScreenshot = item;
+                item.IsSelected = true;
+                PageInstanceScreenshotViewModel.OpenScreenshot(item);
+            };
+            Grid.SetRow(_image, 1);
+            grid.Children.Add(_image);
 
-    private static async Task LoadScreenshotImageAsync(
-        MyCard card,
-        Image image,
-        ScreenshotItemViewModel item)
-    {
-        try
-        {
-            var bitmap = await Task.Run(() =>
+            var buttons = new StackPanel
             {
-                using var stream = File.OpenRead(item.FilePath);
-                return Bitmap.DecodeToWidth(stream, 400);
-            });
-
-            if (card.Tag is not string path || path != item.FilePath)
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(3d, 5d, 3d, 5d)
+            };
+            void AddButton(string text, string icon, Action<ScreenshotItemViewModel> execute)
             {
-                bitmap.Dispose();
-                return;
+                var button = CreateActionButton(text, icon);
+                button.Click += (_, _) =>
+                {
+                    if (_item is { } item) execute(item);
+                };
+                buttons.Children.Add(button);
             }
-
-            image.Source = bitmap;
+            AddButton("Common.Action.Open", "lucide/folder-open", PageInstanceScreenshotViewModel.OpenScreenshot);
+            AddButton("Common.Action.Delete", "lucide/trash-2", item => _ = page.DeleteAsync(item));
+            AddButton("Common.Action.Copy", "lucide/copy", item => _ = page.CopyAsync(item));
+            Grid.SetRow(buttons, 2);
+            grid.Children.Add(buttons);
+            BorderChild = grid;
         }
-        catch (Exception ex)
-        {
-            LauncherCommon.Log(ex, $"加载截图缩略图失败：{item.FilePath}", LauncherLogLevel.Developer);
-        }
-    }
 
-    private static void UnloadScreenshotCard(MyCard card)
-    {
-        card.Tag = null;
-        foreach (var image in card.GetVisualDescendants().OfType<Image>())
+        public void Bind(ScreenshotItemViewModel item, bool firstVisit)
         {
-            if (image.Source is IDisposable disposable)
-                disposable.Dispose();
-            image.Source = null;
+            _item = item;
+            ToolTip.SetTip(this, item.DisplayName);
+            _image.Source = item.FilePath;
+            Opacity = firstVisit ? 0d : 1d;
+            if (firstVisit) AnimationService.Run(new OpacityAnimation(this, 1d, 200), _fadeKey);
+        }
+
+        public void Unbind()
+        {
+            AnimationService.CancelAnimationByName(_fadeKey);
+            _item = null;
+            _image.Source = null;
+            ToolTip.SetIsOpen(this, false);
+            ToolTip.SetTip(this, null);
         }
     }
 
@@ -215,10 +203,12 @@ public partial class PageInstanceScreenshot : MyPageRight, IRefreshable
             TopLevel.GetTopLevel(this)?.Clipboard);
     }
 
-    private async Task DeleteAsync(ScreenshotItemViewModel item, MyCard card)
+    private async Task DeleteAsync(ScreenshotItemViewModel item)
     {
         if (!await ViewModel.DeleteAsync(item))
             return;
-        PanScreenshots.Children.Remove(card);
+        _shownFiles.Remove(item.FilePath);
+        var row = PanScreenshots.Children.FirstOrDefault(child => ReferenceEquals(child.Tag, item));
+        if (row is not null) PanScreenshots.Children.Remove(row);
     }
 }

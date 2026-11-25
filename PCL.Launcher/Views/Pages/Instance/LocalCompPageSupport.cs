@@ -23,7 +23,9 @@ internal static class LocalCompPageSupport
 
         var entry = entries[index];
         setSelected(entry, selected);
-        if (index < children.Count && children[index] is MyLocalModItem item)
+        if (index >= children.Count) return;
+        var child = children[index];
+        if ((child is MyVirtualizingElement row ? row.Child : child) is MyLocalModItem item)
             item.SetChecked(selected, animate);
     }
 

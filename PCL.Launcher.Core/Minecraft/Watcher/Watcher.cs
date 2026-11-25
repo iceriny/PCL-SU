@@ -58,7 +58,8 @@ public static partial class GameWatcher
             McInstance version,
             string windowTitle,
             string jStackPath,
-            bool outputRealTime = false)
+            bool outputRealTime = false,
+            Action<Watcher>? beforeReadingOutput = null)
         {
             this.loader = loader;
             this.version = version;
@@ -75,10 +76,11 @@ public static partial class GameWatcher
             _RegisterWatcher();
 
             gameProcess = process;
-            gameProcess.BeginOutputReadLine();
-            gameProcess.BeginErrorReadLine();
             gameProcess.OutputDataReceived += LogReceived;
             gameProcess.ErrorDataReceived += LogReceived;
+            beforeReadingOutput?.Invoke(this);
+            gameProcess.BeginOutputReadLine();
+            gameProcess.BeginErrorReadLine();
 
             LauncherCommon.RunInNewThread(
                 () => _MonitorLoop(loader),

@@ -8,6 +8,8 @@ namespace PCL.Core.App;
 // ReSharper disable InconsistentNaming
 public static partial class Config
 {
+    internal const string DisableHardwareAccelerationKey = "SystemDisableHardwareAcceleration";
+
     /// <summary>
     /// 系统配置。
     /// </summary>
@@ -21,7 +23,7 @@ public static partial class Config
         /// <summary>
         /// 禁用硬件加速。
         /// </summary>
-        [ConfigItem<bool>("SystemDisableHardwareAcceleration", false)] public partial bool DisableHardwareAcceleration { get; set; }
+        [ConfigItem<bool>(DisableHardwareAccelerationKey, false)] public partial bool DisableHardwareAcceleration { get; set; }
 
         /// <summary>
         /// 遥测。

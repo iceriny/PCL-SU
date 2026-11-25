@@ -55,6 +55,7 @@
             ClipToBounds="True">
         <ui:MyImage x:Name="PathLogo"
                     CornerRadius="6"
+                    DecodeBoxSize="50"
                     FallbackSource="avares://PCL.Launcher/Assets/Images/Icons/NoIcon.png"
                     Stretch="Uniform"
                     IsHitTestVisible="False" />

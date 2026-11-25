@@ -6,6 +6,7 @@ namespace PCL.Navigation;
 public static class PageRegistry
 {
     private static readonly Dictionary<PageId, IPageHost> Hosts = new();
+    private static readonly Dictionary<PageId, PageDescriptor> Pending = new();
     private static readonly Lock Lock = new();
     private static PageHostFactory? _factory;
     private static bool _initialized;
@@ -17,6 +18,8 @@ public static class PageRegistry
             lock (Lock)
             {
                 EnsureInitializedCore();
+                foreach (var page in Pending.Keys.ToArray())
+                    GetHostCore(page);
                 return
                 [
                     .. Hosts
@@ -35,6 +38,7 @@ public static class PageRegistry
         {
             _factory = factory;
             Hosts.Clear();
+            Pending.Clear();
             _initialized = false;
         }
     }
@@ -45,6 +49,7 @@ public static class PageRegistry
         lock (Lock)
         {
             EnsureInitializedCore();
+            Pending.Remove(host.Page);
             Hosts[host.Page] = host;
         }
     }
@@ -54,13 +59,17 @@ public static class PageRegistry
         lock (Lock)
         {
             EnsureInitializedCore();
-            return Hosts.GetValueOrDefault(page);
+            return GetHostCore(page);
         }
     }
 
     public static bool IsRegistered(PageId page)
     {
-        return GetHost(page) is not null;
+        lock (Lock)
+        {
+            EnsureInitializedCore();
+            return Hosts.ContainsKey(page) || Pending.ContainsKey(page);
+        }
     }
 
     public static PageId PageOfTab(MainTab tab)
@@ -76,29 +85,32 @@ public static class PageRegistry
     private static void EnsureInitializedCore()
     {
         if (_initialized) return;
+        if (_factory is null) throw new InvalidOperationException("页面宿主工厂尚未初始化");
         _initialized = true;
 
-        var factory = _factory
-            ?? throw new InvalidOperationException("页面宿主工厂尚未初始化");
         foreach (var descriptor in PageCatalog.Pages)
+            Pending.Add(descriptor.Id, descriptor);
+        foreach (var tab in PageCatalog.MainTabs)
+            GetHostCore(tab.DefaultPage);
+    }
+
+    private static IPageHost? GetHostCore(PageId page)
+    {
+        if (Pending.Remove(page, out var descriptor))
+        {
             try
             {
-                var host = factory.Create(descriptor);
-                if (host is null)
-                {
-                    LogWrapper.Warn("UI", $"页面描述未提供宿主：{descriptor.Id}");
-                    continue;
-                }
-
+                var host = _factory!.Create(descriptor);
                 if (!Hosts.TryAdd(host.Page, host))
                     LogWrapper.Warn("UI", $"页面宿主重复注册：{host.Page}");
             }
             catch (Exception ex)
             {
                 LogWrapper.Error(ex, "UI", $"创建页面宿主失败：{descriptor.Id}");
+                if (Pending.Count == 0 && Hosts.Count == 0)
+                    LogWrapper.Error("UI", "页面目录中没有可用的页面宿主");
             }
-
-        if (Hosts.Count == 0)
-            LogWrapper.Error("UI", "页面目录中没有可用的页面宿主");
+        }
+        return Hosts.GetValueOrDefault(page);
     }
 }

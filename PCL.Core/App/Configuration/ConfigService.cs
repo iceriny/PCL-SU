@@ -111,7 +111,7 @@ public sealed partial class ConfigService
 
     #region Providers
 
-    private static ConfigStorage? _sharedConfigProvider;
+    private static readonly Lazy<ConfigStorage> _sharedConfigProvider = new(_CreateSharedProvider);
     private static ConfigStorage? _sharedEncryptedConfigProvider;
     private static ConfigStorage? _localConfigProvider;
     private static ConfigStorage? _instanceConfigProvider;
@@ -128,7 +128,7 @@ public sealed partial class ConfigService
         if (!_isProvidersInitialized) throw new InvalidOperationException("Not initialized");
         return source switch
         {
-            ConfigSource.Shared => _sharedConfigProvider!,
+            ConfigSource.Shared => _sharedConfigProvider.Value,
             ConfigSource.SharedEncrypt => _sharedEncryptedConfigProvider!,
             ConfigSource.Local => _localConfigProvider!,
             ConfigSource.GameInstance => _instanceConfigProvider!,
@@ -136,14 +136,16 @@ public sealed partial class ConfigService
         };
     }
 
-    private static void _InitializeProviders()
+    /// <summary>Windows 图形后端先于配置服务启动，两者共用同一份已迁移的共享配置。</summary>
+    public static bool ReadStartupDisableHardwareAcceleration()
     {
-        lock (_ProviderFailureLock)
-        {
-            _ProviderInitFailures.Clear();
-        }
+        return _sharedConfigProvider.Value.GetValue<bool>(Config.DisableHardwareAccelerationKey, out var disabled)
+            && disabled;
+    }
 
-        var shared = _CreateProvider(
+    private static ConfigStorage _CreateSharedProvider()
+    {
+        return _CreateProvider(
             () =>
             {
                 if (!File.Exists(SharedConfigPath))
@@ -169,8 +171,20 @@ public sealed partial class ConfigService
                 return new FileConfigStorage(new JsonFileProvider(SharedConfigPath));
             },
             SharedConfigPath);
-        _sharedConfigProvider = shared;
-        _sharedEncryptedConfigProvider = new EncryptedFileConfigStorage(shared);
+
+        static void SharedJsonMigration(string from, string to)
+        {
+            var sourceKey = Path.Combine(Path.GetDirectoryName(from)!, "UserKey.bin");
+            var targetKey = Path.Combine(Paths.SharedData, "UserKey.bin");
+            if (!File.Exists(targetKey) && File.Exists(sourceKey))
+                File.Copy(sourceKey, targetKey);
+            File.Copy(from, to);
+        }
+    }
+
+    private static void _InitializeProviders()
+    {
+        _sharedEncryptedConfigProvider = new EncryptedFileConfigStorage(_sharedConfigProvider.Value);
         _localConfigProvider = _CreateProvider(
             () =>
             {
@@ -216,15 +230,6 @@ public sealed partial class ConfigService
         };
 
         return;
-
-        void SharedJsonMigration(string from, string to)
-        {
-            var sourceKey = Path.Combine(Path.GetDirectoryName(from)!, "UserKey.bin");
-            var targetKey = Path.Combine(Paths.SharedData, "UserKey.bin");
-            if (!File.Exists(targetKey) && File.Exists(sourceKey))
-                File.Copy(sourceKey, targetKey);
-            File.Copy(from, to);
-        }
 
         void CatIniMigration(string from, string to)
         {
@@ -314,15 +319,15 @@ public sealed partial class ConfigService
 
     private static void _TryMigrate(string target, IEnumerable<ConfigMigration> migrations)
     {
-        Context.Info($"Try migrating config: {target}");
+        LogWrapper.Info("Config", $"Try migrating config: {target}");
         try
         {
             var result = ConfigMigration.Migrate(target, migrations);
-            if (!result) Context.Info("No migration solution available");
+            if (!result) LogWrapper.Info("Config", "No migration solution available");
         }
         catch (Exception ex)
         {
-            Context.Warn("Migration failed", ex);
+            LogWrapper.Warn(ex, "Config", "Migration failed");
         }
     }
 
@@ -404,7 +409,7 @@ public sealed partial class ConfigService
         Context.Info("Saving config...");
         try
         {
-            _sharedConfigProvider?.Stop();
+            if (_sharedConfigProvider.IsValueCreated) _sharedConfigProvider.Value.Stop();
         }
         catch (Exception stopEx)
         {

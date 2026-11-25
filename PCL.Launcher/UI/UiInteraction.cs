@@ -601,18 +601,24 @@ public sealed class LaunchUiBridge : ILaunchUi
 
     public void AttachLogPage(GameWatcher.Watcher watcher)
     {
-        // 导航与页面创建必须同处 UI 线程；PageLogLeft.Current 在宿主创建左页时同步赋值。
-        UiInteraction.RunOnUi(() =>
+        // 游戏进程开始读取输出前先挂接日志页，首次构造页面期间的输出仍由管道保存。
+        try
         {
-            PageRouter.Navigate(PageIds.GameLog);
-            if (PageLogLeft.Current is { } sink)
+            Dispatcher.UIThread.Invoke(() =>
             {
-                sink.AttachWatcher(watcher);
-                return;
-            }
-
-            UiInteraction.WarnMissing(nameof(AttachLogPage), "LOG");
-        });
+                var route = new PageRoute(PageIds.GameLog);
+                if (PageRegistry.GetHost(route.Page)?.GetLeft(route) is PageLogLeft sink)
+                {
+                    sink.AttachWatcher(watcher);
+                    PageRouter.Navigate(route);
+                }
+                else UiInteraction.WarnMissing(nameof(AttachLogPage), "LOG");
+            });
+        }
+        catch (Exception ex)
+        {
+            LogWrapper.Error(ex, "UI", "无法挂接游戏实时日志页");
+        }
     }
 
     public void SetMainWindowState(LaunchWindowState state)

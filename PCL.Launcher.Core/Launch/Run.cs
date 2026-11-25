@@ -561,14 +561,12 @@ public static partial class GameLaunch
             InstanceList.McMcInstanceSelected,
             windowTitle,
             File.Exists(jStackPath) ? jStackPath : "",
-            currentLaunchOptions!.IsTest);
+            currentLaunchOptions!.IsTest,
+            currentLaunchOptions.IsTest ? LaunchUi.AttachLogPage : null);
         mcLaunchWatcher = watcher;
 
         if (currentLaunchOptions.IsTest)
-        {
-            LaunchUi.AttachLogPage(watcher);
             McLaunchLog("已显示游戏实时日志");
-        }
 
         while (watcher.State == GameWatcher.Watcher.MinecraftState.Loading)
             Thread.Sleep(100);

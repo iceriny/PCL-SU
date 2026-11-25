@@ -8,24 +8,19 @@ namespace PCL.UI.Bridges;
 /// <summary>加载框架通知：下载按钮、任务栏进度与任务管理页事件。</summary>
 public sealed class LoadingUiBridge : ILoadingUi
 {
-    private static bool _taskHostWarned;
-
     public void TaskAdded(Loading.LoaderBase loader)
     {
-        NotifyTaskPage(_ => PageSpeedLeft.OnTaskAdded(loader), nameof(TaskAdded));
-        RefreshDownloadButtonDelayed();
+        NotifyTaskPage(page => page.RefreshNow());
     }
 
     public void TaskRemoved(Loading.LoaderBase loader)
     {
-        NotifyTaskPage(_ => PageSpeedLeft.OnTaskRemoved(loader), nameof(TaskRemoved));
-        RefreshDownloadButtonDelayed();
+        NotifyTaskPage(page => page.RemoveTask(loader));
     }
 
     public void TaskRefreshed(Loading.LoaderBase loader)
     {
-        NotifyTaskPage(_ => PageSpeedLeft.OnTaskRefreshed(loader), nameof(TaskRefreshed));
-        RefreshDownloadButtonDelayed();
+        NotifyTaskPage(page => page.RefreshNow());
     }
 
     public void RefreshDownloadButton()
@@ -43,23 +38,14 @@ public sealed class LoadingUiBridge : ILoadingUi
         TaskbarProgress.Update(state, progress);
     }
 
-    /// <summary>任务列表事件在业务线程触发，统一投递到 UI 线程，确保页面读到最新的任务栏列表。</summary>
-    private static void NotifyTaskPage(Action<PageSpeedLeft> action, string feature)
+    /// <summary>首次进入任务页时会读取完整任务列表，此前只需刷新下载按钮。</summary>
+    private static void NotifyTaskPage(Action<PageSpeedRight> update)
     {
-        var host = PageSpeedLeft.Current;
-        if (host is null)
+        var page = PageSpeedRight.Current;
+        Dispatcher.UIThread.Post(() =>
         {
-            if (_taskHostWarned) return;
-            _taskHostWarned = true;
-            UiInteraction.WarnMissing(feature, "TASK");
-            return;
-        }
-
-        Dispatcher.UIThread.Post(() => action(host));
-    }
-
-    private static void RefreshDownloadButtonDelayed()
-    {
-        Dispatcher.UIThread.Post(() => { ExtraButtonsPanel.Current?.RefreshDownloadButton(); });
+            if (page is not null) update(page);
+            ExtraButtonsPanel.Current?.RefreshDownloadButton();
+        });
     }
 }
