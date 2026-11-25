@@ -458,4 +458,7 @@
     <sys:String x:Key="Setup.Update.Retry">Réessayer</sys:String>
     <sys:String x:Key="Setup.Update.TargetVersion">Version cible : PCL SU {0}</sys:String>
     <sys:String x:Key="Setup.Update.TargetVersionPending">Recherche de la version cible</sys:String>
+    <sys:String x:Key="Setup.Update.PublishedVersion">Dernière version publiée : PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.LocalAhead">Dernière version publiée : PCL SU {0} (votre version est plus récente)</sys:String>
+    <sys:String x:Key="Setup.Update.NoRelease">Aucune version compatible sur ce canal</sys:String>
 </ResourceDictionary>

@@ -42,7 +42,9 @@ internal sealed class UpdateTestScenario : IAsyncDisposable
                 Capabilities = PlatformCapabilities.Windows
             },
             Ui = new UiModule(),
-            Services = new TestServiceProvider().Add<ILocalizationBackend>(new UpdateLocalization())
+            Services = new TestServiceProvider()
+                .Add<ILocalizationBackend>(new UpdateLocalization())
+                .Add<IUpdatePolicy>(new WindowsUpdatePolicy())
         });
 
         Operation = new UpdateOperation(FindVersion, () => true, () => ExecutablePath, CreateDownload,
@@ -153,6 +155,8 @@ internal sealed class UpdateTestScenario : IAsyncDisposable
         {
             "Setup.Update.CurrentVersion" => "Current version {0}",
             "Setup.Update.TargetVersion" => "Target version {0}",
+            "Setup.Update.PublishedVersion" => "Latest release {0}",
+            "Setup.Update.LocalAhead" => "Latest release {0} (your build is newer)",
             _ => key
         };
 

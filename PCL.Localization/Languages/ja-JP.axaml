@@ -42,4 +42,7 @@
     <sys:String x:Key="Setup.Update.Retry">再試行</sys:String>
     <sys:String x:Key="Setup.Update.TargetVersion">更新先のバージョン：PCL SU {0}</sys:String>
     <sys:String x:Key="Setup.Update.TargetVersionPending">更新先のバージョンを取得中</sys:String>
+    <sys:String x:Key="Setup.Update.PublishedVersion">最新リリース：PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.LocalAhead">最新リリース：PCL SU {0}（現在のビルドの方が新しいです）</sys:String>
+    <sys:String x:Key="Setup.Update.NoRelease">このチャンネルに対応するリリースはありません</sys:String>
 </ResourceDictionary>

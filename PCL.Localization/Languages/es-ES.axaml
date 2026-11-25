@@ -14,4 +14,7 @@
     <sys:String x:Key="Download.Comp.Dependency.Check.Resolving">Resolviendo dependencias necesarias: {0} comprobadas, {1} encontradas</sys:String>
     <sys:String x:Key="Download.Comp.Dependency.Check.Satisfied">Todas las dependencias necesarias están instaladas. Puedes descargar este mod.</sys:String>
 
+    <sys:String x:Key="Setup.Update.PublishedVersion">Última versión publicada: PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.LocalAhead">Última versión publicada: PCL SU {0} (tu compilación es más reciente)</sys:String>
+    <sys:String x:Key="Setup.Update.NoRelease">No hay versiones compatibles en este canal</sys:String>
 </ResourceDictionary>

@@ -63,49 +63,23 @@
             <ui:MyCard x:Name="CardCheck"
                        Margin="0,15,0,0">
                 <StackPanel Margin="20,20,20,20">
-                    <Grid ColumnDefinitions="50,10,*,80,10,100"
-                          RowDefinitions="Auto,1,Auto">
-                        <Image Grid.Row="0"
-                               Grid.RowSpan="3"
-                               Grid.Column="0"
-                               Width="50"
-                               Height="50"
-                               HorizontalAlignment="Left"
+                    <Grid ColumnDefinitions="50,12,*,Auto,8,Auto">
+                        <Image Width="50" Height="50"
                                VerticalAlignment="Center"
                                Source="avares://PCL.Launcher/Assets/Images/icon.png" />
-                        <TextBlock x:Name="TextCurrentVersion"
-                                   Grid.Row="0"
-                                   Grid.Column="2"
-                                   FontWeight="Bold"
-                                   FontSize="20"
-                                   HorizontalAlignment="Left"
-                                   VerticalAlignment="Bottom"
-                                   MinHeight="29"
-                                   TextWrapping="Wrap"
-                                   Text="{Binding CurrentVersionText}" />
-                        <TextBlock x:Name="TextCurrentDesc"
-                                   Grid.Row="2"
-                                   Grid.Column="2"
-                                   FontSize="14"
-                                   HorizontalAlignment="Left"
-                                   VerticalAlignment="Top"
-                                   Text="{Binding CurrentDescText}" />
-                        <ui:MyButton x:Name="BtnCheckAgain"
-                                     Grid.Row="0"
-                                     Grid.RowSpan="2"
-                                     Grid.Column="3"
-                                     HorizontalAlignment="Stretch"
-                                     VerticalAlignment="Stretch"
-                                     ColorType="Highlight"
-                                     IsEnabled="{Binding CheckAgainEnabled}"
+                        <StackPanel Grid.Column="2" Margin="0,0,12,0" Spacing="3" VerticalAlignment="Center">
+                            <TextBlock x:Name="TextCurrentVersion"
+                                       FontWeight="Bold" FontSize="20" TextWrapping="Wrap"
+                                       Text="{Binding CurrentVersionText}" />
+                            <TextBlock x:Name="TextCurrentDesc" TextWrapping="Wrap"
+                                       Text="{Binding CurrentDescText}" />
+                        </StackPanel>
+                        <ui:MyButton x:Name="BtnCheckAgain" Grid.Column="3"
+                                     Height="30" Padding="12,0" VerticalAlignment="Center"
+                                     ColorType="Highlight" IsEnabled="{Binding CheckAgainEnabled}"
                                      Text="{loc:Loc Setup.Update.CheckAgain}" />
-                        <ui:MyButton x:Name="BtnChangelog"
-                                     Grid.Row="0"
-                                     Grid.RowSpan="2"
-                                     Grid.Column="5"
-                                     HorizontalAlignment="Stretch"
-                                     VerticalAlignment="Stretch"
-                                     ColorType="Normal"
+                        <ui:MyButton x:Name="BtnChangelog" Grid.Column="5"
+                                     Height="30" Padding="12,0" VerticalAlignment="Center"
                                      Text="{loc:Loc Setup.Update.Changelog.View}" />
                     </Grid>
                 </StackPanel>

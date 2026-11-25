@@ -2,11 +2,16 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Headless;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PCL.Core.App;
 using PCL.Core.App.Localization;
 using PCL.Core.UI;
 using PCL.Core.UI.Dialogs;
+using PCL.UI.Controls;
+using PCL.Views.Pages.Setup;
 
 namespace PCL.Core.Test.Updates;
 
@@ -14,6 +19,43 @@ namespace PCL.Core.Test.Updates;
 [DoNotParallelize]
 public sealed class UpdatePageStateTest
 {
+    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<Application>().UseHeadless(new());
+
+    [TestMethod]
+    public async Task CheckActionsStayCompactWhenVersionTextWraps()
+    {
+        await using var scenario = new UpdateTestScenario();
+        using var session = HeadlessUnitTestSession.StartNew(typeof(UpdatePageStateTest), AvaloniaTestIsolationLevel.PerTest);
+        session.Dispatch(() =>
+        {
+            var page = new PageSetupUpdate();
+            var check = page.FindControl<MyButton>("BtnCheckAgain")!;
+            var notes = page.FindControl<MyButton>("BtnChangelog")!;
+            var grid = (Grid)check.Parent!;
+            foreach (var width in new[] { 920, 420 })
+            {
+                grid.Measure(new Size(width, double.PositiveInfinity));
+                grid.Arrange(new Rect(0, 0, width, grid.DesiredSize.Height));
+                Assert.AreEqual(30d, check.Bounds.Height);
+                Assert.AreEqual(30d, notes.Bounds.Height);
+                Assert.IsTrue(notes.Bounds.X >= check.Bounds.Right);
+            }
+        }, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    [TestMethod]
+    public async Task NewerLocalBuildShowsPublishedVersionWithoutOfferingDowngrade()
+    {
+        await using var scenario = new UpdateTestScenario { Stable = UpdateTestScenario.Version("1.0.0") };
+        Config.Update.UpdateMode = LauncherAutoUpdateBehavior.DownloadAndInstall;
+        var page = new PageSetupUpdateViewModel(scenario.Operation);
+        await page.ActivateAsync();
+        StringAssert.Contains(page.CurrentVersionText, LauncherCommon.VersionBaseName);
+        Assert.AreEqual(Lang.Text("Setup.Update.LocalAhead", "1.0.0"), page.CurrentDescText);
+        Assert.IsFalse(page.ShowUpdateCard);
+        Assert.AreEqual(0, scenario.DownloadCalls);
+    }
+
     [TestMethod]
     public async Task ReenteringDuringDownloadKeepsBothVersionsAndProgress()
     {
@@ -121,7 +163,7 @@ public sealed class UpdatePageStateTest
         var page = new PageSetupUpdateViewModel(scenario.Operation, clock);
         await page.ActivateAsync();
         Assert.IsFalse(page.ShowUpdateCard);
-        Assert.AreEqual(Lang.Text("Setup.Update.Latest"), page.CurrentDescText);
+        Assert.AreEqual(Lang.Text("Setup.Update.PublishedVersion", LauncherCommon.VersionBaseName), page.CurrentDescText);
 
         scenario.Stable = UpdateTestScenario.Version("999.0.2");
         page.Deactivate();

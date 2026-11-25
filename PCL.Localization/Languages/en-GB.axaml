@@ -3691,4 +3691,7 @@
     <sys:String x:Key="Setup.Ui.Background.PauseVideo.ToolTip">If enabled, the background cannot be refreshed whilst the game is running</sys:String>
     <sys:String x:Key="Tools.GameLink.Natayark.Unconfigured">Natayark sign-in is not configured in this build. Use a custom username for peer-to-peer multiplayer.</sys:String>
     <sys:String x:Key="Tools.GameLink.CloudAccountUnavailable">This lobby service requires Natayark sign-in, but this build has no sign-in credentials configured.</sys:String>
+    <sys:String x:Key="Setup.Update.PublishedVersion">Latest release: PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.LocalAhead">Latest release: PCL SU {0} (your build is newer)</sys:String>
+    <sys:String x:Key="Setup.Update.NoRelease">No compatible release on this channel</sys:String>
 </ResourceDictionary>

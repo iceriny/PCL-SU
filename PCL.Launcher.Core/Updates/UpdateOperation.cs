@@ -40,12 +40,8 @@ internal sealed class UpdateOperation(
     internal UpdateSourceChannel SelectedChannel =>
         Config.Update.UpdateChannel == UpdateChannel.Beta ? UpdateSourceChannel.Beta : UpdateSourceChannel.Stable;
 
-    internal VersionDataModel? FindUpdate(UpdateSourceChannel channel, bool forceRefresh = false)
-    {
-        var version = findVersion(channel, forceRefresh);
-        return version is not null && LauncherVersionComparer.Compare(version.VersionName, LauncherCommon.VersionBaseName) > 0
-            ? version : null;
-    }
+    internal VersionDataModel? FindLatestRelease(UpdateSourceChannel channel, bool forceRefresh = false) =>
+        findVersion(channel, forceRefresh);
 
     internal void DownloadAutomatically(VersionDataModel version)
     {
@@ -112,7 +108,7 @@ internal sealed class UpdateOperation(
     {
         try
         {
-            var version = targetVersion ?? FindUpdate(channel);
+            var version = targetVersion ?? FindLatestRelease(channel);
             if (version is null || LauncherVersionComparer.Compare(version.VersionName, LauncherCommon.VersionBaseName) <= 0)
                 return;
 

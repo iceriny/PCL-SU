@@ -3,6 +3,7 @@ using PCL.Core.App;
 using PCL.Core.App.Localization;
 using PCL.Core.Logging;
 using PCL.Core.UI.Dialogs;
+using PCL.Core.Utils;
 using PCL.Core.ViewModel;
 
 namespace PCL;
@@ -16,6 +17,7 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
     private UpdateSourceChannel? _checkedChannel;
     private long _lastCheckTimestamp;
     private VersionDataModel? _checkedTarget;
+    private string _releaseStatus = string.Empty;
     private VersionDataModel? _displayedTarget;
     private int _checkGeneration;
     private bool _active;
@@ -87,6 +89,7 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
         _recheckOnActivation = false;
         _hasCheckResult = false;
         _checkedTarget = null;
+        _releaseStatus = string.Empty;
         _checkError = null;
     }
 
@@ -122,13 +125,16 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
         RefreshState();
         try
         {
-            var version = await Task.Run(() => _operation.FindUpdate(channel, forceRefresh));
+            var version = await Task.Run(() => _operation.FindLatestRelease(channel, forceRefresh));
             if (!IsCurrentCheck()) return;
-            _checkedTarget = version;
+            var comparison = version is null ? 0 : LauncherVersionComparer.Compare(version.VersionName, LauncherCommon.VersionBaseName);
+            _checkedTarget = comparison > 0 ? version : null;
+            _releaseStatus = version is null ? Lang.Text("Setup.Update.NoRelease") :
+                Lang.Text(comparison < 0 ? "Setup.Update.LocalAhead" : "Setup.Update.PublishedVersion", version.VersionName);
             _hasCheckResult = true;
             RecordCheck(channel);
-            if (version is not null && _operation.SupportsInAppUpdate)
-                _operation.DownloadAutomatically(version);
+            if (_checkedTarget is not null && _operation.SupportsInAppUpdate)
+                _operation.DownloadAutomatically(_checkedTarget);
         }
         catch (Exception ex)
         {
@@ -185,7 +191,7 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
         else if (target is not null)
             CurrentDescText = Lang.Text("Setup.Update.Available");
         else
-            CurrentDescText = Lang.Text(_hasCheckResult ? "Setup.Update.Latest" : "Setup.Update.Checking");
+            CurrentDescText = _hasCheckResult ? _releaseStatus : Lang.Text("Setup.Update.Checking");
         UpdateButtonEnabled = ShowUpdateCard && !_startingInstall && !IsFlatpak && !preparing &&
             (ready || !downloading && !_checking);
         if (!ReferenceEquals(error, _displayedError))

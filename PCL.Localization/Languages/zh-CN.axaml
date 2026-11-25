@@ -3698,4 +3698,7 @@
     <sys:String x:Key="Setup.Ui.Background.PauseVideo.ToolTip">若启用此项设置，游戏时将无法刷新背景</sys:String>
     <sys:String x:Key="Tools.GameLink.Natayark.Unconfigured">当前构建未配置 Natayark 登录服务。点对点联机可使用自定义用户名。</sys:String>
     <sys:String x:Key="Tools.GameLink.CloudAccountUnavailable">当前大厅服务要求 Natayark 登录，但此构建未配置登录凭据。</sys:String>
+    <sys:String x:Key="Setup.Update.PublishedVersion">最新发布：PCL SU {0}</sys:String>
+    <sys:String x:Key="Setup.Update.LocalAhead">最新发布：PCL SU {0}（当前构建较新）</sys:String>
+    <sys:String x:Key="Setup.Update.NoRelease">此通道暂无适用的发布版本</sys:String>
 </ResourceDictionary>
