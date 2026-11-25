@@ -26,6 +26,7 @@ public partial class PageSetupLauncherMiscViewModel : ViewModelBase
 
     [ObservableProperty] private bool _telemetryEnabled = !TelemetryService.IsBuildUntrusted;
 
+    public bool TelemetryVisible => TelemetryService.IsConfigured;
     public bool IsBuildUntrusted => TelemetryService.IsBuildUntrusted;
 
     public string LinuxProtocolAutoText =>

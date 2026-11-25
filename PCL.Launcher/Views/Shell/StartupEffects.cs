@@ -6,6 +6,7 @@ using Avalonia.Rendering.Composition;
 using Avalonia.Threading;
 using PCL.Core.App;
 using PCL.Core.App.Configuration;
+using PCL.Core.App.Essentials;
 using PCL.Core.App.Localization;
 using PCL.Core.Logging;
 using PCL.Core.Platform;
@@ -332,7 +333,7 @@ internal sealed class StartupEffects(
 
     private static async Task ShowTelemetryDialogAsync()
     {
-        if (!Config.System.TelemetryConfig.IsDefault()) return;
+        if (!TelemetryService.IsConfigured || !Config.System.TelemetryConfig.IsDefault()) return;
 
         var button = (await DialogService.Instance.ShowAsync(
             new TextDialogRequest

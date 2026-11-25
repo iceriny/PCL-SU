@@ -49,6 +49,7 @@
                                        Text="{loc:Loc Setup.Misc.System.DisableHardwareAcceleration}" />
                         <ui:MyCheckBox x:Name="CheckSystemTelemetry"
                                        Grid.Column="1"
+                                       IsVisible="{Binding TelemetryVisible}"
                                        IsEnabled="{Binding TelemetryEnabled}"
                                        Text="{loc:Loc Setup.Misc.System.Telemetry}"
                                        ToolTip.Tip="{loc:Loc Setup.Misc.System.Telemetry.ToolTip}" />
