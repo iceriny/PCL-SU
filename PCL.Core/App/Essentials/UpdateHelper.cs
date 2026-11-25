@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
+using PCL.Core.IO;
 
 namespace PCL.Core.App.Essentials;
 
@@ -89,9 +90,7 @@ public static class UpdateHelper
                     File.Move(staging, target, overwrite: true);
                     return null;
                 }
-                catch (Exception ex) when (OperatingSystem.IsWindows() &&
-                    ex is IOException or UnauthorizedAccessException &&
-                    (ex.HResult & 0xffff) is 5 or 32 or 33 && elapsed.ElapsedMilliseconds < 5000)
+                catch (Exception ex) when (Files.IsRetryableReplaceError(ex) && elapsed.ElapsedMilliseconds < 5000)
                 {
                     Thread.Sleep(150);
                 }

@@ -7,6 +7,11 @@ namespace PCL.Core.IO;
 
 public static partial class Files
 {
+    // Windows 替换正在使用的 EXE 时，可能返回拒绝访问、共享冲突或锁冲突。
+    internal static bool IsRetryableReplaceError(Exception error) =>
+        OperatingSystem.IsWindows() && error is IOException or UnauthorizedAccessException
+        && (error.HResult & 0xffff) is 5 or 32 or 33;
+
     public static bool ArePathsEqual(string path1, string path2)
     {
         var fullPath1 = Path
