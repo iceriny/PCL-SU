@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using PCL.Core.App;
@@ -30,8 +31,8 @@ public static class EasyTierInstaller
         var archiveName = package.GetArchiveName(version);
         return
         [
-            $"https://s3.pysio.online/pcl2-ce/static/easytier/{archiveName}",
-            $"https://github.com/EasyTier/EasyTier/releases/download/v{version}/{archiveName}"
+            $"https://github.com/EasyTier/EasyTier/releases/download/v{version}/{archiveName}",
+            $"https://s3.pysio.online/pcl2-ce/static/easytier/{archiveName}"
         ];
     }
 
@@ -60,7 +61,8 @@ public static class EasyTierInstaller
             const string version = EasyTierMetadata.CurrentEasyTierVer;
             var package = EasyTierMetadata.Package;
             using var client = NetworkService.GetClient();
-            return await DownloadAndInstallAsync(client, GetDownloadUrls(version, package), version, package, cancellationToken)
+            return await DownloadAndInstallAsync(client, GetDownloadUrls(version, package), version, package,
+                    package.GetArchiveSha256(version), cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
@@ -120,6 +122,7 @@ public static class EasyTierInstaller
         IReadOnlyList<string> urls,
         string version,
         EasyTierPackage package,
+        string expectedSha256,
         CancellationToken cancellationToken)
     {
         var versionRoot = Path.Combine(Paths.SharedLocalData, "EasyTier", version);
@@ -134,6 +137,12 @@ public static class EasyTierInstaller
                 try
                 {
                     await _DownloadAsync(client, url, archivePath, cancellationToken).ConfigureAwait(false);
+                    await using (var archive = File.OpenRead(archivePath))
+                    {
+                        var hash = await SHA256.HashDataAsync(archive, cancellationToken).ConfigureAwait(false);
+                        if (!Convert.ToHexString(hash).Equals(expectedSha256, StringComparison.OrdinalIgnoreCase))
+                            throw new InvalidDataException($"EasyTier 依赖包 SHA-256 校验失败：{package.GetArchiveName(version)}");
+                    }
                     return await InstallArchiveAsync(archivePath, version, package, cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested &&

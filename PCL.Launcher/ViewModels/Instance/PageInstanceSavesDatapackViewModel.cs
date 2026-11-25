@@ -786,10 +786,7 @@ public partial class PageInstanceSavesDatapackViewModel : ViewModelBase
                     LauncherPaths.Temp,
                     "DownloadedComp",
                     $"{Guid.NewGuid():N}-{Path.GetFileName(targetPath)}");
-                var checker = string.IsNullOrEmpty(update.Hash)
-                    ? new FileChecker(1024L)
-                    : new FileChecker(hash: update.Hash);
-                downloads.Add(new DownloadFile(update.DownloadUrls, downloadPath, checker));
+                downloads.Add(update.ToNetFile(downloadPath, Comp.DownloadReason.Update));
                 replacements.Add((entry, downloadPath, targetPath));
             }
 

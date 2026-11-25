@@ -71,7 +71,19 @@ public static partial class CompDependency
             };
         }
 
-        return Comp.CompDepsInstallTypes.WithDeps;
+        var satisfied = Lang.Text("Download.Comp.Dependency.Check.Satisfied")
+            + Environment.NewLine + Environment.NewLine
+            + Lang.Text("Download.Comp.Dependency.Check.Target", targetFolder);
+        var downloadButton = CompUi.Current is null
+            ? 0
+            : await CompUi.Current.ShowDialogAsync(
+                satisfied,
+                Lang.Text("Download.Comp.Dependency.Install.Title"),
+                Lang.Text("Common.Action.Download"),
+                Lang.Text("Common.Action.Cancel"));
+        return downloadButton == 1
+            ? Comp.CompDepsInstallTypes.WithoutDeps
+            : Comp.CompDepsInstallTypes.Cancel;
     }
 
     private static string GetSource(bool fromCurseForge)

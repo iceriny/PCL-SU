@@ -1,5 +1,6 @@
 using Avalonia.Threading;
 using PCL.Core.App;
+using PCL.Core.App.Localization;
 using PCL.Navigation;
 using PCL.UI.Controls;
 
@@ -11,7 +12,7 @@ namespace PCL.Views.Pages.Setup;
 /// </summary>
 public partial class PageSetupUpdate : MyPageRight
 {
-    private bool _loaded;
+    private readonly DispatcherTimer _statusTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private bool _reloading;
 
     public PageSetupUpdate()
@@ -23,18 +24,19 @@ public partial class PageSetupUpdate : MyPageRight
 
         ComboSystemUpdateChannel.SelectionChanged += async (_, _) =>
             await OnChannelChangedAsync();
+        ComboSystemUpdateMode.SelectionChanged += (_, _) =>
+        {
+            if (!_reloading && _statusTimer.IsEnabled)
+                ViewModel.SetUpdateMode(ComboSystemUpdateMode.SelectedIndex);
+        };
         BtnCheckAgain.Click += async (_, _) => await ViewModel.CheckUpdateAsync(forceRefresh: true);
         BtnChangelog.Click += (_, _) => PageSetupUpdateViewModel.OpenReleasesPage();
         BtnChangelogDetail.Click += async (_, _) => await ViewModel.ShowChangelogAsync();
         BtnUpdate.Click += async (_, _) => await ViewModel.StartUpdateAsync();
         ComboSystemUpdateMode.IsEnabled = UpdateManager.SupportsInAppUpdate;
-        Loaded += async (_, _) =>
-        {
-            if (_loaded) return;
-            _loaded = true;
-            Reload();
-            await ViewModel.CheckUpdateAsync();
-        };
+        _statusTimer.Tick += (_, _) => _ = ViewModel.PollAsync();
+        Loaded += (_, _) => Activate();
+        Unloaded += (_, _) => Suspend();
     }
 
     public static PageSetupUpdate? Current { get; private set; }
@@ -49,28 +51,33 @@ public partial class PageSetupUpdate : MyPageRight
             return;
         }
 
-        ViewModel.SetExternalUpdateButtonText(textKey, args);
+        ViewModel.UpdateButtonText = Lang.Text(textKey, args);
         ViewModel.UpdateButtonEnabled = enabled;
     }
 
     public override void OnNavigatedTo(PageParameter? parameter)
     {
         PanBack.ScrollToHome();
-        if (!_loaded) return;
-        Reload();
-        _ = ViewModel.SyncUpdateButtonStateAsync();
+        Activate();
     }
 
     public override void OnNavigatedFrom()
     {
+        Suspend();
     }
 
-    private void Reload()
+    private void Suspend()
     {
+        _statusTimer.Stop();
+        ViewModel.Deactivate();
+    }
+
+    private void Activate()
+    {
+        if (_statusTimer.IsEnabled) return;
         _reloading = true;
         try
         {
-            ViewModel.Reload();
             ComboSystemUpdateChannel.SelectedIndex = Math.Clamp(
                 (int)Config.Update.UpdateChannel,
                 0,
@@ -84,11 +91,13 @@ public partial class PageSetupUpdate : MyPageRight
         {
             _reloading = false;
         }
+        _statusTimer.Start();
+        _ = ViewModel.ActivateAsync();
     }
 
     private async Task OnChannelChangedAsync()
     {
-        if (_reloading || ComboSystemUpdateChannel.SelectedIndex < 0) return;
+        if (_reloading || !_statusTimer.IsEnabled || ComboSystemUpdateChannel.SelectedIndex < 0) return;
         var index = ComboSystemUpdateChannel.SelectedIndex;
         if (!await ViewModel.ChangeChannelAsync(index))
         {
@@ -108,6 +117,7 @@ public partial class PageSetupUpdate : MyPageRight
             return;
         }
 
-        await ViewModel.CheckUpdateAsync();
+        if (_statusTimer.IsEnabled)
+            await ViewModel.CheckUpdateAsync();
     }
 }

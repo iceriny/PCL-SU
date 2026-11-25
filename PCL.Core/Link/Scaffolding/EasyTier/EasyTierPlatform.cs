@@ -25,6 +25,18 @@ public sealed record EasyTierPackage(
     {
         return $"{FolderName}-v{version}.zip";
     }
+
+    public string GetArchiveSha256(string version) => GetArchiveName(version) switch
+    {
+        "easytier-windows-x86_64-v2.6.4.zip" => "27af91e270e554709b048bd32327fefd2dfce5062ae1e8701af7550c6f525f84",
+        "easytier-windows-arm64-v2.6.4.zip" => "37023f8a3451c9234b17ee2089a03dc344ce90d803b5b359cb6c46682b0549b4",
+        "easytier-windows-i686-v2.6.4.zip" => "bf557daeccc5525d95b8a230c339d75554fb52d82d1e050e9a5202c92c02e09e",
+        "easytier-linux-x86_64-v2.6.4.zip" => "61b659eaedba658fa66fe47d17e1426cdd77e5d02fa15fed447bb4357c09dfd6",
+        "easytier-linux-aarch64-v2.6.4.zip" => "f533ec25a7ea714e09f645615012200278058525795cc3bb690ff011aec1a70f",
+        "easytier-macos-x86_64-v2.6.4.zip" => "89fc28a6e6995259d76ce3f11775220e8a21c760e94df91a6a9db30a69b6982e",
+        "easytier-macos-aarch64-v2.6.4.zip" => "4be1882d1aa36d31c1d6ba0596f2cf8a097e371f8da124212324b2e0f8df7e4b",
+        _ => throw new NotSupportedException($"缺少 {GetArchiveName(version)} 的 SHA-256")
+    };
 }
 
 /// <summary>EasyTier 平台/架构解析。功能代码只依赖本类的结果，不应直接判断操作系统。</summary>

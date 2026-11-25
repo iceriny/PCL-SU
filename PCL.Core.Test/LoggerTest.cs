@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -135,6 +136,76 @@ public class LoggerTest
     }
 
     [TestMethod]
+    public async Task FullQueueDropsInfoButPreservesImportantLogs()
+    {
+        using var formatting = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var folder = _CreateTempFolder();
+        var logger = new Logger(new LoggerConfiguration(folder, AutoDeleteOldFile: false)
+        {
+            QueueCapacity = 2,
+            ImportantLogWriteTimeoutMilliseconds = 20
+        });
+        var mainLog = logger.CurrentLogFiles.Last();
+
+        try
+        {
+            logger.Log(LogLevel.Error, "blocking-entry", exception: new BlockingException(formatting, release));
+            Assert.IsTrue(formatting.Wait(TimeSpan.FromSeconds(5)));
+            logger.Info("queued-entry-1");
+            logger.Info("queued-entry-2");
+            logger.Info("overflow-info");
+            logger.Warn("preserved-warning");
+            logger.Fatal("preserved-fatal");
+        }
+        finally
+        {
+            release.Set();
+            await logger.DisposeAsync();
+        }
+
+        var emergencyLog = Path.Combine(folder, "Emergency.log");
+        Assert.AreEqual(1L, logger.DroppedLogCount);
+        Assert.AreEqual(2L, logger.EmergencyLogCount);
+        Assert.AreEqual(mainLog, logger.CurrentLogFiles.Last());
+        Assert.Contains(emergencyLog, logger.CurrentLogFiles);
+        var emergency = await File.ReadAllTextAsync(emergencyLog, TestContext.CancellationToken);
+        Assert.Contains("preserved-warning", emergency);
+        Assert.Contains("preserved-fatal", emergency);
+        Assert.DoesNotContain("overflow-info", emergency);
+        var main = await File.ReadAllTextAsync(mainLog, TestContext.CancellationToken);
+        Assert.Contains("queued-entry-1", main);
+        Assert.Contains("queued-entry-2", main);
+    }
+
+    [TestMethod]
+    public async Task MainLogWriteFailurePreservesImportantEntries()
+    {
+        var folder = _CreateTempFolder();
+        var logger = new Logger(new LoggerConfiguration(folder, MaxFileSize: 0,
+            FileNameFormat: "blocked", AutoDeleteOldFile: false));
+
+        try
+        {
+            // The first write needs to rotate, so a directory at the next log name forces an I/O failure.
+            Directory.CreateDirectory(Path.Combine(folder, "blocked-1.log"));
+            logger.Log(LogLevel.Error, "preserved-error", exception: new ThrowingException());
+            logger.Info("discarded-info");
+        }
+        finally
+        {
+            await logger.DisposeAsync();
+        }
+
+        var emergency = await File.ReadAllTextAsync(Path.Combine(folder, "Emergency.log"), TestContext.CancellationToken);
+        Assert.Contains("preserved-error", emergency);
+        Assert.Contains("Exception formatting failed", emergency);
+        Assert.DoesNotContain("discarded-info", emergency);
+        Assert.AreEqual(1L, logger.DroppedLogCount);
+        Assert.AreEqual(1L, logger.EmergencyLogCount);
+    }
+
+    [TestMethod]
     public async Task TestAdapterScopeIsolation()
     {
         var folder = _CreateTempFolder();
@@ -221,5 +292,21 @@ public class LoggerTest
         }
 
         return count;
+    }
+
+    private sealed class BlockingException(ManualResetEventSlim formatting, ManualResetEventSlim release) : Exception
+    {
+        public override string ToString()
+        {
+            formatting.Set();
+            if (!release.Wait(TimeSpan.FromSeconds(10)))
+                throw new TimeoutException("The log consumer was not released.");
+            return "blocking-exception";
+        }
+    }
+
+    private sealed class ThrowingException : Exception
+    {
+        public override string ToString() => throw new InvalidOperationException("Cannot format this exception.");
     }
 }

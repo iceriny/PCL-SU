@@ -4,7 +4,6 @@ using PCL.Core.App.Localization;
 using PCL.Core.Logging;
 using PCL.Core.UI.Dialogs;
 using PCL.Core.UI.Hints;
-using PCL.Navigation;
 
 namespace PCL.UI;
 
@@ -95,34 +94,6 @@ public static class FeedbackUiService
             if (exception is not null && userSummary is null)
                 message += Environment.NewLine + Environment.NewLine + exception.Message;
 
-            var status = await Task.Run(UpdateManager.GetVersionStatus).ConfigureAwait(false);
-            if (status != UpdateEnums.VersionStatus.Latest)
-            {
-                var (messageKey, actionKey) = status == UpdateEnums.VersionStatus.NotLatest
-                    ? (
-                        "Setup.Feedback.Unavailable.NotLatest.Message",
-                        "Setup.Feedback.Unavailable.NotLatest.Action")
-                    : (
-                        "Setup.Feedback.Unavailable.CheckFailed.Message",
-                        "Setup.Feedback.Unavailable.CheckFailed.Action");
-
-                var unavailable = await DialogService
-                    .Instance.ShowAsync(
-                        new TextDialogRequest
-                        {
-                            Title = Lang.Text("Setup.Feedback.Unavailable.Title"),
-                            Content = Lang.Text(messageKey),
-                            Buttons = DialogButtons.From(
-                                DialogButton.Create(Lang.Text(actionKey)),
-                                DialogButton.Create(Lang.Text("Common.Action.Cancel"))),
-                            IsWarn = true
-                        })
-                    .ConfigureAwait(true);
-                if (unavailable.IsConfirmed)
-                    PageRouter.Navigate(PageIds.Setup, SubPageIds.SetupUpdate);
-                return;
-            }
-
             var prompt = await DialogService
                 .Instance.ShowAsync(
                     new TextDialogRequest
@@ -163,7 +134,7 @@ public static class FeedbackUiService
                 Basics.OpenPath(logFolder);
             }
 
-            PageRouter.Navigate(PageIds.Setup, SubPageIds.SetupFeedback);
+            Basics.OpenPath("https://github.com/iceriny/PCL-SU/issues");
         }
         catch (Exception ex)
         {

@@ -46,8 +46,7 @@
                                        Grid.Row="2"
                                        Grid.Column="1"
                                        Grid.ColumnSpan="3"
-                                       HorizontalAlignment="Stretch"
-                                       SelectedIndex="{Binding UpdateModeIndex, Mode=TwoWay}">
+                                       HorizontalAlignment="Stretch">
                             <ui:MyComboBoxItem Content="{loc:Loc Setup.Update.Auto.DownloadAndInstall}"
                                                ToolTip.Tip="{loc:Loc Setup.Update.Auto.DownloadAndInstall.ToolTip}" />
                             <ui:MyComboBoxItem Content="{loc:Loc Setup.Update.Auto.DownloadAndNotify}"
@@ -61,73 +60,11 @@
                 </StackPanel>
             </ui:MyCard>
 
-            <ui:MyCard x:Name="CardUpdate"
-                       Margin="0,15"
-                       IsVisible="{Binding ShowUpdateCard}">
-                <StackPanel Margin="20,20,20,20">
-                    <Grid ColumnDefinitions="50,10,*,Auto"
-                          RowDefinitions="29,1,20,8,Auto,10,Auto">
-                        <Image x:Name="ImgUpdateIcon"
-                                    Grid.Row="0"
-                                    Grid.RowSpan="3"
-                                    Grid.Column="0"
-                                    Width="50"
-                                    Height="50"
-                                    HorizontalAlignment="Left"
-                                    VerticalAlignment="Center"
-                                    Source="avares://PCL.Launcher/Assets/Images/icon.png" />
-                        <TextBlock x:Name="TextUpdateName"
-                                   Grid.Row="0"
-                                   Grid.Column="2"
-                                   FontWeight="Bold"
-                                   FontSize="20"
-                                   HorizontalAlignment="Left"
-                                   VerticalAlignment="Bottom"
-                                   Text="{Binding UpdateNameText}" />
-                        <TextBlock x:Name="TextUpdateDesc"
-                                   Grid.Row="2"
-                                   Grid.Column="2"
-                                   FontSize="14"
-                                   Text="by iceriny"
-                                   HorizontalAlignment="Left"
-                                   VerticalAlignment="Top" />
-                        <ui:MyButton x:Name="BtnUpdate"
-                                     Grid.Row="0"
-                                     Grid.RowSpan="2"
-                                     Grid.Column="3"
-                                     MinWidth="85"
-                                     Height="30"
-                                     Padding="13,0"
-                                     HorizontalAlignment="Center"
-                                     VerticalAlignment="Center"
-                                     ColorType="Highlight"
-                                     IsEnabled="{Binding UpdateButtonEnabled}"
-                                     Text="{Binding UpdateButtonText}" />
-                        <TextBlock x:Name="TextChangelog"
-                                   Grid.Row="4"
-                                   Grid.Column="0"
-                                   Grid.ColumnSpan="4"
-                                   TextWrapping="Wrap"
-                                   Text="{Binding ChangelogText}" />
-                        <ui:MyTextButton x:Name="BtnChangelogDetail"
-                                         Grid.Row="6"
-                                         Grid.Column="0"
-                                         Grid.ColumnSpan="4"
-                                         FontWeight="Thin"
-                                         HorizontalAlignment="Left"
-                                         VerticalAlignment="Center"
-                                         IsEnabled="{Binding ChangelogDetailEnabled}"
-                                         Text="{loc:Loc Setup.Update.Changelog.MoreInfo}" />
-                    </Grid>
-                </StackPanel>
-            </ui:MyCard>
-
             <ui:MyCard x:Name="CardCheck"
-                       Margin="0,15"
-                       IsVisible="{Binding ShowCheckCard}">
+                       Margin="0,15,0,0">
                 <StackPanel Margin="20,20,20,20">
                     <Grid ColumnDefinitions="50,10,*,80,10,100"
-                          RowDefinitions="29,1,20">
+                          RowDefinitions="Auto,1,Auto">
                         <Image Grid.Row="0"
                                Grid.RowSpan="3"
                                Grid.Column="0"
@@ -143,6 +80,8 @@
                                    FontSize="20"
                                    HorizontalAlignment="Left"
                                    VerticalAlignment="Bottom"
+                                   MinHeight="29"
+                                   TextWrapping="Wrap"
                                    Text="{Binding CurrentVersionText}" />
                         <TextBlock x:Name="TextCurrentDesc"
                                    Grid.Row="2"
@@ -168,6 +107,74 @@
                                      VerticalAlignment="Stretch"
                                      ColorType="Normal"
                                      Text="{loc:Loc Setup.Update.Changelog.View}" />
+                    </Grid>
+                </StackPanel>
+            </ui:MyCard>
+
+            <ui:MyCard x:Name="CardUpdate"
+                       Margin="0,15"
+                       IsVisible="{Binding ShowUpdateCard}">
+                <StackPanel Margin="20,20,20,20">
+                    <Grid ColumnDefinitions="50,10,*,Auto"
+                          RowDefinitions="Auto,1,Auto,Auto,8,Auto,10,Auto">
+                        <Image x:Name="ImgUpdateIcon"
+                                    Grid.Row="0"
+                                    Grid.RowSpan="3"
+                                    Grid.Column="0"
+                                    Width="50"
+                                    Height="50"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Source="avares://PCL.Launcher/Assets/Images/icon.png" />
+                        <TextBlock x:Name="TextUpdateName"
+                                   Grid.Row="0"
+                                   Grid.Column="2"
+                                   FontWeight="Bold"
+                                   FontSize="20"
+                                   HorizontalAlignment="Left"
+                                   VerticalAlignment="Bottom"
+                                   MinHeight="29"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding UpdateNameText}" />
+                        <TextBlock x:Name="TextUpdateDesc"
+                                   Grid.Row="2"
+                                   Grid.Column="2"
+                                   FontSize="14"
+                                   Text="{Binding UpdateStatusText}"
+                                   HorizontalAlignment="Left"
+                                   VerticalAlignment="Top" />
+                        <TextBlock Grid.Row="3"
+                                   Grid.ColumnSpan="4"
+                                   IsVisible="{Binding HasFailureReason}"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding UpdateFailureReason}" />
+                        <ui:MyButton x:Name="BtnUpdate"
+                                     Grid.Row="0"
+                                     Grid.RowSpan="2"
+                                     Grid.Column="3"
+                                     MinWidth="85"
+                                     Height="30"
+                                     Padding="13,0"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Center"
+                                     ColorType="Highlight"
+                                     IsEnabled="{Binding UpdateButtonEnabled}"
+                                     Text="{Binding UpdateButtonText}" />
+                        <TextBlock x:Name="TextChangelog"
+                                   Grid.Row="5"
+                                   Grid.Column="0"
+                                   Grid.ColumnSpan="4"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding ChangelogText}" />
+                        <ui:MyTextButton x:Name="BtnChangelogDetail"
+                                         Grid.Row="7"
+                                         Grid.Column="0"
+                                         Grid.ColumnSpan="4"
+                                         FontWeight="Thin"
+                                         HorizontalAlignment="Left"
+                                         VerticalAlignment="Center"
+                                         IsEnabled="{Binding ChangelogDetailEnabled}"
+                                         Text="{loc:Loc Setup.Update.Changelog.MoreInfo}" />
                     </Grid>
                 </StackPanel>
             </ui:MyCard>

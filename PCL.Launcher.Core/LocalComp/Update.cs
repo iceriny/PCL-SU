@@ -278,20 +278,7 @@ public static partial class LocalComp
 
         var changelogUrl =
             $"https://modrinth.com/mod/{updateJson["project_id"]}/changelog?g={mcInstance}";
-
-        if (entry.UpdateFile is not null
-            && updateFile.Hash == entry.UpdateFile.Hash)
-        {
-            entry.ChangelogUrls.Add(changelogUrl);
-            entry.UpdateFile.DownloadUrls.AddRange(updateFile.DownloadUrls);
-            entry.UpdateFile = updateFile;
-        }
-        else if (entry.UpdateFile is null
-                 || updateFile.ReleaseDate >= entry.UpdateFile.ReleaseDate)
-        {
-            entry.ChangelogUrls = [changelogUrl];
-            entry.UpdateFile = updateFile;
-        }
+        entry.MergeUpdateFile(updateFile, changelogUrl);
     }
 
     private static bool _LoadCurseForgeUpdates(
@@ -575,18 +562,6 @@ public static partial class LocalComp
         var changelogUrl =
             "https://www.curseforge.com/minecraft/mc-mods/"
             + $"{fileIdToProjectSlug[int.Parse(updateFile.Id)]}/files/{updateFile.Id}";
-
-        if (entry.UpdateFile is not null
-            && updateFile.Hash == entry.UpdateFile.Hash)
-        {
-            entry.ChangelogUrls.Add(changelogUrl);
-            entry.UpdateFile.DownloadUrls.AddRange(updateFile.DownloadUrls);
-        }
-        else if (entry.UpdateFile is null
-                 || updateFile.ReleaseDate > entry.UpdateFile.ReleaseDate)
-        {
-            entry.ChangelogUrls = [changelogUrl];
-            entry.UpdateFile = updateFile;
-        }
+        entry.MergeUpdateFile(updateFile, changelogUrl);
     }
 }

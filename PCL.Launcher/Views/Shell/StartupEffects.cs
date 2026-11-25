@@ -45,6 +45,9 @@ internal sealed class StartupEffects(
             background.Refresh();
             extraButtons.RefreshAllStates();
             RegisterConfigObservers();
+            if (Config.Update.UpdateChannelConfig.IsDefault())
+                Config.Update.UpdateChannelConfig.SetValue(Basics.Metadata.Version.IsPrerelease
+                    ? UpdateChannel.Beta : UpdateChannel.Release, forceNewValue: true);
             WarmupLoaders();
             MediaService.Current?.RefreshMusic(false, true);
         }
@@ -317,7 +320,7 @@ internal sealed class StartupEffects(
                     DialogButton.Create(Lang.Text("Common.Action.Decline")),
                     DialogButton.Create(
                         Lang.Text("Main.Eula.View"),
-                        () => OpenWebsite("https://shimo.im/docs/rGrd8pY8xWkt6ryW")))
+                        () => OpenWebsite("https://github.com/iceriny/PCL-SU/blob/dev/PCL.Launcher/LICENCE")))
             })).Button;
 
         switch (button)

@@ -6,7 +6,7 @@ namespace PCL;
 /// </summary>
 public static class CompLocalUpdateRegistry
 {
-    private static readonly HashSet<string> Updating = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, int> Updating = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Lock Lock = new();
 
     public static void Begin(string compPath)
@@ -14,7 +14,8 @@ public static class CompLocalUpdateRegistry
         if (string.IsNullOrEmpty(compPath)) return;
         lock (Lock)
         {
-            Updating.Add(Normalize(compPath));
+            var path = Normalize(compPath);
+            Updating[path] = Updating.GetValueOrDefault(path) + 1;
         }
     }
 
@@ -23,7 +24,12 @@ public static class CompLocalUpdateRegistry
         if (string.IsNullOrEmpty(compPath)) return;
         lock (Lock)
         {
-            Updating.Remove(Normalize(compPath));
+            var path = Normalize(compPath);
+            var count = Updating.GetValueOrDefault(path);
+            if (count <= 1)
+                Updating.Remove(path);
+            else
+                Updating[path] = count - 1;
         }
     }
 
@@ -32,7 +38,7 @@ public static class CompLocalUpdateRegistry
         if (string.IsNullOrEmpty(compPath)) return false;
         lock (Lock)
         {
-            return Updating.Contains(Normalize(compPath));
+            return Updating.ContainsKey(Normalize(compPath));
         }
     }
 

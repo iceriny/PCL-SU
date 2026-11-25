@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 生成 macOS .app。可选 Developer ID 签名、公证与 staple。
+# 生成 PCL SU.app。可选 Developer ID 签名、公证与 staple。
 # 用法：scripts/package-macos.sh <osx-arm64|osx-x64> <configuration> <version> <output-dir>
 #
 # 可选环境变量：
@@ -23,7 +23,7 @@ esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DOTNET="${DOTNET:-$(command -v dotnet || echo "$HOME/.dotnet/dotnet")}"
-APP_NAME="PCL CE.app"
+APP_NAME="PCL SU.app"
 APP="$OUT/$APP_NAME"
 TEMP="$OUT/.publish-$RID"
 
@@ -83,9 +83,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>PCL CE</string>
+    <string>PCL SU</string>
     <key>CFBundleDisplayName</key>
-    <string>PCL Community Edition</string>
+    <string>PCL SU</string>
     <key>CFBundleIdentifier</key>
     <string>cc.pclc.pcl-ce</string>
     <key>CFBundleExecutable</key>
@@ -107,7 +107,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.utilities</string>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright © PCL Community</string>
+    <string>Copyright © PCL Community. Packaged by PCL SU at https://github.com/iceriny/PCL-SU.</string>
     <key>CFBundleLocalizations</key>
     <array>
         <string>zh-Hans</string>

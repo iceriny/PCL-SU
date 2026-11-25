@@ -69,6 +69,8 @@ public class ExportOption
 /// <summary>实例导出页的视图模型：配置项树、动态子项、配置文件与整合包导出。</summary>
 public partial class PageInstanceExportViewModel : ViewModelBase
 {
+    private const string BundledLauncherFileName = "Plain Craft Launcher.exe";
+
     private const string Separator =
         "==============================================================";
 
@@ -428,7 +430,7 @@ public partial class PageInstanceExportViewModel : ViewModelBase
             if (string.IsNullOrEmpty(packPath))
                 return false;
 
-            var includePcl = IncludePcl;
+            var includePcl = IncludePcl && PclEnabled;
             var includePclCustom = includePcl && IncludePclCustom;
             var bundleFiles = BundleFiles;
             var modrinthMode = Modrinth;
@@ -473,6 +475,16 @@ public partial class PageInstanceExportViewModel : ViewModelBase
                     ProgressWeight = 6d
                 }
             };
+
+#if !RELEASE
+            if (includePcl)
+                loaders.Insert(1, new Loading.LoaderTask<int, int>(
+                    Lang.Text("Instance.Export.Task.DownloadPclRelease"),
+                    _ => UpdateManager.DownloadLatestPcl(Path.Combine(cacheFolder, BundledLauncherFileName)))
+                {
+                    ProgressWeight = 0.5d
+                });
+#endif
 
             var mainLoader = new Loading.LoaderCombo<string>(loaderName, loaders)
             {
@@ -1270,48 +1282,45 @@ public partial class PageInstanceExportViewModel : ViewModelBase
         if (Directory.Exists(pclFolder))
             CopyDirectory(pclFolder, Path.Combine(overridesFolder, "PCL"));
 
-        if (includePcl && ApplicationRuntime.Current.Platform.Capabilities.SupportsBundledLauncher)
+#if RELEASE
+        if (includePcl)
+            File.Copy(Basics.ExecutablePath, Path.Combine(cacheFolder, BundledLauncherFileName), true);
+#endif
+
+        if (includePclCustom)
             try
             {
-                var launcherPath = Path.Combine(cacheFolder, "Plain Craft Launcher.exe");
-                if (File.Exists(Basics.ExecutablePath))
-                    File.Copy(Basics.ExecutablePath, launcherPath, true);
-                if (includePclCustom)
+                var pclSource = Path.Combine(Basics.ExecutableDirectory, "PCL");
+                var pclTarget = Path.Combine(cacheFolder, "PCL");
+                foreach (var name in new[]
+                         {
+                             "Pictures",
+                             "Musics"
+                         })
                 {
-                    var exeFolder = Basics.ExecutableDirectory;
-                    var pclSource = Path.Combine(exeFolder, "PCL");
-                    var pclTarget = Path.Combine(cacheFolder, "PCL");
-                    foreach (var name in new[]
-                             {
-                                 "Pictures",
-                                 "Musics"
-                             })
-                    {
-                        var source = Path.Combine(pclSource, name);
-                        if (Directory.Exists(source))
-                            CopyDirectory(source, Path.Combine(pclTarget, name));
-                    }
+                    var source = Path.Combine(pclSource, name);
+                    if (Directory.Exists(source))
+                        CopyDirectory(source, Path.Combine(pclTarget, name));
+                }
 
-                    foreach (var name in new[]
-                             {
-                                 "Custom.xaml",
-                                 "Setup.ini",
-                                 "hints.txt",
-                                 "Logo.png"
-                             })
-                    {
-                        var source = Path.Combine(pclSource, name);
-                        if (File.Exists(source))
-                        {
-                            Directory.CreateDirectory(pclTarget);
-                            File.Copy(source, Path.Combine(pclTarget, name), true);
-                        }
-                    }
+                foreach (var name in new[]
+                         {
+                             "Custom.xaml",
+                             "Setup.ini",
+                             "hints.txt",
+                             "Logo.png"
+                         })
+                {
+                    var source = Path.Combine(pclSource, name);
+                    if (!File.Exists(source))
+                        continue;
+                    Directory.CreateDirectory(pclTarget);
+                    File.Copy(source, Path.Combine(pclTarget, name), true);
                 }
             }
             catch (Exception ex)
             {
-                LauncherCommon.Log(ex, "复制启动器文件到整合包失败", LauncherLogLevel.Developer);
+                LauncherCommon.Log(ex, "复制启动器个性化内容到整合包失败", LauncherLogLevel.Developer);
             }
 
         loader.Progress = 0.97d;

@@ -16,6 +16,7 @@ public static partial class LocalComp
         public bool CompLoaded;
 
         private uint? _curseForgeHash;
+        private readonly Lock _updateFileLock = new();
 
         public CompProject? Comp
         {
@@ -36,6 +37,29 @@ public static partial class LocalComp
                 OnCompUpdate?.Invoke(this);
             }
         } = null!;
+
+        internal void MergeUpdateFile(CompFile candidate, string changelogUrl)
+        {
+            lock (_updateFileLock)
+            {
+                var current = UpdateFile;
+                if (current is not null && !string.IsNullOrEmpty(candidate.Hash)
+                    && string.Equals(current.Hash, candidate.Hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    var preferCandidate = current.FromCurseForge && !candidate.FromCurseForge;
+                    var preferred = preferCandidate ? candidate : current;
+                    var additional = preferCandidate ? current : candidate;
+                    ChangelogUrls = [.. ChangelogUrls.Append(changelogUrl).Distinct(StringComparer.Ordinal)];
+                    UpdateFile = preferred.WithAdditionalDownloadSources(additional);
+                }
+                else if (current is null || candidate.ReleaseDate > current.ReleaseDate
+                    || (!candidate.FromCurseForge && candidate.ReleaseDate == current.ReleaseDate))
+                {
+                    ChangelogUrls = [changelogUrl];
+                    UpdateFile = candidate.WithAdditionalDownloadSources();
+                }
+            }
+        }
 
         public bool CanUpdate =>
             !Config.Preference.Hide.FunctionModUpdate

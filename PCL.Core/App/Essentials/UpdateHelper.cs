@@ -9,19 +9,30 @@ namespace PCL.Core.App.Essentials;
 
 public static class UpdateHelper
 {
-    internal sealed record InstallResult(int UpdaterProcessId, string? Error);
+    internal sealed record InstallResult(int UpdaterProcessId, string? Error, string? PayloadSha256 = null);
 
     public static string GetStagedPath(string target) =>
         Path.Combine(Path.GetDirectoryName(target)!, "PCL", "Plain Craft Launcher SU.exe");
+
+    public static string GetStagedPath(string target, string sha256)
+    {
+        if (!IsSha256(sha256)) throw new ArgumentException("更新文件缺少有效的 SHA-256", nameof(sha256));
+        return Path.Combine(Path.GetDirectoryName(target)!, "PCL", "Updates", sha256.ToLowerInvariant() + ".exe");
+    }
+
+    private static bool IsSha256(string? value) =>
+        value is { Length: 64 } && !value.AsSpan().ContainsAnyExcept("0123456789abcdefABCDEF");
 
     internal static bool IsExpectedHandoff(string runningPath, string source, string target)
     {
         var running = Path.GetFullPath(runningPath);
         var sourcePath = Path.GetFullPath(source);
         var targetPath = Path.GetFullPath(target);
-        return running.Equals(sourcePath, StringComparison.OrdinalIgnoreCase) &&
-            !running.Equals(targetPath, StringComparison.OrdinalIgnoreCase) &&
-            sourcePath.Equals(GetStagedPath(targetPath), StringComparison.OrdinalIgnoreCase);
+        if (!running.Equals(sourcePath, StringComparison.OrdinalIgnoreCase) ||
+            running.Equals(targetPath, StringComparison.OrdinalIgnoreCase)) return false;
+        if (sourcePath.Equals(GetStagedPath(targetPath), StringComparison.OrdinalIgnoreCase)) return true;
+        var hash = Path.GetFileNameWithoutExtension(sourcePath);
+        return IsSha256(hash) && sourcePath.Equals(GetStagedPath(targetPath, hash), StringComparison.OrdinalIgnoreCase);
     }
 
     private static string GetResultPath(string target) =>
@@ -64,7 +75,7 @@ public static class UpdateHelper
                 using (updater)
                     if (updater is not null && !updater.WaitForExit(5000)) return null;
             }
-            File.Delete(GetStagedPath(target));
+            File.Delete(result.PayloadSha256 is null ? GetStagedPath(target) : GetStagedPath(target, result.PayloadSha256));
         }
         File.Delete(GetResultPath(target));
         return result;

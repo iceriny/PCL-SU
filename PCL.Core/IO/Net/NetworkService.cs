@@ -66,9 +66,9 @@ public partial class NetworkService
         
         var services = new ServiceCollection();
         services.ConfigureHttpClientDefaults(b => b
-            .ConfigurePrimaryHttpMessageHandler(_GetSocketsHttpHandler)
+            .ConfigurePrimaryHttpMessageHandler(_CreateHttpHandler)
             .ConfigureHttpClient(c => c.DefaultRequestHeaders
-                .UserAgent.Add(new ProductInfoHeaderValue("PCL-CE", Basics.VersionName)))
+                .UserAgent.Add(new ProductInfoHeaderValue("PCL-SU", Basics.VersionName)))
             .SetHandlerLifetime(TimeSpan.FromMinutes(LifeTime)));
         
         // 默认的 HTTP Client
@@ -121,7 +121,7 @@ public partial class NetworkService
         // Cache
         services.AddHttpClient(Cache)
             .ConfigurePrimaryHttpMessageHandler(() => new HttpCacheHandler(
-            _GetSocketsHttpHandler(),CacheServiceManager.Current
+            _CreateHttpHandler(),CacheServiceManager.Current
             )).SetHandlerLifetime(TimeSpan.FromMinutes(LifeTime));
 
         _provider?.Dispose();
@@ -135,17 +135,20 @@ public partial class NetworkService
         _provider?.Dispose();
     }
 
-    private static SocketsHttpHandler _GetSocketsHttpHandler() => new SocketsHttpHandler
+    private static HttpMessageHandler _CreateHttpHandler()
     {
-        UseProxy = true,
-        AutomaticDecompression = DecompressionMethods.All,
-        Proxy = HttpProxyManager.Instance,
-        AllowAutoRedirect = true,
-        MaxAutomaticRedirections = 20,
-        UseCookies = false,
-        EnableMultipleHttp2Connections = true,
-        ConnectCallback = Config.Network.EnableDoH ? HostConnectionHandler.Instance.GetConnectionAsync : null
-    };
+        var handler = new SocketsHttpHandler
+        {
+            UseProxy = true,
+            AutomaticDecompression = DecompressionMethods.All,
+            Proxy = HttpProxyManager.Instance,
+            AllowAutoRedirect = true,
+            MaxAutomaticRedirections = 20,
+            UseCookies = false,
+            EnableMultipleHttp2Connections = true
+        };
+        return Config.Network.EnableDoH ? HostConnectionHandler.Instance.CreateHttpHandler(handler) : handler;
+    }
 
     /// <summary>
     /// 获取 HttpClient

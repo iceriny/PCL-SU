@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http.Headers;
 using PCL.Core.App;
 using PCL.Core.IO.Net;
 using PCL.Core.Utils;
@@ -90,234 +91,395 @@ public static class FileDownloader
         if (urlList.Count == 0)
             throw new ArgumentException("未提供可用的下载地址", nameof(urls));
 
+        cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(
             Path.GetDirectoryName(localPath)
             ?? throw new ArgumentException("下载路径无效", nameof(localPath)));
 
-        Exception? lastException = null;
-        for (var retry = 0; retry <= MaxDownloadRetries; retry++)
+        // 本地替换失败留下的完整文件可直接重试。使用前重新核验摘要。
+        var tempPath = localPath + NetFacade.NetDownloadEnd;
+        if (trackedFile?.Check is { canUseExistsFile: true, hash.Length: > 0 } cachedFileCheck &&
+            File.Exists(tempPath) &&
+            await Task.Run(() => cachedFileCheck.Check(tempPath), cancellationToken).ConfigureAwait(false) is null)
         {
-            foreach (var url in urlList)
-                try
-                {
-                    await DownloadSingleAsync(
-                            url,
-                            localPath,
-                            useBrowserUserAgent,
-                            customUserAgent,
-                            cancellationToken,
-                            enableParallelChunks,
-                            trackedFile)
-                        .ConfigureAwait(false);
-                    return;
-                }
-                catch (OperationCanceledException)
-                {
-                    CleanupTempFiles(localPath);
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    lastException = ex;
-                    CleanupTempFiles(localPath);
-                    LauncherCommon.Log(ex, $"[Download] 下载源失败：{url}");
-                }
-
-            if (retry >= MaxDownloadRetries)
-                break;
-
-            LauncherCommon.Log(
-                lastException,
-                $"[Download] 重试 {retry + 1}/{MaxDownloadRetries}：{localPath}");
-            await Task
-                .Delay(RandomUtils.NextInt(300, 500 + retry * 300), cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        throw new IOException($"下载失败：{localPath}", lastException);
-    }
-
-    private static async Task DownloadSingleAsync(
-        string url,
-        string localPath,
-        bool useBrowserUserAgent,
-        string customUserAgent,
-        CancellationToken cancellationToken,
-        bool enableParallelChunks,
-        DownloadFile? trackedFile)
-    {
-        LauncherCommon.Log($"[Download] 开始下载：{url} -> {localPath}");
-        CleanupTempFiles(localPath);
-
-        var checker = trackedFile?.Check;
-        var expectedSize = checker?.actualSize ?? -1;
-        var sequentialRequestKind =
-            (expectedSize >= 0 && expectedSize < AdaptiveRangeDownloader.SmallFileThreshold)
-            || (expectedSize < 0 && !enableParallelChunks)
-                ? DownloadRequestKind.SmallOrBatch
-                : DownloadRequestKind.LargeOrUnknown;
-
-        if (enableParallelChunks
-            && await AdaptiveRangeDownloader
-                .TryDownloadAsync(
-                    url,
-                    localPath,
-                    useBrowserUserAgent,
-                    customUserAgent,
-                    cancellationToken,
-                    trackedFile,
-                    expectedSize)
-                .ConfigureAwait(false))
-        {
-            await ValidateTempFileAsync(localPath, checker, cancellationToken)
-                .ConfigureAwait(false);
-            PromoteTempFile(localPath);
-            if (!File.Exists(localPath))
-                throw new IOException($"分段下载未产生任何文件：{localPath}");
-            MarkDownloadCompleted(trackedFile);
-            LauncherCommon.Log($"[Download] 分段下载成功：{localPath}");
+            trackedFile.TotalSize = new FileInfo(tempPath).Length;
+            trackedFile.IsUnknownSize = false;
+            await CompleteDownloadAsync().ConfigureAwait(false);
             return;
         }
 
-        await DownloadSequentiallyAsync(
-                url,
-                localPath,
-                useBrowserUserAgent,
-                customUserAgent,
-                cancellationToken,
-                trackedFile,
-                sequentialRequestKind)
-            .ConfigureAwait(false);
+        CleanupTempFile(localPath);
+        try
+        {
+            await DownloadAndValidateAsync(urlList, localPath, useBrowserUserAgent, customUserAgent,
+                cancellationToken, enableParallelChunks, trackedFile).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            CleanupTempFile(localPath);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            CleanupTempFile(localPath);
+            throw new IOException($"下载失败：{localPath}", ex);
+        }
+        finally
+        {
+            if (trackedFile is not null)
+            {
+                trackedFile.Speed = 0;
+                trackedFile.ActiveThreads = 0;
+            }
+        }
+
+        // 提交失败时保留已核验的暂存，下一次可跳过网络下载。
+        await CompleteDownloadAsync().ConfigureAwait(false);
+
+        async Task CompleteDownloadAsync()
+        {
+            await PromoteTempFileAsync(localPath, cancellationToken).ConfigureAwait(false);
+            MarkDownloadCompleted(trackedFile);
+            LauncherCommon.Log($"[Download] 下载完成：{localPath}");
+        }
     }
 
-    private static async Task DownloadSequentiallyAsync(
-        string url,
-        string localPath,
-        bool useBrowserUserAgent,
-        string customUserAgent,
-        CancellationToken cancellationToken,
-        DownloadFile? trackedFile,
-        DownloadRequestKind requestKind)
+    private static async Task DownloadAndValidateAsync(IReadOnlyList<string> urls, string localPath, bool useBrowserUserAgent,
+        string customUserAgent, CancellationToken cancellationToken, bool enableParallelChunks, DownloadFile? trackedFile)
+    {
+        LauncherCommon.Log($"[Download] 开始下载：{urls[0]} -> {localPath}");
+
+        var checker = trackedFile?.Check;
+        var expectedSize = checker?.actualSize ?? -1;
+        var sequentialRequestKind = (expectedSize >= 0 && expectedSize < AdaptiveRangeDownloader.SmallFileThreshold) ||
+                                     (expectedSize < 0 && !enableParallelChunks)
+            ? DownloadRequestKind.SmallOrBatch
+            : DownloadRequestKind.LargeOrUnknown;
+
+        if (enableParallelChunks)
+        {
+            var rangeResult = await TryDownloadRangesWithValidationAsync(urls, localPath,
+                useBrowserUserAgent, customUserAgent, cancellationToken, trackedFile,
+                expectedSize).ConfigureAwait(false);
+            if (rangeResult.Completed)
+            {
+                LauncherCommon.Log($"[Download] 分段下载成功：{localPath}");
+                return;
+            }
+            urls = OrderSources(urls, rangeResult.PreferredSourceIndex);
+        }
+
+        await DownloadSequentiallyAsync(urls, localPath, useBrowserUserAgent, customUserAgent, cancellationToken,
+            trackedFile, sequentialRequestKind, expectedSize < 0 && !enableParallelChunks).ConfigureAwait(false);
+    }
+
+    private static async Task DownloadSequentiallyAsync(IReadOnlyList<string> urls, string localPath, bool useBrowserUserAgent,
+        string customUserAgent, CancellationToken cancellationToken, DownloadFile? trackedFile,
+        DownloadRequestKind requestKind, bool allowRangePromotion)
+    {
+        var checker = trackedFile?.Check;
+        var state = new SequentialDownloadState(checker?.actualSize ?? -1, !string.IsNullOrEmpty(checker?.hash));
+        var sourceIndex = 0;
+        var slowRecoveries = 0;
+        var maxSlowRecoveries = DownloadRecoveryPolicy.GetMaxSlowRecoveries(urls.Count);
+        var networkFailures = 0;
+        var maxNetworkFailures = checked(urls.Count * (MaxDownloadRetries + 1));
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var url = urls[sourceIndex];
+            try
+            {
+                var promotionSize = await DownloadSequentialAttemptAsync(url, localPath, useBrowserUserAgent,
+                    customUserAgent, cancellationToken, trackedFile, requestKind, state, allowRangePromotion,
+                    slowRecoveries < maxSlowRecoveries).ConfigureAwait(false);
+                if (promotionSize >= AdaptiveRangeDownloader.SmallFileThreshold)
+                {
+                    // 单次请求已释放响应及连接配额，再交给 Range 申请新的连接。
+                    allowRangePromotion = false;
+                    var rangeResult = await TryDownloadRangesWithValidationAsync(OrderSources(urls, sourceIndex), localPath,
+                            useBrowserUserAgent, customUserAgent, cancellationToken, trackedFile,
+                            promotionSize).ConfigureAwait(false);
+                    if (rangeResult.Completed)
+                    {
+                        LauncherCommon.Log($"[Download] 分段下载成功：{localPath}");
+                        return;
+                    }
+
+                    state.Reset();
+                    sourceIndex = (sourceIndex + rangeResult.PreferredSourceIndex) % urls.Count;
+                    requestKind = DownloadRequestKind.LargeOrUnknown;
+                    continue;
+                }
+
+                try
+                {
+                    await ValidateTempFileAsync(localPath, checker, cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                    state.Reset();
+                    throw;
+                }
+                LauncherCommon.Log($"[Download] 顺序下载成功：{localPath}");
+                return;
+            }
+            catch (SlowSequentialDownloadException ex)
+            {
+                slowRecoveries++;
+                sourceIndex = (sourceIndex + 1) % urls.Count;
+                LauncherCommon.Log(ex, $"[Download] 顺序连接持续低速，恢复 {slowRecoveries}/{maxSlowRecoveries}：{url}",
+                    LauncherLogLevel.Developer);
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is
+                HttpRequestException or IOException or TimeoutException or OperationCanceledException)
+            {
+                if (++networkFailures >= maxNetworkFailures)
+                    throw;
+                if (ex is not RestartSequentialDownloadException)
+                    sourceIndex = (sourceIndex + 1) % urls.Count;
+                LauncherCommon.Log(ex, $"[Download] 顺序连接中断，恢复 {networkFailures}/{maxNetworkFailures - 1}：{url}",
+                    LauncherLogLevel.Developer);
+                await Task.Delay(RandomUtils.NextInt(300, 500 + Math.Min(networkFailures, MaxDownloadRetries) * 300),
+                    cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static async Task<long> DownloadSequentialAttemptAsync(string url, string localPath,
+        bool useBrowserUserAgent, string customUserAgent, CancellationToken cancellationToken,
+        DownloadFile? trackedFile, DownloadRequestKind requestKind, SequentialDownloadState state,
+        bool allowRangePromotion, bool allowSlowRecovery)
     {
         const int bufferSize = 64 * 1024;
         const int readTimeoutMilliseconds = 30_000;
-        using var connection = await DownloadResourceManager
-            .AcquireConnectionAsync(url, cancellationToken)
+        var tempPath = localPath + NetFacade.NetDownloadEnd;
+        if (!state.HasContentHash && !string.Equals(state.PrefixSourceUrl, url, StringComparison.Ordinal))
+            state.Reset();
+        var resume = state.CanResume && File.Exists(tempPath) && new FileInfo(tempPath).Length == state.Downloaded;
+        if (!resume)
+            state.Reset();
+
+        using var connection = await DownloadResourceManager.AcquireConnectionAsync(url, cancellationToken)
             .ConfigureAwait(false);
-        using var request = CreateDownloadRequest(
-            url,
-            useBrowserUserAgent,
-            customUserAgent,
-            requestKind);
-        using var response = await SendDownloadRequestAsync(url, request, cancellationToken)
-            .ConfigureAwait(false);
+        using var request = CreateDownloadRequest(url, useBrowserUserAgent, customUserAgent, requestKind);
+        request.Headers.AcceptEncoding.Clear();
+        request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
+        if (resume)
+        {
+            request.Headers.Range = new RangeHeaderValue(state.Downloaded, null);
+            if (!state.HasContentHash && state.StrongETag is not null)
+                request.Headers.IfRange = new RangeConditionHeaderValue(new EntityTagHeaderValue(state.StrongETag));
+        }
+        using var response = await SendDownloadRequestAsync(url, request, cancellationToken).ConfigureAwait(false);
+        if (resume && response.StatusCode == HttpStatusCode.OK)
+        {
+            // 服务器返回完整响应时，用它替换原有的部分文件。
+            state.Reset();
+            resume = false;
+        }
+        else if (resume && response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
+        {
+            state.Reset();
+            throw new RestartSequentialDownloadException("下载源拒绝续传范围，重新请求完整文件");
+        }
         if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException(
-                $"下载请求失败：{(int)response.StatusCode} {response.ReasonPhrase}");
+            throw new HttpRequestException($"下载请求失败：{(int)response.StatusCode} {response.ReasonPhrase}");
 
-        var responseContentLength = response.Content.Headers.ContentLength ?? -1;
-        var checker = trackedFile?.Check;
-        var manifestExpectedSize = checker?.actualSize ?? -1;
-        if (string.IsNullOrEmpty(checker?.hash)
-            && responseContentLength >= 0
-            && manifestExpectedSize >= 0
-            && responseContentLength != manifestExpectedSize)
-            throw new IOException(
-                $"下载大小与清单不一致：响应为 {responseContentLength}，清单为 {manifestExpectedSize}");
+        var contentLength = response.Content.Headers.ContentLength ?? -1;
+        var tag = response.Headers.ETag;
+        var strongETag = tag is { IsWeak: false } && tag.Tag != "*" ? tag.Tag : null;
+        if (resume)
+        {
+            var range = response.Content.Headers.ContentRange;
+            var expectedTotal = state.TotalSize >= 0 ? state.TotalSize : range?.Length ?? -1;
+            if (response.StatusCode != HttpStatusCode.PartialContent ||
+                range is null || !string.Equals(range.Unit, "bytes", StringComparison.OrdinalIgnoreCase) ||
+                expectedTotal <= state.Downloaded || range.From != state.Downloaded ||
+                range.To != expectedTotal - 1 || range.Length != expectedTotal ||
+                (contentLength >= 0 && contentLength != expectedTotal - state.Downloaded) ||
+                (!state.HasContentHash && strongETag != state.StrongETag))
+            {
+                state.Reset();
+                throw new RestartSequentialDownloadException("续传响应的 Content-Range 或实体标识与已下载内容不一致");
+            }
+            state.TotalSize = expectedTotal;
+        }
+        else
+        {
+            if (response.StatusCode == HttpStatusCode.PartialContent)
+            {
+                var range = response.Content.Headers.ContentRange;
+                if (range is null || !string.Equals(range.Unit, "bytes", StringComparison.OrdinalIgnoreCase) || range.From != 0 ||
+                    range.Length is not > 0 || range.To != range.Length - 1 ||
+                    (contentLength >= 0 && contentLength != range.Length))
+                    throw new IOException("完整下载响应仅包含部分文件");
+                contentLength = range.Length.Value;
+            }
+            if (!state.HasContentHash && contentLength >= 0 && state.ManifestExpectedSize >= 0 &&
+                contentLength != state.ManifestExpectedSize)
+                throw new IOException($"下载大小与清单不一致：响应为 {contentLength}，清单为 {state.ManifestExpectedSize}");
+            state.TotalSize = contentLength >= 0 ? contentLength : state.ManifestExpectedSize;
+            state.StrongETag = strongETag;
+            state.PrefixSourceUrl = url;
+            if (allowRangePromotion && contentLength >= AdaptiveRangeDownloader.SmallFileThreshold)
+                return contentLength;
+        }
 
-        var totalSize = responseContentLength >= 0 ? responseContentLength : manifestExpectedSize;
         if (trackedFile is not null)
         {
             trackedFile.State = NetState.Downloading;
-            trackedFile.TotalSize = totalSize;
-            trackedFile.IsUnknownSize = totalSize <= 0;
-            trackedFile.DownloadedBytes = 0;
+            trackedFile.TotalSize = state.TotalSize;
+            trackedFile.IsUnknownSize = state.TotalSize < 0;
+            trackedFile.DownloadedBytes = state.Downloaded;
             trackedFile.Speed = 0;
             trackedFile.ActiveThreads = 1;
         }
-
-        long downloaded = 0;
-        long lastProgressBytes = 0;
-        var lastProgressTick = Stopwatch.GetTimestamp();
-        await using var input =
-            await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var attemptStartBytes = state.Downloaded;
+        var lastProgressBytes = state.Downloaded;
+        await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var readTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        await using var output = new FileStream(
-            localPath + NetFacade.NetDownloadEnd,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.Read,
-            bufferSize,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        using var bufferLease = await DownloadResourceManager
-            .RentBufferAsync(bufferSize, cancellationToken)
+        await using var output = new FileStream(tempPath, FileMode.OpenOrCreate, FileAccess.Write,
+            FileShare.Read, bufferSize: bufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        if (resume && output.Length != state.Downloaded)
+        {
+            state.Reset();
+            throw new RestartSequentialDownloadException("续传临时文件的长度发生变化，重新请求完整文件");
+        }
+        if (!resume)
+            output.SetLength(0);
+        output.Position = state.Downloaded;
+        using var bufferLease = await DownloadResourceManager.RentBufferAsync(bufferSize, cancellationToken)
             .ConfigureAwait(false);
         var buffer = bufferLease.Buffer;
-
-        while (true)
+        var lastProgressTick = Stopwatch.GetTimestamp();
+        var startedAt = lastProgressTick;
+        try
         {
-            int read;
-            readTimeout.CancelAfter(readTimeoutMilliseconds);
-            try
+            while (true)
             {
-                read = await input
-                    .ReadAsync(buffer.AsMemory(0, bufferSize), readTimeout.Token)
-                    .ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested
-                                                     && readTimeout.IsCancellationRequested)
-            {
-                throw new TimeoutException($"下载超时（{url}）");
-            }
-            finally
-            {
-                readTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
+                int read;
+                readTimeout.CancelAfter(readTimeoutMilliseconds);
+                try
+                {
+                    read = await input.ReadAsync(buffer.AsMemory(0, bufferSize), readTimeout.Token)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested &&
+                                                       readTimeout.IsCancellationRequested)
+                {
+                    throw new TimeoutException($"下载超时（{url}）");
+                }
+                finally
+                {
+                    readTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
+                }
+
+                if (read == 0)
+                    break;
+                if (state.TotalSize >= 0 && read > state.TotalSize - state.Downloaded)
+                {
+                    state.Reset();
+                    throw new IOException("下载数据超过响应声明的总大小");
+                }
+
+                await DownloadResourceManager.ThrottleAsync(read, cancellationToken).ConfigureAwait(false);
+                await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                DownloadResourceManager.RecordDownloadedBytes(read);
+                state.Downloaded += read;
+                UpdateSequentialProgress(trackedFile, state.Downloaded, state.TotalSize,
+                    ref lastProgressBytes, ref lastProgressTick);
+
+                var elapsed = (double)(Stopwatch.GetTimestamp() - startedAt) / Stopwatch.Frequency;
+                var remaining = state.TotalSize < 0 ? -1 : state.TotalSize - state.Downloaded;
+                if (allowSlowRecovery && DownloadRecoveryPolicy.IsSlow(state.Downloaded - attemptStartBytes,
+                        elapsed, remaining))
+                    throw new SlowSequentialDownloadException("顺序连接持续低于恢复速度阈值");
             }
 
-            if (read == 0)
-                break;
-
-            await DownloadResourceManager
-                .ThrottleAsync(read, cancellationToken)
-                .ConfigureAwait(false);
-            await output
-                .WriteAsync(buffer.AsMemory(0, read), cancellationToken)
-                .ConfigureAwait(false);
-            DownloadResourceManager.RecordDownloadedBytes(read);
-            downloaded += read;
-            UpdateSequentialProgress(
-                trackedFile,
-                downloaded,
-                totalSize,
-                ref lastProgressBytes,
-                ref lastProgressTick);
+            await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+            if (state.TotalSize >= 0 && state.Downloaded != state.TotalSize)
+                throw new IOException($"下载不完整：已写入 {state.Downloaded}，应为 {state.TotalSize}");
+            if (trackedFile is not null && state.TotalSize < 0)
+            {
+                trackedFile.TotalSize = state.Downloaded;
+                trackedFile.IsUnknownSize = false;
+                trackedFile.DownloadedBytes = state.Downloaded;
+            }
+            return -1;
         }
-
-
-        connection.Dispose();
-        await output.DisposeAsync().ConfigureAwait(false);
-        if (responseContentLength >= 0 && downloaded != responseContentLength)
-            throw new IOException($"下载不完整：已写入 {downloaded}，应为响应声明的 {responseContentLength}");
-
-        await ValidateTempFileAsync(localPath, checker, cancellationToken).ConfigureAwait(false);
-
-        if (trackedFile is not null && totalSize <= 0)
+        finally
         {
-            trackedFile.TotalSize = downloaded;
-            trackedFile.IsUnknownSize = false;
-            trackedFile.DownloadedBytes = downloaded;
+            if (trackedFile is not null)
+            {
+                trackedFile.Speed = 0;
+                trackedFile.ActiveThreads = 0;
+            }
         }
-
-        PromoteTempFile(localPath);
-        if (!File.Exists(localPath))
-            throw new IOException($"下载未产生任何文件：{localPath}");
-        MarkDownloadCompleted(trackedFile);
-        LauncherCommon.Log($"[Download] 顺序下载成功：{localPath}");
     }
 
-    private static async Task ValidateTempFileAsync(
-        string localPath,
-        FileChecker? checker,
+    private static IReadOnlyList<string> OrderSources(IReadOnlyList<string> urls, int preferredIndex) =>
+        preferredIndex == 0 ? urls : urls.Skip(preferredIndex).Concat(urls.Take(preferredIndex)).ToArray();
+
+    private static async Task<(bool Completed, int PreferredSourceIndex)> TryDownloadRangesWithValidationAsync(
+        IReadOnlyList<string> urls, string localPath,
+        bool useBrowserUserAgent, string customUserAgent, CancellationToken cancellationToken,
+        DownloadFile? trackedFile, long expectedSize)
+    {
+        for (var attempt = 0; attempt < urls.Count; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var orderedUrls = OrderSources(urls, attempt);
+            // 完整哈希失败后逐源验证，避免再次混入尚未定位的坏源数据。
+            IReadOnlyList<string> rangeSources = attempt == 0 ? orderedUrls : [urls[attempt]];
+            try
+            {
+                if (!await AdaptiveRangeDownloader.TryDownloadAsync(rangeSources, localPath, useBrowserUserAgent,
+                        customUserAgent, cancellationToken, trackedFile, expectedSize).ConfigureAwait(false))
+                    return (false, attempt);
+                await ValidateTempFileAsync(localPath, trackedFile?.Check, cancellationToken).ConfigureAwait(false);
+                return (true, attempt);
+            }
+            catch (DownloadValidationException ex) when (attempt + 1 < urls.Count)
+            {
+                LauncherCommon.Log(ex, $"[Download] 分段文件校验失败，切换首选源完整重下 {attempt + 1}/{urls.Count - 1}：{localPath}",
+                    LauncherLogLevel.Developer);
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested &&
+                                       ex is HttpRequestException or IOException or TimeoutException or OperationCanceledException)
+            {
+                LauncherCommon.Log(ex, $"[Download] 分段下载失败，改用顺序下载：{localPath}", LauncherLogLevel.Developer);
+                return (false, attempt);
+            }
+        }
+        return (false, 0);
+    }
+
+    private sealed class SequentialDownloadState(long manifestExpectedSize, bool hasContentHash)
+    {
+        public long ManifestExpectedSize { get; } = manifestExpectedSize;
+        public bool HasContentHash { get; } = hasContentHash;
+        public long TotalSize { get; set; } = manifestExpectedSize;
+        public long Downloaded { get; set; }
+        public string? StrongETag { get; set; }
+        public string? PrefixSourceUrl { get; set; }
+        public bool CanResume => Downloaded > 0 && (TotalSize < 0 || TotalSize > Downloaded) &&
+                                 (HasContentHash || StrongETag is not null);
+
+        public void Reset()
+        {
+            Downloaded = 0;
+            TotalSize = ManifestExpectedSize;
+            StrongETag = null;
+            PrefixSourceUrl = null;
+        }
+    }
+
+    private sealed class SlowSequentialDownloadException(string message) : IOException(message);
+    private sealed class RestartSequentialDownloadException(string message) : IOException(message);
+    private sealed class DownloadValidationException(string message) : IOException(message);
+
+    private static async Task ValidateTempFileAsync(string localPath, FileChecker? checker,
         CancellationToken cancellationToken)
     {
         if (checker is null)
@@ -326,33 +488,25 @@ public static class FileDownloader
         var tempPath = localPath + NetFacade.NetDownloadEnd;
         var checkResult = string.IsNullOrEmpty(checker.hash)
             ? checker.Check(tempPath)
-            : await Task
-                .Run(() => checker.Check(tempPath), cancellationToken)
-                .ConfigureAwait(false);
+            : await Task.Run(() => checker.Check(tempPath), cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         if (checkResult is not null)
-            throw new IOException($"下载文件校验失败：{checkResult}");
+            throw new DownloadValidationException($"下载文件校验失败：{checkResult}");
     }
 
-    private static void UpdateSequentialProgress(
-        DownloadFile? trackedFile,
-        long downloaded,
-        long totalSize,
-        ref long lastProgressBytes,
-        ref long lastProgressTick)
+    private static void UpdateSequentialProgress(DownloadFile? trackedFile, long downloaded, long totalSize,
+        ref long lastProgressBytes, ref long lastProgressTick)
     {
         if (trackedFile is null)
             return;
 
         var now = Stopwatch.GetTimestamp();
-        if (now - lastProgressTick < Stopwatch.Frequency / 5
-            && (totalSize <= 0 || downloaded < totalSize))
+        if (now - lastProgressTick < Stopwatch.Frequency / 5 && (totalSize <= 0 || downloaded < totalSize))
             return;
 
         var elapsed = Math.Max(1L, now - lastProgressTick);
         trackedFile.DownloadedBytes = downloaded;
-        trackedFile.Speed = Math.Max(
-            0L,
-            (long)((downloaded - lastProgressBytes) * (double)Stopwatch.Frequency / elapsed));
+        trackedFile.Speed = Math.Max(0L, (long)((downloaded - lastProgressBytes) * (double)Stopwatch.Frequency / elapsed));
         trackedFile.ActiveThreads = 1;
         lastProgressBytes = downloaded;
         lastProgressTick = now;
@@ -435,41 +589,38 @@ public static class FileDownloader
         trackedFile.DownloadedBytes = Math.Max(trackedFile.DownloadedBytes, trackedFile.TotalSize);
     }
 
-    private static void PromoteTempFile(string localPath)
+    private static async Task PromoteTempFileAsync(string localPath, CancellationToken cancellationToken)
     {
         var tempPath = localPath + NetFacade.NetDownloadEnd;
-        if (File.Exists(localPath) || !File.Exists(tempPath))
-            return;
+        for (var retry = 0; ; retry++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                File.Move(tempPath, localPath, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when (OperatingSystem.IsWindows() &&
+                (ex is IOException or UnauthorizedAccessException) && (ex.HResult & 0xffff) is 5 or 32 or 33 && retry < 4)
+            {
+                await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
 
+    private static void CleanupTempFile(string localPath)
+    {
+        var path = localPath + NetFacade.NetDownloadEnd;
         for (var retry = 0; retry < 5; retry++)
             try
             {
-                File.Move(tempPath, localPath, true);
+                var file = new FileInfo(path);
+                if (file.Exists && file.IsReadOnly) file.IsReadOnly = false;
+                file.Delete();
                 return;
             }
-            catch (IOException) when (retry < 4)
-            {
-                Thread.Sleep(100);
-            }
-    }
-
-    private static void CleanupTempFiles(string localPath)
-    {
-        var tempPath = localPath + NetFacade.NetDownloadEnd;
-        TryDeleteFile(localPath);
-        TryDeleteFile(tempPath);
-    }
-
-    private static void TryDeleteFile(string path)
-    {
-        for (var retry = 0; retry < 5; retry++)
-            try
-            {
-                if (File.Exists(path))
-                    File.Delete(path);
-                return;
-            }
-            catch (IOException)
+            catch (IOException ex) when (OperatingSystem.IsWindows() &&
+                (ex.HResult & 0xffff) is 32 or 33 && retry < 4)
             {
                 Thread.Sleep(100);
             }

@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using PCL.Core.IO;
 
 namespace PCL.Core.Logging;
 
@@ -15,9 +16,8 @@ namespace PCL.Core.Logging;
 ///     Buffered, single-file-rotating log writer.
 ///     Producers only build a <see cref="LogEntry" /> and push it into a bounded channel, so logging
 ///     costs no allocation on the calling thread beyond the message itself. A single background pump
-///     drains the channel, formats whole batches and writes them to disk. The pump never faults: an
-///     I/O failure rebuilds the stream and, on repeated failure, discards batches during a short
-///     cooldown instead of letting the channel fill up and permanently degrade into the drop path.
+///     drains the channel, formats whole batches and writes them to disk. The logger preserves
+///     warnings and errors in an emergency file when the queue or regular log is unavailable.
 /// </summary>
 public sealed class Logger : IAsyncDisposable
 {
@@ -27,27 +27,23 @@ public sealed class Logger : IAsyncDisposable
     private const int MaxBatchCapacity = 1024 * 1024;
     private const int NotDisposed = 0;
     private const int Disposing = 1;
+    private static readonly TimeSpan _BatchWindow = TimeSpan.FromMilliseconds(20);
     private static readonly TimeSpan _DisposeTimeout = TimeSpan.FromSeconds(3);
+    private static readonly Lock _emergencyWriteLock = new();
 
     private readonly TaskCompletionSource _disposeDone =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly CancellationTokenSource _writeCancellation = new();
 
     private readonly List<string> _files = [];
-
-    private readonly Channel<LogEntry> _logChannel = Channel.CreateBounded<LogEntry>(
-        new BoundedChannelOptions(2048)
-        {
-            SingleReader = true,
-            SingleWriter = false,
-            FullMode = BoundedChannelFullMode.Wait,
-            // Otherwise TryWrite could run the whole write path inline on the calling thread.
-            AllowSynchronousContinuations = false
-        });
+    private readonly Channel<LogEntry> _logChannel;
+    private readonly string _emergencyPath;
 
     // Processor
     private readonly Task _processingTask;
     private readonly Lock _stateLock = new();
     private FileStream? _currentFile;
+    private string? _lastMainLogPath;
 
     // Data stream
     private StreamWriter? _currentStream;
@@ -56,6 +52,7 @@ public sealed class Logger : IAsyncDisposable
 
     // Stats
     private long _droppedCount;
+    private long _emergencyCount;
     private int _minRealLevel;
     private long _writeBlockedUntilTicks;
 
@@ -69,20 +66,28 @@ public sealed class Logger : IAsyncDisposable
     /// </param>
     public Logger(LoggerConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(configuration.QueueCapacity);
+        ArgumentOutOfRangeException.ThrowIfNegative(configuration.ImportantLogWriteTimeoutMilliseconds);
         Configuration = configuration;
         _minRealLevel = (int)configuration.MinLogLevel.RealLevel();
+        _emergencyPath = Path.GetFullPath(Path.Combine(configuration.StoreFolder, "Emergency.log"));
+        _logChannel = Channel.CreateBounded<LogEntry>(new BoundedChannelOptions(configuration.QueueCapacity)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait,
+            AllowSynchronousContinuations = false
+        });
         _CreateNewFile();
         _processingTask = _ProcessLogQueueAsync();
     }
 
     public long DroppedLogCount => Interlocked.Read(ref _droppedCount);
+    public long EmergencyLogCount => Interlocked.Read(ref _emergencyCount);
 
     /// <summary>
-    ///     Snapshot of the log files created by this instance that still exist on disk, oldest first. A
-    ///     new
-    ///     array is returned on every access, so the result is safe to enumerate while the pump rotates
-    ///     and
-    ///     deletes files.
+    ///     Snapshot of the files created by this instance. The current main log is the last item.
     /// </summary>
     public IReadOnlyList<string> CurrentLogFiles
     {
@@ -90,7 +95,10 @@ public sealed class Logger : IAsyncDisposable
         {
             lock (_stateLock)
             {
-                return [.. _files];
+                var files = _files.Where(path => path != _lastMainLogPath).ToList();
+                if (_lastMainLogPath is not null && _files.Contains(_lastMainLogPath))
+                    files.Add(_lastMainLogPath);
+                return files;
             }
         }
     }
@@ -99,10 +107,7 @@ public sealed class Logger : IAsyncDisposable
     public LoggerConfiguration Configuration { get; }
 
     /// <summary>
-    ///     Completes the channel, waits up to three seconds for the pump to drain, then closes the stream.
-    ///     The method is idempotent and never throws: it is reached from the synchronous shutdown path,
-    ///     where
-    ///     an escaping exception or an unbounded wait would prevent the process from exiting.
+    ///     Completes the channel and waits up to three seconds for the pump to drain and close the stream.
     /// </summary>
     public async ValueTask DisposeAsync()
     {
@@ -114,53 +119,42 @@ public sealed class Logger : IAsyncDisposable
 
         try
         {
-            // Close the write gate; the pump exits on its own once the queue is drained.
             _logChannel.Writer.TryComplete();
-
             try
             {
-                await _processingTask.WaitAsync(_DisposeTimeout).ConfigureAwait(false);
+                await Task.Run(_ShutdownAsync).WaitAsync(_DisposeTimeout).ConfigureAwait(false);
             }
             catch (Exception e)
             {
-                _WriteErrorLog(
-                    $"Log pump did not finish within {_DisposeTimeout.TotalSeconds:0}s: {e}");
+                _ = _writeCancellation.CancelAsync();
+                _WriteConsoleDiagnostic($"Log shutdown interrupted: {e.Message}");
             }
-
-            StreamWriter? stream;
-            FileStream? file;
-            lock (_stateLock)
-            {
-                stream = _currentStream;
-                file = _currentFile;
-                _currentStream = null;
-                _currentFile = null;
-            }
-
-            if (stream is not null)
-                try
-                {
-                    await stream.DisposeAsync().ConfigureAwait(false);
-                }
-                catch (Exception)
-                {
-                    // ignored
-                }
-
-            if (file is not null)
-                try
-                {
-                    await file.DisposeAsync().ConfigureAwait(false);
-                }
-                catch (Exception)
-                {
-                    // ignored
-                }
         }
         finally
         {
             _disposeDone.TrySetResult();
         }
+    }
+
+    private async Task _ShutdownAsync()
+    {
+        try { await _processingTask.ConfigureAwait(false); }
+        catch (Exception ex) { _WriteErrorLog($"Log pump failed during shutdown: {ex}"); }
+
+        StreamWriter? stream;
+        FileStream? file;
+        lock (_stateLock)
+        {
+            stream = _currentStream;
+            file = _currentFile;
+            _currentStream = null;
+            _currentFile = null;
+        }
+
+        try { if (stream is not null) await stream.DisposeAsync().ConfigureAwait(false); }
+        catch (Exception ex) { _WriteErrorLog($"Log stream close failed: {ex}"); }
+        try { if (file is not null) await file.DisposeAsync().ConfigureAwait(false); }
+        catch (Exception ex) { _WriteErrorLog($"Log file close failed: {ex}"); }
     }
 
     /// <summary>
@@ -194,6 +188,7 @@ public sealed class Logger : IAsyncDisposable
     {
         lock (_stateLock)
         {
+            _writeCancellation.Token.ThrowIfCancellationRequested();
             var now = DateTime.Now;
             var nameFormat = $"{Configuration.FileNameFormat
                 ?? $"Launch-{now.ToString("yyyy-M-d", CultureInfo.InvariantCulture)}-{{0}}"}.log";
@@ -204,14 +199,13 @@ public sealed class Logger : IAsyncDisposable
 
             var lastStream = _currentStream;
             var lastFile = _currentFile;
-            _currentStream = null;
-            _currentFile = null;
 
             Directory.CreateDirectory(Configuration.StoreFolder);
             var file = _OpenNewFile(filePath);
             _currentFile = file;
             _currentStream = new StreamWriter(file, new UTF8Encoding(false), StreamBufferSize);
 
+            _lastMainLogPath = file.Name;
             _files.Add(file.Name);
 
             // Close the old handles before retention runs, otherwise the files stay locked.
@@ -234,16 +228,7 @@ public sealed class Logger : IAsyncDisposable
             }
         }
 
-        if (!Configuration.AutoDeleteOldFile) return;
-
         _RunRetention();
-
-        // Retention may have deleted files this instance created; keep the public list truthful so
-        // callers never receive a path that no longer exists.
-        lock (_stateLock)
-        {
-            _files.RemoveAll(static path => !File.Exists(path));
-        }
     }
 
     /// <summary>
@@ -284,36 +269,35 @@ public sealed class Logger : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Deletes the oldest log files beyond <see cref="LoggerConfiguration.MaxKeepOldFile" />.
-    ///     Ordering is newest first, so the file currently being written is never a candidate.
+    ///     Trims old logs while retaining the current main log and the emergency log.
     /// </summary>
     private void _RunRetention()
     {
+        if (!Configuration.AutoDeleteOldFile) return;
         try
         {
-            var files = Directory
-                .GetFiles(
-                    Configuration.StoreFolder,
-                    "*.log",
-                    SearchOption.TopDirectoryOnly)
-                .Select(static x => new FileInfo(x))
-                .OrderByDescending(static x => x.CreationTimeUtc)
-                .Skip(Math.Max(1, Configuration.MaxKeepOldFile))
-                .ToArray();
+            lock (_emergencyWriteLock)
+            {
+                string? active;
+                lock (_stateLock) active = _lastMainLogPath;
 
-            foreach (var file in files)
-                try
+                bool IsActive(string path) => Files.ArePathsEqual(path, _emergencyPath)
+                    || (active is not null && Files.ArePathsEqual(path, active));
+
+                var files = Directory.GetFiles(Configuration.StoreFolder, "*.log")
+                    .Select(static path => new FileInfo(path)).ToArray();
+                var protectedCount = files.Count(file => IsActive(file.FullName));
+                foreach (var file in files.Where(file => !IsActive(file.FullName))
+                             .OrderByDescending(static file => file.CreationTimeUtc)
+                             .Skip(Math.Max(0, Configuration.MaxKeepOldFile - protectedCount)))
                 {
-                    file.Delete();
+                    try { file.Delete(); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
                 }
-                catch (IOException)
-                {
-                    // ignored
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    // ignored
-                }
+            }
+
+            lock (_stateLock) _files.RemoveAll(static path => !File.Exists(path));
         }
         catch (Exception e)
         {
@@ -417,9 +401,8 @@ public sealed class Logger : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Pushes the entry into the bounded channel. When the channel is full the entry is dropped and
-    ///     counted; the drop is reported with an exponentially decreasing rate so a log storm cannot turn
-    ///     into a feedback loop of console writes.
+    ///     Places the entry in the bounded channel. If it is full, warnings and errors get a bounded
+    ///     wait before being written to the emergency log.
     /// </summary>
     internal void Enqueue(in LogEntry entry)
     {
@@ -427,8 +410,30 @@ public sealed class Logger : IAsyncDisposable
         if (!IsEnabled(entry.Level)) return;
         if (_logChannel.Writer.TryWrite(entry)) return;
 
-        _ReportDrop(Interlocked.Increment(ref _droppedCount));
+        if (!_IsImportant(entry.Level))
+        {
+            _ReportDrop(Interlocked.Increment(ref _droppedCount));
+            return;
+        }
+
+        if (Configuration.ImportantLogWriteTimeoutMilliseconds > 0)
+        {
+            using var timeout = new CancellationTokenSource(Configuration.ImportantLogWriteTimeoutMilliseconds);
+            try
+            {
+                _logChannel.Writer.WriteAsync(entry, timeout.Token).AsTask().GetAwaiter().GetResult();
+                return;
+            }
+            catch (OperationCanceledException) { }
+            catch (ChannelClosedException) { }
+        }
+
+        var content = new StringBuilder();
+        LogEntryFormatter.Append(content, in entry);
+        _WriteEmergency(content.AppendLine(), 1);
     }
+
+    private static bool _IsImportant(LogLevel level) => (int)level.RealLevel() >= (int)LogLevel.Warning;
 
     /// <summary>
     ///     Reports a drop only for counts that are powers of two (1, 2, 4, 8, ...), bounding both the
@@ -437,10 +442,15 @@ public sealed class Logger : IAsyncDisposable
     /// </summary>
     private static void _ReportDrop(long count)
     {
-        if ((count & (count - 1)) != 0) return;
+        if ((count & (count - 1)) == 0)
+            _WriteConsoleDiagnostic($"Log channel is full, {count} entries dropped.");
+    }
+
+    private static void _WriteConsoleDiagnostic(string message)
+    {
         try
         {
-            Console.Error.WriteLine($"[Logger] Log channel is full, {count} entries dropped.");
+            Console.Error.WriteLine($"[Logger] {message}");
         }
         catch (Exception)
         {
@@ -449,25 +459,26 @@ public sealed class Logger : IAsyncDisposable
     }
 
     /// <summary>
-    ///     The consumer loop. Drains everything currently available, appending formatted lines into a
-    ///     reused
-    ///     builder, and flushes when the batch is full or the channel runs empty. When the channel is
-    ///     empty
-    ///     it blocks on <see cref="ChannelReader{T}.WaitToReadAsync" />, so an idle launcher performs zero
-    ///     wake-ups, and it exits only once the writer is completed and fully drained.
+    ///     Reuses the batch buffers and briefly coalesces incoming entries before flushing. The consumer
+    ///     waits for new entries without a timer when the buffer is empty.
     /// </summary>
     private async Task _ProcessLogQueueAsync()
     {
         var reader = _logChannel.Reader;
         var batch = new StringBuilder(BatchInitialCapacity);
+        var important = new StringBuilder();
         var lineCount = 0;
+        var importantCount = 0;
+        var batchStart = 0L;
 
         try
         {
-            while (true)
+            while (await reader.WaitToReadAsync().ConfigureAwait(false))
             {
                 while (reader.TryRead(out var entry))
                 {
+                    if (lineCount == 0) batchStart = Stopwatch.GetTimestamp();
+                    var lineStart = batch.Length;
                     if (Configuration.ConsoleOutput)
                     {
                         var line = LogEntryFormatter.Format(in entry);
@@ -487,66 +498,77 @@ public sealed class Logger : IAsyncDisposable
                         batch.AppendLine();
                     }
 
-                    if (++lineCount < MaxBatchLines) continue;
+                    if (_IsImportant(entry.Level))
+                    {
+                        important.Append(batch, lineStart, batch.Length - lineStart);
+                        importantCount++;
+                    }
 
-                    await _FlushAsync(batch).ConfigureAwait(false);
-                    lineCount = 0;
+                    if (++lineCount >= MaxBatchLines) await FlushAsync().ConfigureAwait(false);
                 }
 
-                if (lineCount > 0)
+                if (lineCount == 0) continue;
+                var remaining = _BatchWindow - Stopwatch.GetElapsedTime(batchStart);
+                if (remaining > TimeSpan.Zero)
                 {
-                    await _FlushAsync(batch).ConfigureAwait(false);
-                    lineCount = 0;
+                    using var timeout = new CancellationTokenSource(remaining);
+                    try
+                    {
+                        if (await reader.WaitToReadAsync(timeout.Token).ConfigureAwait(false)) continue;
+                    }
+                    catch (OperationCanceledException) { }
                 }
 
-                if (!await reader.WaitToReadAsync().ConfigureAwait(false)) break;
+                await FlushAsync().ConfigureAwait(false);
             }
         }
         catch (Exception e)
         {
-            // The pump must never fault: a dead pump fills the channel and turns every later log
-            // into a drop.
+            _logChannel.Writer.TryComplete();
             _WriteErrorLog($"Log pump terminated unexpectedly: {e}");
         }
         finally
         {
-            if (batch.Length > 0)
-                try
+            if (lineCount > 0) await FlushAsync().ConfigureAwait(false);
+            while (reader.TryRead(out var entry))
+            {
+                if (_IsImportant(entry.Level))
                 {
-                    await _FlushAsync(batch).ConfigureAwait(false);
+                    LogEntryFormatter.Append(important, in entry);
+                    _WriteEmergency(important.AppendLine(), 1);
+                    important.Clear();
                 }
-                catch (Exception)
-                {
-                    // ignored
-                }
+                else
+                    Interlocked.Increment(ref _droppedCount);
+            }
         }
-    }
 
-    /// <summary>
-    ///     Writes and clears the batch, shrinking an oversized buffer back to the initial capacity so a
-    ///     single large burst does not keep a megabyte-sized builder alive for the rest of the session.
-    /// </summary>
-    private async Task _FlushAsync(StringBuilder batch)
-    {
-        if (batch.Length == 0) return;
+        async Task FlushAsync()
+        {
+            if (!await _WriteBatchAsync(batch).ConfigureAwait(false))
+            {
+                if (importantCount > 0) _WriteEmergency(important, importantCount);
+                Interlocked.Add(ref _droppedCount, lineCount - importantCount);
+            }
 
-        if (!await _WriteBatchAsync(batch).ConfigureAwait(false))
-            _WriteErrorLog(
-                $"LogCycle: {batch.Length} chars discarded while the log file is unavailable.");
-
-        batch.Clear();
-        if (batch.Capacity > MaxBatchCapacity) batch.Capacity = BatchInitialCapacity;
+            batch.Clear();
+            important.Clear();
+            if (batch.Capacity > MaxBatchCapacity) batch.Capacity = BatchInitialCapacity;
+            if (important.Capacity > MaxBatchCapacity) important.Capacity = BatchInitialCapacity;
+            lineCount = importantCount = 0;
+        }
     }
 
     /// <summary>
     ///     Attempts the batch at most twice. A failed stream cannot be retried in place because its
     ///     internal
     ///     state is already broken, so the first failure disposes and reopens it. Two consecutive failures
-    ///     start a one second cooldown during which batches are discarded without touching the disk.
+    ///     start a one-second cooldown during which important entries go straight to the emergency file.
     /// </summary>
     private async Task<bool> _WriteBatchAsync(StringBuilder batch)
     {
-        if (Stopwatch.GetTimestamp() < Volatile.Read(ref _writeBlockedUntilTicks)) return false;
+        if (_writeCancellation.IsCancellationRequested
+            || Stopwatch.GetTimestamp() < Volatile.Read(ref _writeBlockedUntilTicks)) return false;
 
         for (var attempt = 0; attempt < 2; attempt++)
             try
@@ -556,6 +578,7 @@ public sealed class Logger : IAsyncDisposable
             }
             catch (Exception e)
             {
+                if (_writeCancellation.IsCancellationRequested) return false;
                 _WriteErrorLog($"LogCycle Error (attempt {attempt + 1}): {e}");
                 if (attempt == 0) _ResetStream();
             }
@@ -580,8 +603,8 @@ public sealed class Logger : IAsyncDisposable
             stream = _currentStream ?? throw new IOException("Log stream is not available.");
         }
 
-        await stream.WriteAsync(batch, CancellationToken.None).ConfigureAwait(false);
-        await stream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+        await stream.WriteAsync(batch, _writeCancellation.Token).ConfigureAwait(false);
+        await stream.FlushAsync(_writeCancellation.Token).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -629,6 +652,46 @@ public sealed class Logger : IAsyncDisposable
         {
             _WriteErrorLog($"Failed to reopen the log file: {e}");
         }
+    }
+
+    private void _WriteEmergency(StringBuilder content, int count)
+    {
+        var changedFiles = false;
+        try
+        {
+            lock (_emergencyWriteLock)
+            {
+                var folder = Path.GetDirectoryName(_emergencyPath)!;
+                Directory.CreateDirectory(folder);
+                var file = new FileInfo(_emergencyPath);
+                changedFiles = !file.Exists;
+                if (file.Exists && file.Length >= Configuration.MaxFileSize)
+                {
+                    var archive = Path.Combine(folder, $"Emergency-{DateTime.UtcNow:HHmmssfff}-{Guid.NewGuid():N}.log");
+                    File.Move(_emergencyPath, archive);
+                    lock (_stateLock)
+                    {
+                        _files.Remove(_emergencyPath);
+                        _files.Add(archive);
+                    }
+                    changedFiles = true;
+                }
+
+                File.AppendAllText(_emergencyPath, content.ToString(), new UTF8Encoding(false));
+                lock (_stateLock)
+                {
+                    if (!_files.Contains(_emergencyPath)) _files.Add(_emergencyPath);
+                }
+                Interlocked.Add(ref _emergencyCount, count);
+            }
+        }
+        catch (Exception ex)
+        {
+            Interlocked.Add(ref _droppedCount, count);
+            _WriteErrorLog($"Emergency log write failed: {ex}");
+        }
+
+        if (changedFiles) _RunRetention();
     }
 
     /// <summary>

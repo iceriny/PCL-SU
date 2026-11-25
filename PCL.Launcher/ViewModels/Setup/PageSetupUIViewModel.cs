@@ -157,10 +157,8 @@ public partial class PageSetupUIViewModel : ViewModelBase
 
             LogoText = Config.Preference.WindowTitleCustomText;
             CustomNetText = Config.Preference.Homepage.CustomUrl;
-            CustomPresetSelectedIndex = Math.Clamp(
-                Config.Preference.Homepage.SelectedPreset,
-                0,
-                15);
+            var preset = Config.Preference.Homepage.SelectedPreset;
+            CustomPresetSelectedIndex = preset == 14 ? 0 : Math.Clamp(preset, 0, 15);
 
             MusicVolume = Config.Preference.Music.Volume;
         }

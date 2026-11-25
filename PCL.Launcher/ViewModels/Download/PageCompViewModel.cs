@@ -431,7 +431,7 @@ public partial class PageCompViewModel : ViewModelBase
     {
         var request = new Comp.CompProjectRequest(PageIds, _storage, (_page + 1) * PageSize)
         {
-            searchText = NormalizeSearchText(SearchText),
+            searchText = SearchText,
             gameVersion = GetGameVersionFilter(),
             sort = (Comp.CompSortType)Math.Clamp(SearchSortIndex + 1, 1, 6),
             source = GetSelectedSource()
@@ -505,23 +505,6 @@ public partial class PageCompViewModel : ViewModelBase
             if (ModLoaderTypes[i] == modLoader)
                 return i;
         return 0;
-    }
-
-    private static string NormalizeSearchText(string text)
-    {
-        var trimmed = text.Trim();
-        var pipe = trimmed.IndexOf('|');
-        if (pipe < 0) return trimmed;
-        var before = trimmed[..pipe];
-        var after = trimmed[(pipe + 1)..];
-        if (ContainsChinese(after)) return before.Trim();
-        if (ContainsChinese(before)) return after.Trim();
-        return trimmed;
-    }
-
-    private static bool ContainsChinese(string text)
-    {
-        return text.Any(c => c is >= '\u4e00' and <= '\u9fff');
     }
 }
 

@@ -56,7 +56,7 @@ public static partial class GameLaunch
                 return;
             }
 
-            LauncherCommon.Log(ex, "直接调整显卡设置失败，将以管理员权限重启 PCL CE 再次尝试");
+            LauncherCommon.Log(ex, "直接调整显卡设置失败，将以管理员权限重启 PCL SU 再次尝试");
             try
             {
                 using var process = elevation.StartElevated(
@@ -71,7 +71,7 @@ public static partial class GameLaunch
                 }
 
                 if (process.ExitCode == (int)LauncherCommon.ProcessReturnValues.TaskDone)
-                    McLaunchLog("以管理员权限重启 PCL CE 并调整显卡设置成功");
+                    McLaunchLog("以管理员权限重启 PCL SU 并调整显卡设置成功");
                 else
                     throw new Exception($"提权调整显卡设置失败（退出码 {process.ExitCode}）");
             }
@@ -206,13 +206,15 @@ public static partial class GameLaunch
             currentLang,
             "none",
             StringComparison.OrdinalIgnoreCase);
+        var instance = InstanceList.McMcInstanceSelected!;
         var hasExistingSaves = Directory.Exists(
-            Path.Combine(InstanceList.McMcInstanceSelected!.PathIndie, "saves"));
+            Path.Combine(instance.PathIndie, "saves"));
         var shouldUseDefault = isLanguageUnconfigured || !hasExistingSaves;
-        var requiredLang = _ResolveMinecraftLanguage(
+        var requiredLang = ResolveMinecraftLanguage(
             currentLang,
             shouldUseDefault,
-            InstanceList.McMcInstanceSelected.releaseTime);
+            instance.releaseTime,
+            instance.Info.VanillaName);
 
         if (currentLang == requiredLang)
         {
@@ -241,17 +243,18 @@ public static partial class GameLaunch
             Ini.Write(setupFileAddress, "fullscreen", fullscreen);
     }
 
-    private static string _ResolveMinecraftLanguage(
+    internal static string ResolveMinecraftLanguage(
         string? currentLanguage,
         bool shouldUseLauncherLanguage,
-        DateTime? mcReleaseTime)
+        DateTime? mcReleaseTime,
+        string? vanillaName)
     {
         if (_IsMinecraftVersionUnder1Dot1(mcReleaseTime))
             return "none";
 
         // 13w16a ~ 13w23b 只有 en_US.lang，其它语言 NPE 会崩溃
-        var vanillaName = InstanceList.McMcInstanceSelected!.Info.VanillaName ?? string.Empty;
-        if (McVersionComparer.CompareVersionGe(vanillaName, "13w16a")
+        if (vanillaName is { Length: 6 } && vanillaName.StartsWith("13w", StringComparison.OrdinalIgnoreCase)
+            && McVersionComparer.CompareVersionGe(vanillaName, "13w16a")
             && McVersionComparer.CompareVersionGe("13w23b", vanillaName))
             return "en_US";
 
@@ -579,7 +582,7 @@ public static partial class GameLaunch
         var instance = InstanceList.McMcInstanceSelected!;
         McLaunchLog("");
         McLaunchLog("~ 基础参数 ~");
-        McLaunchLog($"PCL CE 版本：{LauncherCommon.VersionBaseName} ({LauncherCommon.VersionCode})");
+        McLaunchLog($"PCL SU 版本：{LauncherCommon.VersionBaseName} ({LauncherCommon.VersionCode})");
         McLaunchLog(
             $"游戏版本：{instance.Info.VanillaName}（{instance.Info.vanilla}，"
             + $"Drop {instance.Info.Drop}{(instance.Info.Reliable ? "" : "，无法完全确定")}）");

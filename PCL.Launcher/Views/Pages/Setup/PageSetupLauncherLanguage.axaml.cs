@@ -22,9 +22,9 @@ public partial class PageSetupLauncherLanguage : MyPageRight, ISetupResetPage
 
         ViewModel.ReloadRequested += OnReloadRequested;
         BtnTranslateWebsite.Click += (_, _) =>
-            Basics.OpenPath("https://translate.pclc.cc/projects/pcl-ce/");
+            Basics.OpenPath("https://github.com/iceriny/PCL-SU/tree/dev/PCL.Localization/Languages");
         BtnSubmitPullRequest.Click += (_, _) =>
-            Basics.OpenPath("https://github.com/PCL-Community/PCL-CE/pulls");
+            Basics.OpenPath("https://github.com/iceriny/PCL-SU/pulls");
 
         Loaded += (_, _) =>
         {

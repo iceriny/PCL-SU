@@ -18,6 +18,7 @@ using PCL.Navigation;
 using PCL.Network;
 using PCL.Network.Loaders;
 using PCL.UI.Controls;
+using PCL.UI.Dialogs;
 
 namespace PCL.Views.Pages.Download;
 
@@ -965,11 +966,17 @@ public partial class PageDownloadCompDetail : MyPageRight
 
         using var checkingCancellation = new CancellationTokenSource();
         using var resolutionCancellation = new CancellationTokenSource();
+        var checkProgress = new ModDependencyCheckProgress(targetDir);
+        var progress = new Progress<ModDependencyProgress>(update =>
+        {
+            if (!checkingCancellation.IsCancellationRequested && !resolutionCancellation.IsCancellationRequested)
+                checkProgress.Report(update);
+        });
         var checking = DialogService.Instance.ShowAsync(
-            new TextDialogRequest
+            new ModDependencyCheckDialogRequest
             {
                 Title = Lang.Text("Download.Comp.Dependency.Install.Title"),
-                Content = Lang.Text("Download.Comp.Dependency.Check.Preparing", targetDir),
+                Progress = checkProgress,
                 Buttons = DialogButtons.Create("Common.Action.Cancel"),
                 HighLight = false
             },
@@ -978,28 +985,22 @@ public partial class PageDownloadCompDetail : MyPageRight
         var token = resolutionCancellation.Token;
         var resolution = Task.Run(async () =>
         {
-            var request = CompDependency.BuildRequest(file, project, mcVersion, loaders, targetDir, token);
-            var result = await new ModDependencyResolver().ResolveAsync(request, token).ConfigureAwait(false);
+            var request = CompDependency.BuildRequest(file, project, mcVersion, loaders, targetDir, token, progress);
+            var result = await new ModDependencyResolver().ResolveAsync(request, token, progress).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
             var downloads = CompDependency.BuildDependencyDownloads(result, targetPath);
             return (Result: result, Downloads: downloads);
         }, token);
 
         try
         {
-            if (await Task.WhenAny(checking, resolution) == checking || checking.IsCompleted)
-            {
-                resolutionCancellation.Cancel();
-                try { await resolution; }
-                catch (Exception) when (token.IsCancellationRequested) { }
+            if (await Task.WhenAny(checking, resolution) == resolution && !checking.IsCompleted)
+                checkingCancellation.Cancel();
+            var checkResult = await checking;
+            if (!checkingCancellation.IsCancellationRequested || checkResult != DialogResult.Cancel)
                 return null;
-            }
 
-            checkingCancellation.Cancel();
-            await checking;
             var (result, downloads) = await resolution;
-            if (result.Unresolved.Count == 0 && downloads.Count == 0)
-                return [];
-
             var choice = await CompDependency.ConfirmDependencyInstallAsync(result, targetDir);
             return choice switch
             {
@@ -1023,6 +1024,15 @@ public partial class PageDownloadCompDetail : MyPageRight
                     IsWarn = true
                 });
             return choice.IsConfirmed ? [] : null;
+        }
+        finally
+        {
+            if (!resolution.IsCompletedSuccessfully)
+            {
+                await resolutionCancellation.CancelAsync();
+                try { await resolution; }
+                catch (Exception) when (token.IsCancellationRequested) { }
+            }
         }
     }
 

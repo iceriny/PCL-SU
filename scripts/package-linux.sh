@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 生成 Linux 发行包：AppImage、deb、rpm。
+# 生成 PCL SU 的 Linux AppImage、deb 和 rpm。
 # 用法：scripts/package-linux.sh <linux-x64|linux-arm64> [configuration] [version] [output-dir]
 set -euo pipefail
 
@@ -35,7 +35,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DOTNET="${DOTNET:-dotnet}"
 OUT="$(mkdir -p "$OUT" && cd "$OUT" && pwd)"
 PUBLISH="$OUT/$RID"
-ASSET_PREFIX="PCL2_CE_${CONFIG}_linux_${ASSET_ARCH}"
+ASSET_PREFIX="PCL_SU_${CONFIG}_linux_${ASSET_ARCH}"
 NFPM="${NFPM:-nfpm}"
 APPIMAGETOOL="${APPIMAGETOOL:-}"
 APPIMAGE_RUNTIME="${APPIMAGE_RUNTIME:-}"
@@ -134,6 +134,7 @@ make_nfpm_config() {
   - pulseaudio-libs'
   fi
 
+  # 沿用软件包名和安装入口，使系统包管理器和已有桌面快捷方式可继续识别。
   cat > "$config" <<EOF
 name: pcl-ce
 arch: $PKG_ARCH
@@ -143,15 +144,15 @@ version_schema: semver
 release: 1
 section: games
 priority: optional
-maintainer: PCL Community <pcl-community@users.noreply.github.com>
-description: PCL Community Edition Minecraft launcher
-vendor: PCL Community
-homepage: https://github.com/PCL-Community/PCL-CE
-license: MIT
+maintainer: PCL SU <54878570+iceriny@users.noreply.github.com>
+description: PCL SU launcher for Minecraft Java Edition
+vendor: PCL SU
+homepage: https://github.com/iceriny/PCL-SU
+license: Apache-2.0 AND LicenseRef-PCL-Limited-Distribution
 depends:
 $depends
 recommends:
-  - dotnet-runtime-10.0
+  - dotnet-runtime-11.0
 contents:
   - src: "$stage/"
     dst: /opt/pcl-ce

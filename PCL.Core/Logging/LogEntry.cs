@@ -97,8 +97,16 @@ internal static class LogEntryFormatter
 
         builder.Append(' ').Append(entry.Message);
 
-        if (entry.Exception is not null)
-            builder.Append('\n').Append(entry.Exception);
+        if (entry.Exception is { } exception)
+        {
+            builder.Append('\n');
+            try { builder.Append(exception.ToString()); }
+            catch (Exception)
+            {
+                builder.Append("[Exception formatting failed: ")
+                    .Append(exception.GetType().FullName).Append(']');
+            }
+        }
     }
 
     /// <summary>

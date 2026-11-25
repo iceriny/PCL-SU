@@ -13,8 +13,7 @@ namespace PCL.Core.Link.Scaffolding;
 
 public static class ScaffoldingFactory
 {
-    // Please update ScaffoldingServerContext.cs at the same time.
-    private static readonly string _LobbyVendor = $"PCL CE {Basics.VersionName}, EasyTier {EasyTierMetadata.CurrentEasyTierVer}";
+    internal static readonly string LobbyVendor = $"PCL SU {Basics.VersionName}, EasyTier {EasyTierMetadata.CurrentEasyTierVer}";
     private const string HostIp = "10.114.51.41";
 
     /// <exception cref="ArgumentException">Invalid lobby code.</exception>
@@ -61,7 +60,7 @@ public static class ScaffoldingFactory
 
             var localPort = await etEntity.AddPortForwardAsync(hostInfo.Ip, scfPort).ConfigureAwait(false);
 
-            var client = new ScaffoldingClient("127.0.0.1", localPort, playerName, machineId, _LobbyVendor);
+            var client = new ScaffoldingClient("127.0.0.1", localPort, playerName, machineId, LobbyVendor);
 
             return new ScaffoldingClientEntity(client, etEntity, hostInfo);
         }

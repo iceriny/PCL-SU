@@ -922,7 +922,9 @@ public partial class PageInstanceCompResourceViewModel : ViewModelBase
             .ToList();
         foreach (var folder in registeredFolders)
             CompLocalUpdateRegistry.Begin(folder);
-        var released = false;
+        var released = 0;
+        string? stagingFolder = null;
+        LoaderDownload? downloadLoader = null;
 
         try
         {
@@ -941,13 +943,14 @@ public partial class PageInstanceCompResourceViewModel : ViewModelBase
                     });
                 if (!warn.IsConfirmed)
                 {
-                    Release();
+                    await ReleaseAsync();
                     return;
                 }
 
                 States.Hint.UpdateMod = true;
             }
 
+            stagingFolder = LauncherCommon.GetTempFolder("DownloadedComp");
             var downloads = new List<DownloadFile>();
             var replacements =
                 new List<(LocalComp.LocalCompFile Entry, string DownloadPath, string TargetPath)>();
@@ -975,13 +978,10 @@ public partial class PageInstanceCompResourceViewModel : ViewModelBase
                     continue;
 
                 var downloadPath = Path.Combine(
-                    LauncherPaths.Temp,
-                    "DownloadedComp",
+                    stagingFolder,
+                    downloads.Count.ToString(),
                     fileName + suffix);
-                var checker = string.IsNullOrEmpty(updateFile.Hash)
-                    ? new FileChecker(1024L)
-                    : new FileChecker(hash: updateFile.Hash);
-                downloads.Add(new DownloadFile(updateFile.DownloadUrls, downloadPath, checker));
+                downloads.Add(updateFile.ToNetFile(downloadPath, Comp.DownloadReason.Update));
                 replacements.Add((entry, downloadPath, targetPath));
             }
 
@@ -989,25 +989,25 @@ public partial class PageInstanceCompResourceViewModel : ViewModelBase
             {
                 HintService.Show(
                     Hints.Error(Lang.Text("Instance.Resource.Update.Failed", string.Empty)));
-                Release();
+                await ReleaseAsync();
                 return;
             }
 
             var instanceName = PageInstanceLeft.ResolveInstance()?.Name ?? string.Empty;
+            downloadLoader = new LoaderDownload(Lang.Text("Instance.Resource.Update.Task.DownloadFiles"), downloads)
+            {
+                AllowRestart = false
+            };
             var loader = new Loading.LoaderCombo<string>(
                 Lang.Text("Instance.Resource.Update.Task.Title", instanceName),
-                [
-                    new LoaderDownload(
-                        Lang.Text("Instance.Resource.Update.Task.DownloadFiles"),
-                        downloads)
-                    {
-                        ProgressWeight = 1d
-                    }
-                ])
+                [downloadLoader]);
+            loader.OnStateChangedUi += async (changed, state, _) =>
             {
-                OnStateChanged = changed =>
+                if (state is LoadState.Waiting or LoadState.Loading)
+                    return;
+                try
                 {
-                    switch (changed.State)
+                    switch (state)
                     {
                         case LoadState.Finished:
                             try
@@ -1016,7 +1016,7 @@ public partial class PageInstanceCompResourceViewModel : ViewModelBase
                                 foreach (var (entry, downloadPath, newPath) in replacements)
                                 {
                                     if (!File.Exists(downloadPath))
-                                        continue;
+                                        throw new FileNotFoundException("找不到已下载的资源文件。", downloadPath);
 
                                     if (File.Exists(newPath))
                                         LocalCompFileOperations.DeleteFileToRecycleBin(newPath);
@@ -1045,6 +1045,7 @@ public partial class PageInstanceCompResourceViewModel : ViewModelBase
                                         Lang.Text(
                                             "Instance.Resource.Update.SuccessMultiple",
                                             replaced)));
+                                _selection.Clear();
                             }
                             catch (Exception ex)
                             {
@@ -1054,9 +1055,6 @@ public partial class PageInstanceCompResourceViewModel : ViewModelBase
                                         Lang.Text("Instance.Resource.Update.Failed", ex.Message)));
                             }
 
-                            _selection.Clear();
-                            LauncherCommon.RunInUi(() => ReloadRequested?.Invoke());
-                            Release();
                             break;
 
                         case LoadState.Failed:
@@ -1065,22 +1063,22 @@ public partial class PageInstanceCompResourceViewModel : ViewModelBase
                                     Lang.Text(
                                         "Instance.Resource.Update.Failed",
                                         changed.Error?.Message ?? string.Empty)));
-                            Release();
                             break;
 
                         case LoadState.Aborted:
                             HintService.Show(
                                 Hints.Info(Lang.Text("Instance.Resource.Update.Aborted")));
-                            Release();
-                            break;
-
-                        case LoadState.Waiting:
-                        case LoadState.Loading:
                             break;
 
                         default:
                             throw new ArgumentOutOfRangeException();
                     }
+                }
+                finally
+                {
+                    await ReleaseAsync();
+                    if (state == LoadState.Finished)
+                        LauncherCommon.RunInUi(() => ReloadRequested?.Invoke());
                 }
             };
             loader.Start();
@@ -1089,7 +1087,8 @@ public partial class PageInstanceCompResourceViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Release();
+            downloadLoader?.Abort();
+            await ReleaseAsync();
             LauncherCommon.Log(
                 ex,
                 Lang.Text("Instance.Resource.Error.OperationFailed"),
@@ -1099,13 +1098,27 @@ public partial class PageInstanceCompResourceViewModel : ViewModelBase
 
         return;
 
-        void Release()
+        async Task ReleaseAsync()
         {
-            if (released)
+            if (Interlocked.Exchange(ref released, 1) != 0)
                 return;
-            released = true;
-            foreach (var folder in registeredFolders)
-                CompLocalUpdateRegistry.End(folder);
+
+            try
+            {
+                if (downloadLoader is not null)
+                    await downloadLoader.WhenDrained.ConfigureAwait(false);
+                if (stagingFolder is not null)
+                    Directories.DeleteDirectory(stagingFolder);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                LauncherCommon.Log(ex, $"无法清理资源更新临时目录：{stagingFolder}");
+            }
+            finally
+            {
+                foreach (var folder in registeredFolders)
+                    CompLocalUpdateRegistry.End(folder);
+            }
         }
     }
 
@@ -1258,13 +1271,11 @@ public partial class PageInstanceCompResourceViewModel : ViewModelBase
             }
         }
 
+        var targetFolder = string.IsNullOrEmpty(CurrentFolderPath) ? RootFolderPath : CurrentFolderPath;
+        CompLocalUpdateRegistry.Begin(targetFolder);
         try
         {
-            var targetFolder = string.IsNullOrEmpty(CurrentFolderPath)
-                ? RootFolderPath
-                : CurrentFolderPath;
             Directory.CreateDirectory(targetFolder);
-            CompLocalUpdateRegistry.Begin(targetFolder);
             var installed = 0;
             foreach (var file in files)
             {
@@ -1327,8 +1338,7 @@ public partial class PageInstanceCompResourceViewModel : ViewModelBase
         }
         finally
         {
-            CompLocalUpdateRegistry.End(
-                string.IsNullOrEmpty(CurrentFolderPath) ? RootFolderPath : CurrentFolderPath);
+            CompLocalUpdateRegistry.End(targetFolder);
         }
     }
 

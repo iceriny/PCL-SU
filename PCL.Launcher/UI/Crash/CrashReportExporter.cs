@@ -15,7 +15,7 @@ internal sealed class CrashReportExporter
     private const string ReportFolderName = "Report";
     private const string LaunchScriptFileName = "启动脚本.bat";
     private const string RawOutputFileName = "游戏崩溃前的输出.log";
-    private const string LauncherLogFileName = "PCL CE 启动器日志.log";
+    private const string LauncherLogFileName = "PCL SU 启动器日志.log";
     private const string EnvironmentFileName = "环境与启动信息.txt";
     private const string ModInfoFileName = "模组列表.txt";
 
@@ -121,6 +121,12 @@ internal sealed class CrashReportExporter
                 return RawOutputFileName;
         }
 
+        if (_IsEmergencyLog(fileName))
+        {
+            fileEncoding = Encoding.UTF8;
+            return fileName;
+        }
+
         var currentLogFile = LogWrapper.CurrentLogger.CurrentLogFiles.LastOrDefault();
         var currentLogFileName = currentLogFile is null ? null : Path.GetFileName(currentLogFile);
 
@@ -134,10 +140,17 @@ internal sealed class CrashReportExporter
         CrashAnalysisContext context,
         IEnumerable<string>? extraFiles)
     {
-        if (extraFiles is not null)
-            context.OutputFiles.AddRange(extraFiles);
+        var emergencyLogs = LogWrapper.CurrentLogger.CurrentLogFiles
+            .Where(path => _IsEmergencyLog(Path.GetFileName(path)));
+        var comparison = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        return context.OutputFiles.Concat(extraFiles ?? []).Concat(emergencyLogs).Distinct(comparison).ToArray();
+    }
 
-        return context.OutputFiles;
+    private static bool _IsEmergencyLog(string fileName)
+    {
+        return fileName.Equals("Emergency.log", StringComparison.OrdinalIgnoreCase)
+            || (fileName.StartsWith("Emergency-", StringComparison.OrdinalIgnoreCase)
+                && fileName.EndsWith(".log", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string _SanitizeFileContent(

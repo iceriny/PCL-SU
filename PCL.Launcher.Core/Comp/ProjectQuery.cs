@@ -167,6 +167,22 @@ public static partial class Comp
         return found;
     }
 
+    internal static string NormalizeSearchText(string? text)
+    {
+        var query = (text ?? string.Empty).Trim();
+        var parts = query.Split('|', '｜');
+        if (parts.Length != 2 || parts.Any(string.IsNullOrWhiteSpace))
+            return query;
+
+        var leftHasChinese = RegexPatterns.HasChineseChar.IsMatch(parts[0]);
+        var rightHasChinese = RegexPatterns.HasChineseChar.IsMatch(parts[1]);
+        if (leftHasChinese == rightHasChinese)
+            return query;
+
+        var name = (leftHasChinese ? parts[1] : parts[0]).Trim();
+        return name.Any(char.IsAsciiLetter) ? name : query;
+    }
+
     /// <summary>
     ///     根据搜索请求获取一系列的工程列表。需要基于加载器运行。
     /// </summary>
@@ -174,6 +190,7 @@ public static partial class Comp
     {
         var request = task.input;
         if (request is null) return;
+        request.searchText = NormalizeSearchText(request.searchText);
         var storage = request.storage;
 
         var singleLink = TryExtractSingleResourceLink(request.searchText);

@@ -78,7 +78,10 @@ public static class UpdateInstaller
 
         var pipeName = Environment.GetEnvironmentVariable(PipeVariable);
         Environment.SetEnvironmentVariable(PipeVariable, null);
-        var logPath = Path.Combine(Path.GetDirectoryName(source)!, "Log", "LastPending_Update.log");
+        var legacyPath = UpdateHelper.GetStagedPath(Path.GetFullPath(target));
+        var stagedHash = Path.GetFullPath(source).Equals(legacyPath, StringComparison.OrdinalIgnoreCase)
+            ? null : Path.GetFileNameWithoutExtension(source);
+        var logPath = Path.Combine(Path.GetDirectoryName(legacyPath)!, "Log", "LastPending_Update.log");
         Exception? error;
         var previousExited = false;
         try
@@ -133,7 +136,7 @@ public static class UpdateInstaller
         void Record(Exception? failure)
         {
             Log(failure?.ToString() ?? "替换完成。");
-            try { UpdateHelper.SaveResult(target, new(Environment.ProcessId, failure?.Message)); }
+            try { UpdateHelper.SaveResult(target, new(Environment.ProcessId, failure?.Message, stagedHash)); }
             catch (Exception ex) { Log($"保存更新结果失败：{ex}"); }
         }
 

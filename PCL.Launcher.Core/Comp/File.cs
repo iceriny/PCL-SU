@@ -48,6 +48,9 @@ public static partial class Comp
         /// </summary>
         public readonly string FileName;
 
+        /// <summary>文件的准确大小（字节），未知时为 -1。</summary>
+        public long FileSize { get; private set; }
+
         /// <summary>
         ///     该文件来自 CurseForge 还是 Modrinth。
         /// </summary>
@@ -159,6 +162,7 @@ public static partial class Comp
             Status = result.Status;
             DownloadCount = result.DownloadCount;
             FileName = result.FileName ?? "";
+            FileSize = result.FileSize;
             Hash = result.Hash ?? "";
             DownloadUrls = result.DownloadUrls ?? [];
             ModLoaders = result.ModLoaders;
@@ -200,7 +204,8 @@ public static partial class Comp
                 DisplayName = data["DisplayName"]?.ToString() ?? "",
                 ReleaseDate = data["ReleaseDate"]?.ToObject<DateTime>() ?? default,
                 DownloadCount = data["DownloadCount"]?.ToObject<int>() ?? 0,
-                Status = (CompFileStatus)(data["Status"]?.ToObject<int>() ?? 0)
+                Status = (CompFileStatus)(data["Status"]?.ToObject<int>() ?? 0),
+                FileSize = ReadFileSize(data["FileSize"])
             };
 
             if (data.ContainsKey("Version"))
@@ -247,6 +252,7 @@ public static partial class Comp
                 Status = (CompFileStatus)(data["releaseType"]?.ToObject<int>() ?? 0),
                 DownloadCount = data["downloadCount"]?.ToObject<int>() ?? 0,
                 FileName = (string?)data["fileName"],
+                FileSize = ReadFileSize(data["fileLength"]),
                 Hash = GetCurseForgeHash(hashes, 1) ?? GetCurseForgeHash(hashes, 2)
             };
 
@@ -396,6 +402,7 @@ public static partial class Comp
                 if (file is not null)
                 {
                     result.FileName = (string?)file["filename"];
+                    result.FileSize = ReadFileSize(file["size"]);
                     result.DownloadUrls =
                         GameDownload.DlSourceModDownloadGet(file["url"]?.ToString() ?? "");
                     result.Hash = (string?)file["hashes"]?["sha1"];
@@ -565,14 +572,29 @@ public static partial class Comp
         {
             if (DownloadUrls is null) throw new InvalidCastException("DownloadUrls 为空");
 
+            var minSize = reason == DownloadReason.Update && FileSize < 0 && string.IsNullOrEmpty(Hash)
+                ? 1024L
+                : -1L;
             return new DownloadFile(
                 HandleModrinthDownloadUrls(DownloadUrls, reason, version, modLoader),
                 localAddress
                 + (localAddress.EndsWithF(Path.DirectorySeparatorChar.ToString())
                     ? CompFileNameSanitize(FileName)
                     : ""),
-                new FileChecker(hash: Hash),
+                new FileChecker(minSize: minSize, actualSize: FileSize, hash: Hash),
                 true);
+        }
+
+        private static long ReadFileSize(JsonNode? value) =>
+            long.TryParse(value?.ToString(), out var size) && size >= 0 ? size : -1;
+
+        internal CompFile WithAdditionalDownloadSources(CompFile? additionalFile = null)
+        {
+            var file = (CompFile)MemberwiseClone();
+            file.DownloadUrls = [.. DownloadUrls.Concat(additionalFile?.DownloadUrls ?? []).Distinct(StringComparer.Ordinal)];
+            if (file.FileSize < 0 && additionalFile is { FileSize: >= 0 })
+                file.FileSize = additionalFile.FileSize;
+            return file;
         }
 
         /// <summary>
@@ -662,6 +684,7 @@ public static partial class Comp
 
             if (FileName is not null)
                 json.Add("FileName", FileName);
+            json.Add("FileSize", FileSize);
 
             if (DownloadUrls is not null)
                 json.Add(
@@ -699,6 +722,7 @@ public static partial class Comp
             public int DownloadCount;
             public List<string>? DownloadUrls;
             public string? FileName;
+            public long FileSize = -1;
             public bool FromCurseForge;
             public List<string> GameVersions = [];
             public string? Hash;

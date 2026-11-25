@@ -1,8 +1,10 @@
+using System.Runtime.ExceptionServices;
 using System.Security.Authentication;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PCL.Core.App.Localization;
 using PCL.Core.Minecraft.Profile;
+using PCL.Core.Minecraft.Profile.Authentication;
 using PCL.Core.UI.Hints;
 using PCL.Core.ViewModel;
 using PCL.Views.Pages.Launch;
@@ -103,7 +105,7 @@ public partial class PageLoginMsViewModel : ViewModelBase
                     if (GameLaunch.mcLoginMsLoader.Error is null)
                         throw new InvalidOperationException(
                             Lang.Text("Launch.Account.Microsoft.Error.Unknown"));
-                    throw GameLaunch.mcLoginMsLoader.Error;
+                    ExceptionDispatchInfo.Capture(GameLaunch.mcLoginMsLoader.Error).Throw();
                 }
                 finally
                 {
@@ -131,6 +133,11 @@ public partial class PageLoginMsViewModel : ViewModelBase
                         Lang.Text(
                             "Launch.Account.Microsoft.LoginFailed.WithDetail",
                             ex.Message.TrimStart('$'))));
+            }
+            else if (ex is MinecraftServiceException { IsAppRegistrationRejected: true })
+            {
+                var message = Lang.Text("Launch.Account.Microsoft.Error.AppRegistrationRejected");
+                LauncherCommon.Log(ex, message, LauncherLogLevel.Msgbox, userSummary: message);
             }
             else if (ex is AuthenticationException && ex.Message.Contains("SSL/TLS"))
             {

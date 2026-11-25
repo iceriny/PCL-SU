@@ -35,6 +35,27 @@ public sealed class UpdateInstallTest
     }
 
     [TestMethod]
+    public void VersionedPackageInstallsAndCleansUpWhileLegacyCacheIsInUse()
+    {
+        var hash = new string('a', 64);
+        var staged = UpdateHelper.GetStagedPath(Target, hash);
+        using var legacyLock = File.OpenRead(Source);
+        Directory.CreateDirectory(Path.GetDirectoryName(staged)!);
+        File.WriteAllText(staged, "next version");
+
+        Assert.IsTrue(UpdateHelper.IsExpectedHandoff(staged, staged, Target));
+        var unrelated = Path.Combine(_directory, Path.GetFileName(staged));
+        Assert.IsFalse(UpdateHelper.IsExpectedHandoff(unrelated, unrelated, Target));
+        Assert.ThrowsExactly<ArgumentException>(() => UpdateHelper.GetStagedPath(Target, "../other.exe"));
+        Assert.IsNull(UpdateHelper.Replace(staged, Target));
+        Assert.AreEqual("next version", File.ReadAllText(Target));
+        UpdateHelper.SaveResult(Target, new(0, null, hash));
+        Assert.AreEqual(hash, UpdateHelper.ConsumeResult(Target)?.PayloadSha256);
+        Assert.IsFalse(File.Exists(staged));
+        Assert.IsTrue(File.Exists(Source));
+    }
+
+    [TestMethod]
     public void ReplaceKeepsRunningSourceAndCleansAfterSuccess()
     {
         using (var runningSource = new FileStream(Source, FileMode.Open, FileAccess.Read, FileShare.Read))

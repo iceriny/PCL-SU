@@ -13,7 +13,7 @@ public static class RequestSigning
     }
 
     /// <summary>
-    ///     设置 Headers 的 UA、Referer。
+    ///     设置下载请求的 User-Agent 和适用的 API 密钥。
     /// </summary>
     internal static void SecretHeadersSign(
         string url,
@@ -31,8 +31,8 @@ public static class RequestSigning
         var userAgent = !string.IsNullOrEmpty(customUserAgent)
             ? customUserAgent
             : useBrowserUserAgent
-                ? $"PCL2/{LauncherCommon.UpstreamVersion}.{LauncherCommon.VersionBranchCode} PCLCE/{LauncherCommon.VersionStandardCode} Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0"
-                : $"PCL2/{LauncherCommon.UpstreamVersion}.{LauncherCommon.VersionBranchCode} PCLCE/{LauncherCommon.VersionStandardCode}";
+                ? $"PCL2/{LauncherCommon.UpstreamVersion}.{LauncherCommon.VersionBranchCode} PCLSU/{LauncherCommon.VersionStandardCode} Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0"
+                : $"PCL2/{LauncherCommon.UpstreamVersion}.{LauncherCommon.VersionBranchCode} PCLSU/{LauncherCommon.VersionStandardCode}";
         client.Headers.Add("User-Agent", userAgent);
     }
 }

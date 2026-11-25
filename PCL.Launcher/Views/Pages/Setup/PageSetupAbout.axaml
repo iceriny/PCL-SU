@@ -39,7 +39,7 @@
                                 CornerRadius="17"
                                 VerticalAlignment="Center"
                                 IsHitTestVisible="{Binding IsLogoClickEnabled}"
-                                Source="avares://PCL.Launcher/Assets/Images/Heads/Logo-CE.png"
+                                Source="avares://PCL.Launcher/Assets/Images/icon.png"
                                 PointerPressed="ImgPCLLogo_PointerPressed" />
 
                     <ui:MyListItem Grid.Row="0"
@@ -262,10 +262,6 @@
                                          Classes="link"
                                          Margin="0,0,20,0"
                                          Text="{loc:Loc Setup.About.Legal.CommunitySource}" />
-                        <ui:MyTextButton x:Name="BtnCommunityLobbyPrivacy"
-                                         Classes="link"
-                                         Margin="0,0,20,0"
-                                         Text="{loc:Loc Setup.About.Legal.CommunityLobbyPrivacy}" />
                         <ui:MyTextButton x:Name="BtnNatayarkTerms"
                                          Classes="link"
                                          Margin="0,0,20,0"

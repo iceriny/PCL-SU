@@ -525,7 +525,7 @@
                             <ui:MyComboBoxItem Content="{loc:Loc Setup.Ui.Homepage.Preset.MinecraftKnowledge}" />
                             <ui:MyComboBoxItem Content="{loc:Loc Setup.Ui.Homepage.Preset.ModpackRecommendation}" />
                             <ui:MyComboBoxItem Content="{loc:Loc Setup.Ui.Homepage.Preset.Bangumi}" />
-                            <ui:MyComboBoxItem Content="{loc:Loc Setup.Ui.Homepage.Preset.PclAnnouncement}" />
+                            <ui:MyComboBoxItem IsVisible="False" IsEnabled="False" />
                             <ui:MyComboBoxItem Content="{loc:Loc Setup.Ui.Homepage.Preset.McOfficialFeed}" />
                         </ui:MyComboBox>
                     </Grid>

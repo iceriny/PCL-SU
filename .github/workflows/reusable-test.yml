@@ -60,6 +60,24 @@ jobs:
           dotnet @testArguments
           if ($LASTEXITCODE -ne 0) { throw 'Regression tests failed.' }
 
+          [xml]$report = Get-Content -Raw -LiteralPath (Join-Path $resultsDirectory 'PCLSU-Regression.trx')
+          $outcomes = $report.TestRun.Results.UnitTestResult | Group-Object -Property testId -AsHashTable -AsString
+          $requiredSuites = @(
+            'UpdatePageStateTest', 'UpdateManagerTest', 'UpdateInstallTest',
+            'FileDownloadRecoveryTest', 'HostConnectionHandlerTest', 'CompDependencyScanTest',
+            'ResourceDownloadMetadataTest', 'MinecraftServiceExceptionTest'
+          )
+          foreach ($suite in $requiredSuites) {
+            $tests = @($report.TestRun.TestDefinitions.UnitTest | Where-Object { $_.TestMethod.className -like "*.$suite" })
+            if (!$tests.Count) { throw "Required SU regression suite was not discovered: $suite" }
+            foreach ($test in $tests) {
+              $runs = $outcomes[$test.id]
+              if (!$runs -or @($runs | Where-Object outcome -ne 'Passed').Count) {
+                throw "Required SU regression did not pass: $suite.$($test.name)"
+              }
+            }
+          }
+
       - name: Upload regression results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

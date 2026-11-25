@@ -34,9 +34,15 @@ public sealed class UpdateService : GeneralService
             var result = UpdateHelper.ConsumeResult(Basics.ExecutablePath);
             var reason = result?.Error ?? (args is ["update_failed", _] ? args[1] : null);
             if (reason is not null)
+            {
+                var staged = result?.PayloadSha256 is { } hash
+                    ? UpdateHelper.GetStagedPath(Basics.ExecutablePath, hash)
+                    : UpdateHelper.GetStagedPath(Basics.ExecutablePath);
                 Context.Error(
-                    $"更新失败: {reason}\n可将 PCL 目录中的新版本手动替换到当前启动器位置，或再次尝试更新。",
+                    $"更新失败：{reason}\n可再次尝试更新。" +
+                    (File.Exists(staged) ? $"\n若手动安装，请关闭启动器，用以下文件替换当前启动器：\n{staged}" : ""),
                     actionLevel: ActionLevel.MsgBoxErr);
+            }
             else if (result is not null)
                 Context.Debug("更新完成，更新来源文件已删除");
             else if (args is ["update_finished", _] &&

@@ -37,7 +37,7 @@ public sealed class Tooltip
     private static IDisposable? _pressSubscription;
     private static IDisposable? _releaseSubscription;
 
-    private static InputElement? _pressedElement;
+    private static bool _leftButtonPressed;
     private static IDisposable? _cursorSubscription;
 
     private static Control? _target;
@@ -89,26 +89,23 @@ public sealed class Tooltip
             RoutingStrategies.Direct | RoutingStrategies.Bubble,
             true);
         _pressSubscription = InputElement.PointerPressedEvent.AddClassHandler<InputElement>(
-            (sender, _) =>
+            (sender, e) =>
             {
-                _pressedElement = sender;
+                _leftButtonPressed = e.GetCurrentPoint(sender).Properties.IsLeftButtonPressed;
                 Dismiss();
             },
             RoutingStrategies.Tunnel | RoutingStrategies.Bubble,
             true);
         _releaseSubscription = InputElement.PointerReleasedEvent.AddClassHandler<InputElement>(
-            (sender, _) =>
-            {
-                if (ReferenceEquals(_pressedElement, sender))
-                    _pressedElement = null;
-            },
+            (sender, e) => _leftButtonPressed = e.GetCurrentPoint(sender).Properties.IsLeftButtonPressed,
             RoutingStrategies.Tunnel | RoutingStrategies.Bubble,
             true);
         _cursorSubscription = InputElement.PointerMovedEvent.AddClassHandler<InputElement>(
             (sender, e) =>
             {
-                _cursorOwner = sender;
-                _cursorPoint = e.GetPosition(sender);
+                _leftButtonPressed = e.GetCurrentPoint(sender).Properties.IsLeftButtonPressed;
+                _cursorOwner = e.Source as InputElement ?? sender;
+                _cursorPoint = e.GetPosition(_cursorOwner);
             },
             RoutingStrategies.Tunnel | RoutingStrategies.Bubble,
             true);
@@ -132,7 +129,7 @@ public sealed class Tooltip
         _releaseSubscription = null;
         _cursorSubscription?.Dispose();
         _cursorSubscription = null;
-        _pressedElement = null;
+        _leftButtonPressed = false;
 
         if (Application.Current is { } application)
             application.ActualThemeVariantChanged -= _OnThemeVariantChanged;
@@ -157,6 +154,13 @@ public sealed class Tooltip
         if (!GetIsEnabled(control)) return;
         if (!control.IsEffectivelyEnabled && !ToolTip.GetShowOnDisabled(control)) return;
 
+        if (_leftButtonPressed)
+        {
+            e.Cancel = true;
+            e.Handled = true;
+            return;
+        }
+
         if (ReferenceEquals(_target, control) && _flyout is { IsOpen: true })
         {
             e.Cancel = true;
@@ -176,7 +180,6 @@ public sealed class Tooltip
 
     private static bool _PopUp(Control target, object content)
     {
-        if (ReferenceEquals(_pressedElement, target)) return false;
         if (_flyout is null)
             _BuildUi();
 
@@ -195,7 +198,6 @@ public sealed class Tooltip
         target.PointerMoved += _OnTargetPointerMoved;
         target.PointerExited += _OnTargetPointerExited;
         target.DetachedFromVisualTree += _OnTargetDetached;
-        target.PointerCaptureLost += _OnTargetCaptureLost;
 
         _closing = false;
         _shell.Opacity = 0d;
@@ -204,6 +206,8 @@ public sealed class Tooltip
 
         try
         {
+            if (GetFollowCursor(target))
+                _flyout.Opened += _OnFlyoutOpened;
             _flyout.IsOpen = true;
         }
         catch (Exception ex)
@@ -212,9 +216,6 @@ public sealed class Tooltip
             _Hush();
             return false;
         }
-
-        if (GetFollowCursor(target))
-            _flyout.Opened += _OnFlyoutOpened;
 
         AnimationService.Run(
             new List<IAnimation>
@@ -374,11 +375,15 @@ public sealed class Tooltip
 
     private static void _OnTargetPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_closing || _flyout is not { IsOpen: true } || _shell is null || _target is null)
+        if (_closing || _flyout is not { IsOpen: true } || _shell is null || _target is not { } target)
             return;
-        if (!GetFollowCursor(_target)) return;
+        if (!GetFollowCursor(target)) return;
 
-        _ApplyFollowPlacement(e.GetPosition(_target));
+        var pointer = e.GetCurrentPoint(target);
+        if (pointer.Properties.IsLeftButtonPressed || !new Rect(target.Bounds.Size).Contains(pointer.Position))
+            _WindDown();
+        else
+            _ApplyFollowPlacement(pointer.Position);
     }
 
     private static void _OnFlyoutOpened(object? sender, EventArgs e)
@@ -393,7 +398,11 @@ public sealed class Tooltip
             {
                 if (_closing || _flyout is not { IsOpen: true }) return;
                 if (!ReferenceEquals(_target, opened)) return;
-                _ApplyFollowPlacement(_CursorFor(opened));
+                var point = _CursorFor(opened);
+                if (_leftButtonPressed || !new Rect(opened.Bounds.Size).Contains(point))
+                    _WindDown();
+                else
+                    _ApplyFollowPlacement(point);
             },
             DispatcherPriority.Loaded);
     }
@@ -401,10 +410,11 @@ public sealed class Tooltip
     private static Point _CursorFor(Control target)
     {
         if (_cursorOwner is Visual owner
-            && (ReferenceEquals(owner, target) || target.IsVisualAncestorOf(owner)))
-            return _cursorPoint;
+            && (ReferenceEquals(owner, target) || target.IsVisualAncestorOf(owner))
+            && owner.TranslatePoint(_cursorPoint, target) is { } point)
+            return point;
 
-        return target.Bounds.Center;
+        return new Rect(target.Bounds.Size).Center;
     }
 
     private static void _OnTargetPointerExited(object? sender, PointerEventArgs e)
@@ -415,12 +425,6 @@ public sealed class Tooltip
     private static void _OnTargetDetached(object? sender, VisualTreeAttachmentEventArgs e)
     {
         _WindDown();
-    }
-
-    private static void _OnTargetCaptureLost(object? sender, PointerCaptureLostEventArgs e)
-    {
-        if (ReferenceEquals(_pressedElement, sender))
-            _pressedElement = null;
     }
 
     private static void _OnThemeVariantChanged(object? sender, EventArgs e)
@@ -463,7 +467,6 @@ public sealed class Tooltip
         _target.PointerMoved -= _OnTargetPointerMoved;
         _target.PointerExited -= _OnTargetPointerExited;
         _target.DetachedFromVisualTree -= _OnTargetDetached;
-        _target.PointerCaptureLost -= _OnTargetCaptureLost;
         _target = null;
     }
 

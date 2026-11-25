@@ -182,6 +182,9 @@ public sealed class DialogPresenter : IDialogPresenter
 
     private static MyMsgDialogBase CreateDialogView(DialogViewModel dialog)
     {
+        if (dialog.Request is ModDependencyCheckDialogRequest dependencyCheck)
+            return new MyMsgModDependencyCheck(dialog, dependencyCheck.Progress);
+
         return dialog.Kind switch
         {
             DialogKind.Text => new MyMsgText(dialog),

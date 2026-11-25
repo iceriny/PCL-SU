@@ -22,55 +22,8 @@ public static partial class GameDownload
 
     private static void DlLabyModListMain(Loading.LoaderTask<int, DlLabyModListResult> loader)
     {
-        switch (Config.Download.VersionListSource)
-        {
-            case 0:
-            {
-                DlSourceLoader(
-                    loader,
-                    [
-                        new KeyValuePair<Loading.LoaderTask<int, DlLabyModListResult>, int>(
-                            DlLabyModListOfficialLoader,
-                            30),
-                        new KeyValuePair<Loading.LoaderTask<int, DlLabyModListResult>, int>(
-                            DlLabyModListOfficialLoader,
-                            60)
-                    ],
-                    loader.isForceRestarting);
-                break;
-            }
-            case 1:
-            {
-                DlSourceLoader(
-                    loader,
-                    [
-                        new KeyValuePair<Loading.LoaderTask<int, DlLabyModListResult>, int>(
-                            DlLabyModListOfficialLoader,
-                            5),
-                        new KeyValuePair<Loading.LoaderTask<int, DlLabyModListResult>, int>(
-                            DlLabyModListOfficialLoader,
-                            35)
-                    ],
-                    loader.isForceRestarting);
-                break;
-            }
-
-            default:
-            {
-                DlSourceLoader(
-                    loader,
-                    [
-                        new KeyValuePair<Loading.LoaderTask<int, DlLabyModListResult>, int>(
-                            DlLabyModListOfficialLoader,
-                            60),
-                        new KeyValuePair<Loading.LoaderTask<int, DlLabyModListResult>, int>(
-                            DlLabyModListOfficialLoader,
-                            60)
-                    ],
-                    loader.isForceRestarting);
-                break;
-            }
-        }
+        var timeoutSeconds = Config.Download.VersionListSource == 1 ? 35 : 60;
+        DlSourceLoader(loader, [new(DlLabyModListOfficialLoader, timeoutSeconds)], loader.isForceRestarting);
     }
 
     private static void DlLabyModListOfficialMain(

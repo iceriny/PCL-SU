@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -27,14 +28,16 @@ public sealed class EasyTierInstallerIntegrationTest
         try
         {
             var package = EasyTierMetadata.Package;
+            var validArchive = CreateZip(package.RequiredFiles);
             using var mirrors = new ArchiveMirrors(
                 "<html>temporarily unavailable</html>"u8.ToArray(),
-                CreateZip(["incomplete.txt"]),
-                CreateZip(package.RequiredFiles));
+                CreateZip([.. package.RequiredFiles, "unexpected.txt"]),
+                validArchive);
             using var client = new HttpClient(mirrors);
             var installed = await EasyTierInstaller.DownloadAndInstallAsync(
                 client, ["https://example.org/first", "https://example.org/second", "https://example.org/third"],
-                EasyTierMetadata.CurrentEasyTierVer, package, TestContext.CancellationToken);
+                EasyTierMetadata.CurrentEasyTierVer, package, Convert.ToHexString(SHA256.HashData(validArchive)),
+                TestContext.CancellationToken);
 
             Assert.IsTrue(installed);
             Assert.AreEqual(3, mirrors.Requests);

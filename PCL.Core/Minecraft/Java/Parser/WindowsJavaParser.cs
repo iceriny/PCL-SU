@@ -12,7 +12,9 @@ public sealed class WindowsJavaParser : JavaParserBase
     {
         var versionInfo = FileVersionInfo.GetVersionInfo(javaExePath);
         // 只取前 4 段，避免厂商追加自定义版本段导致 Version.Parse 抛异常。
-        var fileVersion = ParseVersion(versionInfo.FileVersion) ?? new Version(0, 0, 0, 0);
+        var fileVersion = ParseVersion(versionInfo.FileVersion) ?? new Version(
+            versionInfo.FileMajorPart, versionInfo.FileMinorPart,
+            versionInfo.FileBuildPart, versionInfo.FilePrivatePart);
         var companyName = _NormalizeCompanyName(versionInfo);
         var brand = DetermineBrand(companyName);
 

@@ -55,7 +55,15 @@ public static partial class CompDependency
         if (string.IsNullOrWhiteSpace(targetModsFolder) || !Directory.Exists(targetModsFolder))
             return result;
 
-        var paths = Directory.GetFiles(targetModsFolder)
+        cancellationToken.ThrowIfCancellationRequested();
+        var folder = Path.TrimEndingDirectorySeparator(Path.GetFullPath(targetModsFolder));
+        var pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var loader = LocalComp.CompResourceListLoader;
+        var loadedMods = loader.input is { compType: Comp.CompType.Mod } input
+            && pathComparer.Equals(Path.TrimEndingDirectorySeparator(input.compPath), folder)
+            ? loader.output?.Where(mod => !mod.IsFolder).ToLookup(mod => mod.path, pathComparer)
+            : null;
+        var paths = Directory.GetFiles(folder)
             .Where(path => LocalCompFile.IsModFile(path)
                 && !path.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase)
                 && !path.EndsWith(".old", StringComparison.OrdinalIgnoreCase))
@@ -69,10 +77,13 @@ public static partial class CompDependency
 
             try
             {
-                var localFile = new LocalCompFile(path);
-                var cacheKey = localFile.ModrinthHash + targetMinecraftVersion + string.Join("", targetLoaders);
-                if (cache.Value[cacheKey] is JsonObject cachedFile)
-                    localFile.FromJson(cachedFile);
+                var localFile = loadedMods?[path].FirstOrDefault() ?? new LocalCompFile(path);
+                if (localFile.Comp is null && localFile.CompFile is null)
+                {
+                    var cacheKey = localFile.ModrinthHash + targetMinecraftVersion + string.Join("", targetLoaders);
+                    if (cache.Value[cacheKey] is JsonObject cachedFile)
+                        localFile.FromJson(cachedFile);
+                }
 
                 var projectId = localFile.Comp?.Id ?? localFile.CompFile?.ProjectId;
                 if (string.IsNullOrWhiteSpace(projectId))

@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=PCL Community Edition
-Comment=PCL Community Edition launcher
+Name=PCL SU
+Comment=Launch Minecraft Java Edition with PCL SU
 Exec=pcl-ce %U
 Icon=pcl-community-edition
 Terminal=false

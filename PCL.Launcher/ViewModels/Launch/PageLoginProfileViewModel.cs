@@ -24,8 +24,6 @@ public partial class PageLoginProfileViewModel : ViewModelBase
 
     [ObservableProperty] public partial bool ShowCreateHint { get; set; }
 
-    [ObservableProperty] public partial bool ShowMicrosoftHint { get; set; }
-
     /// <summary>档案集合重建完成后触发，页面据此重建列表控件。</summary>
     public event Action? ProfilesUpdated;
 
@@ -68,7 +66,6 @@ public partial class PageLoginProfileViewModel : ViewModelBase
         {
             var isEmpty = Profiles.Count == 0;
             ShowSelectHint = !isEmpty;
-            ShowMicrosoftHint = isEmpty;
             ShowCreateHint = isEmpty;
             if (isEmpty)
                 States.Hint.LaunchWithProfile = true;
@@ -81,30 +78,24 @@ public partial class PageLoginProfileViewModel : ViewModelBase
     {
         try
         {
-            var includeOthers = PageInstanceSetupViewModel.CanCreateOtherProfile();
             var options = new List<DialogOption>
             {
                 new()
                 {
                     Text = Lang.Text("Launch.Account.Type.Microsoft"),
                     SvgIcon = "lucide/shield-check"
+                },
+                new()
+                {
+                    Text = Lang.Text("Launch.Account.Type.ThirdParty"),
+                    SvgIcon = "lucide/network"
+                },
+                new()
+                {
+                    Text = Lang.Text("Launch.Account.Type.Offline"),
+                    SvgIcon = "lucide/link-2-off"
                 }
             };
-            if (includeOthers)
-            {
-                options.Add(
-                    new DialogOption
-                    {
-                        Text = Lang.Text("Launch.Account.Type.ThirdParty"),
-                        SvgIcon = "lucide/network"
-                    });
-                options.Add(
-                    new DialogOption
-                    {
-                        Text = Lang.Text("Launch.Account.Type.Offline"),
-                        SvgIcon = "lucide/link-2-off"
-                    });
-            }
 
             var result = await Dialog.ShowAsync(
                 new SelectDialogRequest

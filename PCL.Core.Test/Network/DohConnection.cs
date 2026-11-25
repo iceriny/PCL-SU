@@ -11,21 +11,25 @@ namespace PCL.Core.Test.Network;
 public class DohConnection
 {
     [TestMethod]
+    [TestCategory("ExternalNetwork")]
     public async Task TestDohConnection()
     {
-        using var client = new HttpClient(new SocketsHttpHandler()
-            {
-                ConnectCallback = HostConnectionHandler.Instance.GetConnectionAsync
-            }
-        );
-        var request = new HttpRequestMessage(HttpMethod.Get, "https://www.cloudflare.com/cdn-cgi/trace")
+        if (Environment.GetEnvironmentVariable("PCL_TEST_NETWORK") != "1")
+            Assert.Inconclusive("需要外网 HTTPS；设置 PCL_TEST_NETWORK=1 运行该集成测试。");
+
+        using var client = new HttpClient(HostConnectionHandler.Instance.CreateHttpHandler(new SocketsHttpHandler()))
         {
-            Version = HttpVersion.Version30
+            Timeout = TimeSpan.FromSeconds(20)
         };
-        using var response = await client.SendAsync(request, TestContext.CancellationTokenSource.Token);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://www.cloudflare.com/cdn-cgi/trace")
+        {
+            Version = HttpVersion.Version20,
+            VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+        };
+        using var response = await client.SendAsync(request, TestContext.CancellationToken);
         Assert.IsTrue(response.IsSuccessStatusCode);
-        Assert.IsTrue(response.Content.Headers.ContentLength > 0);
-        Console.WriteLine(await response.Content.ReadAsStringAsync(TestContext.CancellationTokenSource.Token));
+        var body = await response.Content.ReadAsStringAsync(TestContext.CancellationToken);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(body));
     }
 
     public TestContext TestContext { get; set; }

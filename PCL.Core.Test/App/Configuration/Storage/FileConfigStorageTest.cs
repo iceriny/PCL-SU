@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PCL.Core.App.Configuration.Storage;
 
@@ -17,6 +19,34 @@ public class FileConfigStorageTest
         storage.Stop();
 
         Assert.AreEqual("-Xmx2G", provider.Get<string>("JvmArgs"));
+    }
+
+    [TestMethod]
+    public void ConcurrentAccessSharesOneStorageAndInvalidationFlushesWrites()
+    {
+        var created = 0;
+        var provider = new TestFileProvider();
+        var cache = new DynamicCacheConfigStorage
+        {
+            StorageFactory = _ =>
+            {
+                Interlocked.Increment(ref created);
+                return new FileConfigStorage(provider);
+            }
+        };
+
+        try
+        {
+            Parallel.For(0, 32, index => cache.SetValue($"key-{index}", index, "instance"));
+            Assert.AreEqual(1, created);
+            Assert.IsTrue(cache.InvalidateCache("instance"));
+            for (var index = 0; index < 32; index++)
+                Assert.AreEqual(index, provider.Get<int>($"key-{index}"));
+        }
+        finally
+        {
+            cache.Stop();
+        }
     }
 
     private sealed class TestFileProvider : IKeyValueFileProvider

@@ -1,7 +1,4 @@
-using PCL.Core.Link.Scaffolding.Client.Models;
 using PCL.Core.Link.Scaffolding.Server.Abstractions;
-using PCL.Core.Link.Scaffolding.EasyTier;
-using PCL.Core.App;
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -26,14 +23,6 @@ public class GetPlayerProfileListHandler : IRequestHandler
     public Task<(byte Status, ReadOnlyMemory<byte> Body)> HandleAsync(ReadOnlyMemory<byte> requestBody,
         IServerContext context, string sessionId, CancellationToken ct)
     {
-        var hostProfile = new PlayerProfile
-        {
-            Name = context.PlayerName,
-            MachineId = Utils.Secret.Identify.LauncherId,
-            Vendor = $"PCL CE {Basics.VersionName}, EasyTier {EasyTierMetadata.CurrentEasyTierVer}",
-            Kind = PlayerKind.HOST
-        };
-
         var allProfiles = context.PlayerProfiles;
 
         var responseBody = JsonSerializer.SerializeToUtf8Bytes(allProfiles, _JsonOptions);

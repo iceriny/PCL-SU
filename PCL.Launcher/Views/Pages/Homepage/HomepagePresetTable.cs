@@ -101,11 +101,7 @@ public static class HomepagePresetTable
             "Setup.Ui.Homepage.Preset.Bangumi",
             HomepageSourceKind.CustomXaml,
             "https://bangumi.p.kaphia.qzz.io"),
-        new(
-            14,
-            "Setup.Ui.Homepage.Preset.PclAnnouncement",
-            HomepageSourceKind.CustomXaml,
-            "https://s3.pysio.online/pcl2-ce/apiv2/pages/announce.xaml"),
+        new(14, "Setup.Ui.Homepage.Preset.Trivia", HomepageSourceKind.Trivia, null),
         new(15, "Setup.Ui.Homepage.Preset.McOfficialFeed", HomepageSourceKind.NewsFeed, null)
     ];
 

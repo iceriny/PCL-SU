@@ -16,27 +16,26 @@ internal sealed class AdaptiveRangeDownloader
     private const int MaxExpandedSegmentCount = MaxSegmentCount * 2;
     private const int BufferSize = 64 * 1024;
     private const int ReadTimeoutMilliseconds = 15_000;
-    private const int SlowCheckSeconds = 8;
-    private const long SlowSpeedBytesPerSecond = 50L * 1024;
     private const long ClearlyFastSegmentBytesPerSecond = 128L * 1024;
     private const long SlowSplitThreshold = 2L * 1024 * 1024;
-    private const long MinimumRestartRemaining = 1L * 1024 * 1024;
     private const int MaxSegmentRetries = 2;
-    private readonly string _customUserAgent;
+
+    private readonly IReadOnlyList<string> _urls;
+    private readonly bool _hasContentHash;
+    private readonly ConcurrentDictionary<int, bool> _unavailableSources = new();
+    private readonly object _identityLock = new();
+    private string? _strongETag;
+    private int _initialSourceIndex;
     private readonly string _tempPath;
+    private readonly bool _useBrowserUserAgent;
+    private readonly string _customUserAgent;
     private readonly DownloadFile? _trackedFile;
 
-    private readonly string _url;
-    private readonly bool _useBrowserUserAgent;
-
-    private AdaptiveRangeDownloader(
-        string url,
-        string localPath,
-        bool useBrowserUserAgent,
-        string customUserAgent,
+    private AdaptiveRangeDownloader(IReadOnlyList<string> urls, string localPath, bool useBrowserUserAgent, string customUserAgent,
         DownloadFile? trackedFile)
     {
-        _url = url;
+        _urls = urls;
+        _hasContentHash = !string.IsNullOrEmpty(trackedFile?.Check?.hash);
         _tempPath = localPath + NetFacade.NetDownloadEnd;
         _useBrowserUserAgent = useBrowserUserAgent;
         _customUserAgent = customUserAgent;
@@ -44,25 +43,16 @@ internal sealed class AdaptiveRangeDownloader
     }
 
     /// <summary>若文件适合 Range 分段下载则完成下载并返回 true，否则返回 false 交给顺序下载器处理。</summary>
-    public static async Task<bool> TryDownloadAsync(
-        string url,
-        string localPath,
-        bool useBrowserUserAgent,
-        string customUserAgent,
-        CancellationToken cancellationToken,
-        DownloadFile? trackedFile,
+    public static async Task<bool> TryDownloadAsync(IReadOnlyList<string> urls, string localPath, bool useBrowserUserAgent,
+        string customUserAgent, CancellationToken cancellationToken, DownloadFile? trackedFile,
         long expectedSize = -1)
     {
         // 下载清单已有大小时，小文件直接走顺序请求，避免额外的 Range 探测往返。
         if (expectedSize >= 0 && expectedSize < SmallFileThreshold)
             return false;
 
-        var downloader = new AdaptiveRangeDownloader(
-            url,
-            localPath,
-            useBrowserUserAgent,
-            customUserAgent,
-            trackedFile);
+        ArgumentOutOfRangeException.ThrowIfZero(urls.Count);
+        var downloader = new AdaptiveRangeDownloader(urls, localPath, useBrowserUserAgent, customUserAgent, trackedFile);
         var totalSize = expectedSize;
         if (totalSize < 0)
         {
@@ -79,72 +69,63 @@ internal sealed class AdaptiveRangeDownloader
         }
         catch (RangeNotSupportedException ex)
         {
-            LauncherCommon.Log(ex, $"[Download] 下载源不支持可靠的 Range，改用顺序下载：{url}");
+            LauncherCommon.Log(ex, $"[Download] 下载源不支持可靠的 Range，改用顺序下载：{urls[0]}", LauncherLogLevel.Developer);
             return false;
         }
     }
 
     private async Task<RangeProbe?> ProbeAsync(CancellationToken cancellationToken)
     {
-        using var connection = await DownloadResourceManager
-            .AcquireConnectionAsync(_url, cancellationToken)
-            .ConfigureAwait(false);
-        using var request = CreateRequest(HttpMethod.Get, DownloadRequestKind.RangeProbe);
-        request.Headers.Range = new RangeHeaderValue(0, 0);
-        using var response = await FileDownloader
-            .SendDownloadRequestAsync(_url, request, cancellationToken)
-            .ConfigureAwait(false);
+        for (var index = 0; index < _urls.Count; index++)
+        {
+            var url = _urls[index];
+            try
+            {
+                using var connection = await DownloadResourceManager.AcquireConnectionAsync(url, cancellationToken)
+                    .ConfigureAwait(false);
+                using var request = CreateRequest(url, HttpMethod.Get, DownloadRequestKind.RangeProbe);
+                request.Headers.Range = new RangeHeaderValue(0, 0);
+                using var response = await FileDownloader.SendDownloadRequestAsync(url, request, cancellationToken)
+                    .ConfigureAwait(false);
 
-        if (response.StatusCode != HttpStatusCode.PartialContent)
-            return null;
-
-        var range = response.Content.Headers.ContentRange;
-        if (range?.Unit != "bytes" || range.From != 0 || range.To != 0 || range.Length is not > 0)
-            return null;
-
-        return new RangeProbe(range.Length.Value);
+                var range = response.Content.Headers.ContentRange;
+                if (response.StatusCode != HttpStatusCode.PartialContent || range?.Unit != "bytes" ||
+                    range.From != 0 || range.To != 0 || range.Length is not > 0)
+                    continue;
+                _initialSourceIndex = index;
+                return new RangeProbe(range.Length.Value);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException or
+                                       DownloadRequestTimeoutException)
+            {
+                LauncherCommon.Log(ex, $"[Download] Range 探测失败，尝试下一个源：{url}", LauncherLogLevel.Developer);
+            }
+        }
+        return null;
     }
 
     private async Task DownloadAsync(long totalSize, CancellationToken cancellationToken)
     {
         NotifyStarted(totalSize);
-        var segments = Channel.CreateUnbounded<DownloadSegment>(
-            new UnboundedChannelOptions
-            {
-                SingleReader = false,
-                SingleWriter = false,
-                AllowSynchronousContinuations = false
-            });
+        var segments = Channel.CreateUnbounded<DownloadSegment>(new UnboundedChannelOptions
+        {
+            SingleReader = false,
+            SingleWriter = false,
+            AllowSynchronousContinuations = false
+        });
 
         var segmentCount = EnqueueInitialSegments(segments.Writer, totalSize);
-        var workerCount = Math.Min(
-            segmentCount,
-            Math.Clamp(
-                NetFacade.NetTaskSingleFileConnectionLimit,
-                1,
-                NetFacade.NetTaskSingleFileConnectionLimitMax));
-        using var linkedCancellation =
-            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        await using var output = new FileStream(
-            _tempPath,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.Read,
-            1,
-            FileOptions.Asynchronous | FileOptions.RandomAccess);
+        var workerCount = Math.Min(segmentCount, Math.Clamp(NetFacade.NetTaskSingleFileConnectionLimit, 1,
+            NetFacade.NetTaskSingleFileConnectionLimitMax));
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        await using var output = new FileStream(_tempPath, FileMode.Create, FileAccess.Write, FileShare.Read,
+            bufferSize: 1, FileOptions.Asynchronous | FileOptions.RandomAccess);
         output.SetLength(totalSize);
 
-        var session = new DownloadSession(
-            this,
-            segments,
-            totalSize,
-            segmentCount,
-            output.SafeFileHandle,
+        var session = new DownloadSession(this, segments, totalSize, segmentCount, output.SafeFileHandle,
             linkedCancellation);
-        var workers = Enumerable
-            .Range(0, workerCount)
-            .Select(_ => session.RunWorkerAsync())
-            .ToArray();
+        var workers = Enumerable.Range(0, workerCount).Select(_ => session.RunWorkerAsync()).ToArray();
         try
         {
             await Task.WhenAll(workers).ConfigureAwait(false);
@@ -158,37 +139,64 @@ internal sealed class AdaptiveRangeDownloader
         if (session.DownloadedBytes != totalSize)
             throw new IOException($"分段下载不完整：已写入 {session.DownloadedBytes}，应为 {totalSize}");
 
-        NotifyProgress(totalSize, 0, true);
+        NotifyProgress(totalSize, 0, force: true);
     }
 
     private int EnqueueInitialSegments(ChannelWriter<DownloadSegment> writer, long totalSize)
     {
-        var count = (int)Math.Clamp(
-            (totalSize + TargetSegmentSize - 1) / TargetSegmentSize,
-            1,
-            MaxSegmentCount);
+        var count = (int)Math.Clamp((totalSize + TargetSegmentSize - 1) / TargetSegmentSize, 1, MaxSegmentCount);
+        // 4–8 MiB 的资源也使用多个连接；较大的文件仍按目标分段大小控制队列长度。
+        var usefulConnections = Math.Min(Math.Clamp(NetFacade.NetTaskSingleFileConnectionLimit, 1,
+            NetFacade.NetTaskSingleFileConnectionLimitMax), (totalSize + SlowSplitThreshold - 1) / SlowSplitThreshold);
+        count = (int)Math.Min(MaxSegmentCount, Math.Max(count, usefulConnections));
         var segmentSize = (totalSize + count - 1) / count;
         var id = 0;
         for (long start = 0; start < totalSize; start += segmentSize)
         {
             var end = Math.Min(totalSize - 1, start + segmentSize - 1);
-            writer.TryWrite(new DownloadSegment(Interlocked.Increment(ref id), start, end));
+            writer.TryWrite(new DownloadSegment(Interlocked.Increment(ref id), start, end)
+            {
+                SourceIndex = _initialSourceIndex
+            });
         }
 
         return id;
     }
 
-    private HttpRequestMessage CreateRequest(HttpMethod method, DownloadRequestKind requestKind)
+    private HttpRequestMessage CreateRequest(string url, HttpMethod method, DownloadRequestKind requestKind)
     {
-        var request = FileDownloader.CreateDownloadRequest(
-            _url,
-            _useBrowserUserAgent,
-            _customUserAgent,
-            requestKind);
+        var request = FileDownloader.CreateDownloadRequest(url, _useBrowserUserAgent, _customUserAgent, requestKind);
         request.Method = method;
         request.Headers.AcceptEncoding.Clear();
         request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
         return request;
+    }
+
+    private int NextSource(int current)
+    {
+        // ETag 只标识同一 URL 的实体；跨源拼接必须由完整文件哈希兜底。
+        if (!_hasContentHash)
+            return _unavailableSources.ContainsKey(current) ? -1 : current;
+        for (var offset = 1; offset <= _urls.Count; offset++)
+        {
+            var candidate = (current + offset) % _urls.Count;
+            if (!_unavailableSources.ContainsKey(candidate)) return candidate;
+        }
+        return -1;
+    }
+
+    private void ValidateRepresentation(HttpResponseMessage response)
+    {
+        if (_hasContentHash) return; // 完整文件仍会执行清单哈希校验。
+        var tag = response.Headers.ETag;
+        if (tag is null || tag.IsWeak || tag.Tag == "*")
+            throw new RangeNotSupportedException("缺少哈希及强 ETag，使用完整顺序响应以验证文件一致性");
+        lock (_identityLock)
+        {
+            _strongETag ??= tag.Tag;
+            if (!string.Equals(_strongETag, tag.Tag, StringComparison.Ordinal))
+                throw new RangeNotSupportedException("下载源返回了不同的文件实体");
+        }
     }
 
     private void NotifyStarted(long totalSize)
@@ -216,16 +224,15 @@ internal sealed class AdaptiveRangeDownloader
 
     private readonly record struct RangeProbe(long Size);
 
-    private sealed class DownloadSegment(
-        int id,
-        long start,
-        long end)
+    private sealed class DownloadSegment(int id, long start, long end)
     {
         public int Id { get; } = id;
         public long Start { get; } = start;
         public long End { get; set; } = end;
         public long Downloaded { get; set; }
         public int FailureCount { get; set; }
+        public int SlowRecoveries { get; set; }
+        public int SourceIndex { get; set; }
         public long LastRateSampleTick { get; set; }
         public long Remaining => End - Start - Downloaded + 1;
         public long CurrentOffset => Start + Downloaded;
@@ -233,31 +240,25 @@ internal sealed class AdaptiveRangeDownloader
 
     private sealed class DownloadSession
     {
-        private readonly CancellationTokenSource _cancellation;
-
-        // 尾段可能已没有其他活跃连接，保留近期完成分段作为比较基线。
-        private readonly ConcurrentQueue<double> _completedRates = new();
-        private readonly SafeFileHandle _fileHandle;
         private readonly AdaptiveRangeDownloader _owner;
-        private readonly object _progressLock = new();
-        private readonly ConcurrentDictionary<int, RateSample> _rates = new();
         private readonly Channel<DownloadSegment> _segments;
         private readonly long _totalSize;
+        private readonly SafeFileHandle _fileHandle;
+        private readonly CancellationTokenSource _cancellation;
+        private readonly ConcurrentDictionary<int, RateSample> _rates = new();
+        // 尾段可能已没有其他活跃连接，保留近期完成分段作为比较基线。
+        private readonly ConcurrentQueue<double> _completedRates = new();
+        private readonly object _progressLock = new();
+        private int _outstandingSegments;
+        private int _nextSegmentId;
         private int _activeConnections;
         private long _downloadedBytes;
-        private Exception? _failure;
         private long _lastProgressBytes;
         private long _lastProgressTick = Stopwatch.GetTimestamp();
-        private int _nextSegmentId;
-        private int _outstandingSegments;
+        private Exception? _failure;
 
-        public DownloadSession(
-            AdaptiveRangeDownloader owner,
-            Channel<DownloadSegment> segments,
-            long totalSize,
-            int segmentCount,
-            SafeFileHandle fileHandle,
-            CancellationTokenSource cancellation)
+        public DownloadSession(AdaptiveRangeDownloader owner, Channel<DownloadSegment> segments, long totalSize,
+            int segmentCount, SafeFileHandle fileHandle, CancellationTokenSource cancellation)
         {
             _owner = owner;
             _segments = segments;
@@ -274,37 +275,36 @@ internal sealed class AdaptiveRangeDownloader
         {
             try
             {
-                while (await _segments
-                           .Reader.WaitToReadAsync(_cancellation.Token)
-                           .ConfigureAwait(false))
-                while (_segments.Reader.TryRead(out var segment))
-                    try
+                while (await _segments.Reader.WaitToReadAsync(_cancellation.Token).ConfigureAwait(false))
+                {
+                    while (_segments.Reader.TryRead(out var segment))
                     {
-                        await DownloadSegmentAsync(segment, _cancellation.Token)
-                            .ConfigureAwait(false);
-                        if (Interlocked.Decrement(ref _outstandingSegments) == 0)
-                            _segments.Writer.TryComplete();
-                    }
-                    catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        if (TryRecover(segment, ex))
+                        try
                         {
-                            LauncherCommon.Log(ex, $"[Download] 分段下载缓慢或失败，正在重试：{_owner._url}");
-                            await Task
-                                .Delay(Random.Shared.Next(250, 1001), _cancellation.Token)
-                                .ConfigureAwait(false);
-                            continue;
+                            await DownloadSegmentAsync(segment, _cancellation.Token).ConfigureAwait(false);
+                            if (Interlocked.Decrement(ref _outstandingSegments) == 0)
+                                _segments.Writer.TryComplete();
                         }
+                        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            if (TryRecover(segment, ex))
+                            {
+                                LauncherCommon.Log(ex, $"[Download] 保留已下载分片，从 {segment.CurrentOffset} 继续：{_owner._urls[segment.SourceIndex]}", LauncherLogLevel.Developer);
+                                await Task.Delay(Random.Shared.Next(250, 1001), _cancellation.Token).ConfigureAwait(false);
+                                continue;
+                            }
 
-                        Interlocked.CompareExchange(ref _failure, ex, null);
-                        _segments.Writer.TryComplete(ex);
-                        _cancellation.Cancel();
-                        throw;
+                            Interlocked.CompareExchange(ref _failure, ex, null);
+                            _segments.Writer.TryComplete(ex);
+                            _cancellation.Cancel();
+                            throw;
+                        }
                     }
+                }
             }
             catch (OperationCanceledException) when (_failure is not null)
             {
@@ -314,27 +314,35 @@ internal sealed class AdaptiveRangeDownloader
 
         private bool TryRecover(DownloadSegment segment, Exception exception)
         {
-            if (exception is not (SlowSegmentException
-                or IOException
-                or HttpRequestException
-                or TaskCanceledException
-                or DownloadRequestTimeoutException))
+            if (exception is not (SlowSegmentException or IOException or HttpRequestException or TaskCanceledException or
+                DownloadRequestTimeoutException or RangeNotSupportedException))
                 return false;
-            if (++segment.FailureCount > MaxSegmentRetries || segment.Remaining <= 0)
+            if (segment.Remaining <= 0)
                 return false;
 
-            if (segment.Remaining >= SlowSplitThreshold
-                && Volatile.Read(ref _nextSegmentId) < MaxExpandedSegmentCount)
+            if (exception is SlowSegmentException)
+                segment.SlowRecoveries++;
+            else if (++segment.FailureCount > MaxSegmentRetries * _owner._urls.Count)
+                return false;
+            if (exception is RangeNotSupportedException)
+                _owner._unavailableSources.TryAdd(segment.SourceIndex, true);
+            var nextSource = _owner.NextSource(segment.SourceIndex);
+            if (nextSource < 0) return false;
+            segment.SourceIndex = nextSource;
+
+            if (segment.Remaining >= SlowSplitThreshold && Volatile.Read(ref _nextSegmentId) < MaxExpandedSegmentCount)
             {
                 var splitStart = segment.CurrentOffset + segment.Remaining / 2;
-                var split = new DownloadSegment(
-                    Interlocked.Increment(ref _nextSegmentId),
-                    splitStart,
-                    segment.End);
+                var split = new DownloadSegment(Interlocked.Increment(ref _nextSegmentId), splitStart, segment.End)
+                {
+                    SourceIndex = segment.SourceIndex,
+                    FailureCount = segment.FailureCount,
+                    SlowRecoveries = segment.SlowRecoveries
+                };
                 segment.End = splitStart - 1;
+                Interlocked.Increment(ref _outstandingSegments);
                 _segments.Writer.TryWrite(segment);
                 _segments.Writer.TryWrite(split);
-                Interlocked.Increment(ref _outstandingSegments);
             }
             else
             {
@@ -344,39 +352,28 @@ internal sealed class AdaptiveRangeDownloader
             return true;
         }
 
-        private async Task DownloadSegmentAsync(
-            DownloadSegment segment,
-            CancellationToken cancellationToken)
+        private async Task DownloadSegmentAsync(DownloadSegment segment, CancellationToken cancellationToken)
         {
-            using var connection = await DownloadResourceManager
-                .AcquireConnectionAsync(_owner._url, cancellationToken)
+            var url = _owner._urls[segment.SourceIndex];
+            using var connection = await DownloadResourceManager.AcquireConnectionAsync(url, cancellationToken)
                 .ConfigureAwait(false);
             Interlocked.Increment(ref _activeConnections);
-            var startedAt = Stopwatch.GetTimestamp();
             var attemptBytes = 0L;
             try
             {
-                using var request = _owner.CreateRequest(
-                    HttpMethod.Get,
-                    DownloadRequestKind.RangeSegment);
+                using var request = _owner.CreateRequest(url, HttpMethod.Get, DownloadRequestKind.RangeSegment);
                 request.Headers.Range = new RangeHeaderValue(segment.CurrentOffset, segment.End);
-                using var response = await FileDownloader
-                    .SendDownloadRequestAsync(
-                        _owner._url,
-                        request,
-                        cancellationToken)
-                    .ConfigureAwait(false);
+                using var response = await FileDownloader.SendDownloadRequestAsync(url, request,
+                    cancellationToken).ConfigureAwait(false);
                 ValidateRangeResponse(response, segment);
+                _owner.ValidateRepresentation(response);
 
-                await using var input = await response
-                    .Content.ReadAsStreamAsync(cancellationToken)
-                    .ConfigureAwait(false);
-                using var readTimeout =
-                    CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                using var bufferLease = await DownloadResourceManager
-                    .RentBufferAsync(BufferSize, cancellationToken)
+                await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                using var readTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                using var bufferLease = await DownloadResourceManager.RentBufferAsync(BufferSize, cancellationToken)
                     .ConfigureAwait(false);
                 var buffer = bufferLease.Buffer;
+                var startedAt = Stopwatch.GetTimestamp();
 
                 while (segment.Remaining > 0)
                 {
@@ -384,15 +381,13 @@ internal sealed class AdaptiveRangeDownloader
                     readTimeout.CancelAfter(ReadTimeoutMilliseconds);
                     try
                     {
-                        read = await input
-                            .ReadAsync(buffer.AsMemory(0, BufferSize), readTimeout.Token)
-                            .ConfigureAwait(false);
+                        read = await input.ReadAsync(buffer.AsMemory(0, BufferSize), readTimeout.Token)
+                                .ConfigureAwait(false);
                     }
-                    catch (OperationCanceledException) when (!cancellationToken
-                                                                 .IsCancellationRequested
-                                                             && readTimeout.IsCancellationRequested)
+                    catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested &&
+                                                           readTimeout.IsCancellationRequested)
                     {
-                        throw new SlowSegmentException("分段在等待数据时超时");
+                        throw new IOException("分段在等待数据时超时", ex);
                     }
                     finally
                     {
@@ -403,16 +398,9 @@ internal sealed class AdaptiveRangeDownloader
                         break;
                     read = (int)Math.Min(read, segment.Remaining);
 
-                    await DownloadResourceManager
-                        .ThrottleAsync(read, cancellationToken)
-                        .ConfigureAwait(false);
-                    await RandomAccess
-                        .WriteAsync(
-                            _fileHandle,
-                            buffer.AsMemory(0, read),
-                            segment.CurrentOffset,
-                            cancellationToken)
-                        .ConfigureAwait(false);
+                    await DownloadResourceManager.ThrottleAsync(read, cancellationToken).ConfigureAwait(false);
+                    await RandomAccess.WriteAsync(_fileHandle, buffer.AsMemory(0, read), segment.CurrentOffset,
+                        cancellationToken).ConfigureAwait(false);
                     DownloadResourceManager.RecordDownloadedBytes(read);
 
                     segment.Downloaded += read;
@@ -430,15 +418,11 @@ internal sealed class AdaptiveRangeDownloader
             {
                 _rates.TryRemove(segment.Id, out _);
                 var activeConnections = Interlocked.Decrement(ref _activeConnections);
-                ReportProgress(Interlocked.Read(ref _downloadedBytes), activeConnections, true);
+                ReportProgress(Interlocked.Read(ref _downloadedBytes), activeConnections, force: true);
             }
         }
 
-        private void ReportRateAndProgress(
-            DownloadSegment segment,
-            long attemptBytes,
-            long startedAt,
-            long downloaded)
+        private void ReportRateAndProgress(DownloadSegment segment, long attemptBytes, long startedAt, long downloaded)
         {
             var now = Stopwatch.GetTimestamp();
             var elapsedSeconds = Math.Max(0.001, (double)(now - startedAt) / Stopwatch.Frequency);
@@ -454,24 +438,21 @@ internal sealed class AdaptiveRangeDownloader
             ReportProgress(downloaded, Volatile.Read(ref _activeConnections));
         }
 
-        private bool IsSignificantlySlow(
-            DownloadSegment segment,
-            long attemptBytes,
-            long startedAt,
-            long now)
+        private bool IsSignificantlySlow(DownloadSegment segment, long attemptBytes, long startedAt, long now)
         {
-            if (NetFacade.NetTaskSpeedLimitHigh > 0 || segment.Remaining < MinimumRestartRemaining)
+            if (NetFacade.NetTaskSpeedLimitHigh > 0 || segment.Remaining < DownloadRecoveryPolicy.MinimumRecoveryRemaining ||
+                segment.SlowRecoveries >= DownloadRecoveryPolicy.GetMaxSlowRecoveries(_owner._urls.Count))
                 return false;
 
             var elapsedSeconds = (double)(now - startedAt) / Stopwatch.Frequency;
-            if (elapsedSeconds < SlowCheckSeconds)
+            if (elapsedSeconds < DownloadRecoveryPolicy.SlowCheckSeconds)
                 return false;
+            if (DownloadRecoveryPolicy.IsSlow(attemptBytes, elapsedSeconds, segment.Remaining))
+                return true;
 
-            var rates = _rates
-                .Where(pair =>
-                    pair.Key != segment.Id
-                    && now - pair.Value.UpdatedAt <= Stopwatch.Frequency * 2
-                    && pair.Value.BytesPerSecond > 0)
+            var rates = _rates.Where(pair => pair.Key != segment.Id &&
+                                             now - pair.Value.UpdatedAt <= Stopwatch.Frequency * 2 &&
+                                             pair.Value.BytesPerSecond > 0)
                 .Select(pair => pair.Value.BytesPerSecond)
                 .ToArray();
             if (rates.Length == 0)
@@ -485,18 +466,14 @@ internal sealed class AdaptiveRangeDownloader
             var ownRate = attemptBytes / elapsedSeconds;
 
             // 确保至少一个分片的速度更高，当所有连接都被同一个源限速时，不会让所有分片一起反复重启
-            var hasClearlyFasterSegment =
-                fastest >= ClearlyFastSegmentBytesPerSecond && ownRate * 4 < fastest;
+            var hasClearlyFasterSegment = fastest >= ClearlyFastSegmentBytesPerSecond && ownRate * 4 < fastest;
             var relativelySlow = median >= ClearlyFastSegmentBytesPerSecond && ownRate * 4 < median;
-            var absolutelySlow = ownRate < SlowSpeedBytesPerSecond && hasClearlyFasterSegment;
-            return relativelySlow || absolutelySlow;
+            return relativelySlow || hasClearlyFasterSegment;
         }
 
         private void AddCompletedRate(long attemptBytes, long startedAt)
         {
-            var elapsedSeconds = Math.Max(
-                0.001,
-                (double)(Stopwatch.GetTimestamp() - startedAt) / Stopwatch.Frequency);
+            var elapsedSeconds = Math.Max(0.001, (double)(Stopwatch.GetTimestamp() - startedAt) / Stopwatch.Frequency);
             _completedRates.Enqueue(attemptBytes / elapsedSeconds);
             while (_completedRates.Count > 8)
                 _completedRates.TryDequeue(out _);
@@ -511,11 +488,7 @@ internal sealed class AdaptiveRangeDownloader
                     return;
 
                 var elapsed = Math.Max(1L, now - _lastProgressTick);
-                var speed = Math.Max(
-                    0L,
-                    (long)((downloaded - _lastProgressBytes)
-                        * (double)Stopwatch.Frequency
-                        / elapsed));
+                var speed = Math.Max(0L, (long)((downloaded - _lastProgressBytes) * (double)Stopwatch.Frequency / elapsed));
                 _owner.NotifyProgress(downloaded, activeConnections, force);
                 if (_owner._trackedFile is not null)
                     _owner._trackedFile.Speed = speed;
@@ -528,14 +501,11 @@ internal sealed class AdaptiveRangeDownloader
         private void ValidateRangeResponse(HttpResponseMessage response, DownloadSegment segment)
         {
             if (response.StatusCode != HttpStatusCode.PartialContent)
-                throw new RangeNotSupportedException(
-                    $"服务器未按 Range 返回分段，状态码：{(int)response.StatusCode}");
+                throw new RangeNotSupportedException($"服务器未按 Range 返回分段，状态码：{(int)response.StatusCode}");
 
             var range = response.Content.Headers.ContentRange;
-            if (range?.Unit != "bytes"
-                || range.From != segment.CurrentOffset
-                || range.To != segment.End
-                || range.Length != _totalSize)
+            if (range?.Unit != "bytes" || range.From != segment.CurrentOffset || range.To != segment.End ||
+                range.Length != _totalSize)
                 throw new RangeNotSupportedException("服务器返回的 Content-Range 与请求分段不一致");
         }
 
@@ -543,6 +513,5 @@ internal sealed class AdaptiveRangeDownloader
     }
 
     private sealed class SlowSegmentException(string message) : IOException(message);
-
     private sealed class RangeNotSupportedException(string message) : Exception(message);
 }

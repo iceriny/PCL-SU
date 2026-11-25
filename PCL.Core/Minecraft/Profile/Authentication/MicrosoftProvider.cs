@@ -143,7 +143,7 @@ public sealed class MicrosoftProvider : IAuthenticateProvider
         if (string.IsNullOrWhiteSpace(userHash))
             throw new IdentityModelAuthenticationException("xsts_missing_user_hash", "XSTS response did not contain a user hash.");
 
-        var minecraft = await MojangUtils.AuthenticateAsync(xsts.Token, userHash, token).ConfigureAwait(false)
+        var minecraft = await MojangUtils.AuthenticateAsync(xsts.Token, userHash, token, _clientId).ConfigureAwait(false)
                         ?? throw new IdentityModelAuthenticationException("minecraft_authentication_failed", "Minecraft authentication returned no token.");
         if (string.IsNullOrWhiteSpace(minecraft.AccessToken))
             throw new IdentityModelAuthenticationException("minecraft_authentication_failed", "Minecraft access token is empty.");

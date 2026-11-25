@@ -14,9 +14,7 @@ using PCL.Core.ViewModel;
 using PCL.Navigation;
 using PCL.Views.Pages.Launch;
 // ReSharper disable once RedundantUsingDirective
-using PCL.Core.IO.Net;
 // ReSharper disable once RedundantUsingDirective
-using PCL.Core.Minecraft.Profile;
 
 namespace PCL;
 
@@ -464,7 +462,7 @@ public partial class PageInstanceSetupViewModel : ViewModelBase
         var editable = Instance is null || !Config.InstanceAuth.AuthLocked[Instance.PathInstance];
         AuthVisible = visible;
         AuthEditable = editable;
-        NewProfileVisible = visible && CanCreateOtherProfile();
+        NewProfileVisible = visible;
         AuthLockVisible = type is not (0 or 1);
         AuthLockEnabled = editable;
         LoginLockVisible = !editable;
@@ -664,8 +662,6 @@ public partial class PageInstanceSetupViewModel : ViewModelBase
     [RelayCommand]
     public void CreateServerProfile()
     {
-        if (!CanCreateOtherProfile())
-            return;
         PageLoginAuth.PendingAuthServer = AuthServerAddress;
         PageRouter.Navigate(PageIds.Launch);
         LauncherCommon.RunInNewThread(
@@ -679,24 +675,6 @@ public partial class PageInstanceSetupViewModel : ViewModelBase
             },
             "Instance Auth Profile",
             ThreadPriority.BelowNormal);
-    }
-
-    public static bool CanCreateOtherProfile()
-    {
-#if DEBUG || DEBUGCI
-        return true;
-#else
-        try
-        {
-            return ProfileService.HasMicrosoftProfile
-                   || (Lang.IsFeaturesUnrestricted && ProfileService.Profiles.Count > 0)
-                   || !NetworkHelper.IsNetworkAvailable();
-        }
-        catch
-        {
-            return false;
-        }
-#endif
     }
 
     public async Task<bool> ApplyRendererAsync(int index)

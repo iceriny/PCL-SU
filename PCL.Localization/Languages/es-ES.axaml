@@ -10,4 +10,8 @@
     <sys:String x:Key="Meta.Code">es-ES</sys:String>
     <sys:String x:Key="Meta.Name">Español (España)</sys:String>
 
+    <sys:String x:Key="Download.Comp.Dependency.Check.Scanning">Comprobando mods instalados: {0}/{1}</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Resolving">Resolviendo dependencias necesarias: {0} comprobadas, {1} encontradas</sys:String>
+    <sys:String x:Key="Download.Comp.Dependency.Check.Satisfied">Todas las dependencias necesarias están instaladas. Puedes descargar este mod.</sys:String>
+
 </ResourceDictionary>

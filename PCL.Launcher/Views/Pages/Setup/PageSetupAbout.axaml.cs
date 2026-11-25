@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using PCL.Core.App;
 using PCL.Core.App.Localization;
+using PCL.Core.Link.Natayark;
 using PCL.Core.UI.Hints;
 using PCL.Navigation;
 using PCL.UI.Controls;
@@ -30,12 +31,11 @@ public partial class PageSetupAbout : MyPageRight
         BtnContributors.Click += (_, _) =>
             Basics.OpenPath("https://github.com/PCL-Community/PCL2-CE/graphs/contributors");
         BtnCommunitySource.Click +=
-            (_, _) => Basics.OpenPath("https://github.com/PCL-Community/PCL2-CE");
-        BtnCommunityLobbyPrivacy.Click += (_, _) =>
-            Basics.OpenPath("https://www.pclc.cc/privacy/personal-info-brief.html");
+            (_, _) => Basics.OpenPath("https://github.com/iceriny/PCL-SU");
+        BtnNatayarkTerms.IsVisible = NatayarkProfileManager.IsConfigured;
         BtnNatayarkTerms.Click += (_, _) => Basics.OpenPath("https://account.naids.com/policy");
         BtnUpstreamTerms.Click +=
-            (_, _) => Basics.OpenPath("https://shimo.im/docs/rGrd8pY8xWkt6ryW");
+            (_, _) => Basics.OpenPath("https://github.com/iceriny/PCL-SU/blob/dev/PCL.Launcher/LICENCE");
         BtnUpstreamSource.Click += (_, _) => Basics.OpenPath("https://github.com/Meloong-Git/PCL");
         BtnSponsorMirror.Click += (_, _) => Basics.OpenPath("https://afdian.com/a/bangbang93");
         BtnMcmod.Click += (_, _) => Basics.OpenPath("https://www.mcmod.cn");

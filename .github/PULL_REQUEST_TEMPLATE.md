@@ -1,13 +1,9 @@
 <!--
 感谢你的贡献！提交前请先阅读：
-- 开发环境配置：https://docs.pclc.cc/ce/developers/setup
-- 技术规范：https://docs.pclc.cc/ce/developers/guidelines
-- 生成式人工智能使用方针：https://docs.pclc.cc/ce/developers/ai-policy
+- 贡献指南：https://github.com/iceriny/PCL-SU/blob/dev/CONTRIBUTING.md
 
 Thank you for your contribution! Before submitting, please read:
-- Development Environment Setup: https://docs.pclc.cc/en/ce/developers/setup
-- Technical Guidelines: https://docs.pclc.cc/en/ce/developers/guidelines
-- Generative Artificial Intelligence Usage Policy: https://docs.pclc.cc/en/ce/developers/ai-policy
+- Contribution Guide: https://github.com/iceriny/PCL-SU/blob/dev/CONTRIBUTING.md
 
 请将目标分支设为 dev，并确保所有提交均已签名。
 Please target the dev branch and make sure all commits are signed.
@@ -43,7 +39,7 @@ When generative artificial intelligence is used, append a model identifier to th
 
 ### 提交前检查 / Checklist
 
-- [ ] 我已阅读并遵守 [技术规范](https://docs.pclc.cc/ce/developers/guidelines) 和 [生成式人工智能使用方针](https://docs.pclc.cc/ce/developers/ai-policy)。/ I have read and followed the [Technical Guidelines](https://docs.pclc.cc/ce/developers/guidelines) and the [Generative Artificial Intelligence Usage Policy](https://docs.pclc.cc/ce/developers/ai-policy).
+- [ ] 我已阅读并遵守 [贡献指南](https://github.com/iceriny/PCL-SU/blob/dev/CONTRIBUTING.md)。/ I have read and followed the [Contribution Guide](https://github.com/iceriny/PCL-SU/blob/dev/CONTRIBUTING.md).
 - [ ] 我能解释本次修改的全部内容，包括关键逻辑、异常处理和已知限制。/ I can explain all changes, including key logic, error handling, and known limitations.
 - [ ] 我确认未伪造日志、测试结果、基准数据或其他证据。/ I confirm that no logs, test results, benchmarks, or other evidence have been fabricated.
 - [ ] 本次提交不包含与修改无关的文件变更，也未提交临时文件或构建产物。/ The PR contains no unrelated changes, temporary files, or build artifacts.

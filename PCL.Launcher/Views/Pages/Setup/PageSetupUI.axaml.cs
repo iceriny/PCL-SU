@@ -383,7 +383,7 @@ public partial class PageSetupUI : MyPageRight, ISetupResetPage
             CustomEventService.SetEventData(
                 HintCustom,
                 type == 2
-                    ? "https://github.com/PCL-Community/PCL-CE/discussions"
+                    ? "https://github.com/iceriny/PCL-SU/issues"
                     : "");
         }
 
