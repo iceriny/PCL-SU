@@ -74,7 +74,7 @@ public static class GameFolders
     {
         try
         {
-            var cacheMcFolderList = _LoadCustomFolders();
+            var cacheMcFolderList = LoadCustomFolders(States.Game.Folders);
             var originalMcFolderList = _ScanOriginalFolders();
 
             LauncherCommon.Log(
@@ -102,11 +102,11 @@ public static class GameFolders
         }
     }
 
-    private static List<McFolder> _LoadCustomFolders()
+    internal static List<McFolder> LoadCustomFolders(string folderConfig)
     {
         var cacheMcFolderList = new List<McFolder>();
 
-        foreach (var folder in States.Game.Folders.Split('|', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var folder in folderConfig.Split('|', StringSplitOptions.RemoveEmptyEntries))
         {
             var parts = folder.Split('>', 2);
             if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[1]))
@@ -120,6 +120,9 @@ public static class GameFolders
             var path = ExpandSelectedFolder(parts[1]);
             try
             {
+                if (cacheMcFolderList.Any(existing => Files.ArePathsEqual(existing.Location, path)))
+                    continue;
+
                 _EnsureLauncherOwnedFolder(path);
                 Directories.EnsureWritable(path);
                 cacheMcFolderList.Add(

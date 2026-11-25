@@ -28,11 +28,13 @@ public partial class PageSelectLeftViewModel : ViewModelBase
     public bool RefreshFolders(bool force = false)
     {
         var snapshot = GameFolders.mcFolderList.ToList();
-        var selected = snapshot.FirstOrDefault(folder =>
-            folder.Location == GameFolders.mcFolderSelected);
-        if (selected is null && snapshot.Count > 0)
+        var selectedPath = GameFolders.mcFolderSelected;
+        var selected = string.IsNullOrEmpty(selectedPath)
+            ? null
+            : snapshot.FirstOrDefault(folder => Files.ArePathsEqual(folder.Location, selectedPath));
+        selected ??= snapshot.FirstOrDefault();
+        if (selected is not null && selected.Location != selectedPath)
         {
-            selected = snapshot[0];
             States.Game.SelectedFolder = GameFolders.EncodeSelectedFolder(selected.Location);
             GameFolders.ApplySelectedFolder(selected.Location);
         }
@@ -68,9 +70,7 @@ public partial class PageSelectLeftViewModel : ViewModelBase
     public static string GetDeleteMenuKey(GameFolders.McFolder folder)
     {
         return GameFolders.mcFolderList.Count == 1
-            && folder.Location
-            == LauncherPaths.DefaultMinecraftDirectory
-            + Path.DirectorySeparatorChar
+            && Files.ArePathsEqual(folder.Location, LauncherPaths.DefaultMinecraftDirectory)
                 ? "Select.Folder.Clear"
                 : "Common.Action.Delete";
     }
@@ -79,16 +79,15 @@ public partial class PageSelectLeftViewModel : ViewModelBase
     {
         return folder.Type is GameFolders.McFolder.Types.Original
                 or GameFolders.McFolder.Types.RenamedOriginal
-            && folder.Location
-            == LauncherPaths.DefaultMinecraftDirectory
-            + Path.DirectorySeparatorChar
+            && Files.ArePathsEqual(folder.Location, LauncherPaths.DefaultMinecraftDirectory)
             && GameFolders.mcFolderList.Count == 1;
     }
 
     /// <summary>切换当前文件夹；被下载任务阻止时返回 <c>false</c>，调用方需要恢复选中状态。</summary>
     public bool SelectFolder(GameFolders.McFolder folder)
     {
-        if (folder.Location == GameFolders.mcFolderSelected)
+        if (GameFolders.mcFolderSelected is { Length: > 0 } selectedPath
+            && Files.ArePathsEqual(folder.Location, selectedPath))
             return true;
 
         if (NetFacade.HasDownloadingTask(true))
@@ -490,7 +489,8 @@ public partial class PageSelectLeftViewModel : ViewModelBase
         if (string.IsNullOrEmpty(folder))
             return;
         Ini.Write(Path.Combine(folder, "PCL.ini"), "InstanceCache", "");
-        if (folder == GameFolders.mcFolderSelected)
+        if (GameFolders.mcFolderSelected is { Length: > 0 } selectedPath
+            && Files.ArePathsEqual(folder, selectedPath))
             ReloadInstanceList(true);
     }
 
@@ -563,8 +563,11 @@ public partial class PageSelectLeftViewModel : ViewModelBase
                     var folder = folders[i];
                     if (string.IsNullOrEmpty(folder))
                         continue;
-                    var parts = folder.Split('>');
-                    if (parts.Length < 2 || parts[1] != folderPath)
+                    var parts = folder.Split('>', 2);
+                    if (parts.Length != 2)
+                        continue;
+                    var existingPath = GameFolders.ExpandSelectedFolder(parts[1]);
+                    if (existingPath.Length == 0 || !Files.ArePathsEqual(existingPath, folderPath))
                         continue;
                     isAdded = true;
                     if (parts[0] == displayName)
@@ -574,6 +577,7 @@ public partial class PageSelectLeftViewModel : ViewModelBase
                         return;
                     }
 
+                    folderPath = existingPath;
                     folders[i] = $"{displayName}>{folderPath}";
                     isReplace = true;
                     if (showHint)
@@ -646,14 +650,13 @@ public partial class PageSelectLeftViewModel : ViewModelBase
 
         var separator = Path.DirectorySeparatorChar;
         var location = folder.Location;
-        var minecraftFolder =
-            LauncherPaths.DefaultMinecraftDirectory + separator;
+        var minecraftFolder = LauncherPaths.DefaultMinecraftDirectory;
         var mojangFolder = LauncherPaths.OfficialMinecraftDirectory;
         string name;
-        if (location == minecraftFolder
-            || location == LauncherPaths.UserDataRoot)
+        if (Files.ArePathsEqual(location, minecraftFolder)
+            || Files.ArePathsEqual(location, LauncherPaths.UserDataRoot))
             name = GameFolders.McFolder.BuiltinNamePrefix + "Select.Folder.CurrentFolder";
-        else if (location == mojangFolder)
+        else if (Files.ArePathsEqual(location, mojangFolder))
             name = GameFolders.McFolder.BuiltinNamePrefix + "Select.Folder.OfficialLauncherFolder";
         else
             name = Path.GetFileName(location.TrimEnd(separator));

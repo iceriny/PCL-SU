@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PCL.Core.App;
 using PCL.Core.App.Localization;
+using PCL.Core.IO;
 using PCL.Core.Minecraft.Profile;
 using PCL.Core.Minecraft.Profile.Models;
 using PCL.Core.UI.Hints;
@@ -550,6 +551,14 @@ public partial class PageLaunchLeftViewModel : ViewModelBase
         var folderPath = GameFolders.ExpandSelectedFolder(States.Game.SelectedFolder);
         if (!string.IsNullOrEmpty(folderPath) && Directory.Exists(folderPath))
         {
+            var listedPath = GameFolders.mcFolderList.FirstOrDefault(folder =>
+                Files.ArePathsEqual(folder.Location, folderPath))?.Location;
+            if (listedPath is not null && listedPath != folderPath)
+            {
+                folderPath = listedPath;
+                States.Game.SelectedFolder = GameFolders.EncodeSelectedFolder(folderPath);
+            }
+
             GameFolders.mcFolderSelected = folderPath;
             return folderPath;
         }

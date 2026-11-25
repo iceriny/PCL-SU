@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -6,6 +7,37 @@ namespace PCL.Core.Test;
 [TestClass]
 public sealed class GameFoldersTest
 {
+    [TestMethod]
+    public void LoadCustomFoldersMergesPathsUsingPlatformCaseRules()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "pcl-game-folders-" + Guid.NewGuid().ToString("N"));
+        var originalPath = Path.Combine(root, "Game");
+        var alternatePath = Path.Combine(root, "game");
+        var otherPath = Path.Combine(root, "Other");
+
+        try
+        {
+            Directory.CreateDirectory(originalPath);
+            Directory.CreateDirectory(alternatePath);
+            Directory.CreateDirectory(otherPath);
+
+            var folders = GameFolders.LoadCustomFolders(
+                $"First>{originalPath}|Duplicate>{alternatePath}{Path.DirectorySeparatorChar}|Other>{otherPath}");
+
+            CollectionAssert.AreEqual(
+                OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+                    ? new[] { "First", "Other" }
+                    : new[] { "First", "Duplicate", "Other" },
+                folders.ConvertAll(folder => folder.Name));
+            Assert.AreEqual(originalPath + Path.DirectorySeparatorChar, folders[0].Location);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
     [TestMethod]
     public void ApplySelectedFolderExpandsPlaceholderAndIgnoresEmpty()
     {
